@@ -3,6 +3,9 @@ dist/
 .turbo/
 coverage/
 .pi/notes-bridge/
+
+# Source mirrors are committed; dependency installs inside them are not.
+.agent-sources/**/node_modules/
 .pi-subagents/
 *.log
 .DS_Store

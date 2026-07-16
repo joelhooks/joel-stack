@@ -64,6 +64,10 @@ Every dependency is pinned exactly. Upgrade pins as a reviewed stack change, not
 | `npm run cli -- ...` | Build and run the CLI |
 | `npx turbo run check test build` | Run the cached verification pipeline |
 
+## Agentic surface
+
+Every clone includes `AGENTS.md` for repo law and commands, `CLAUDE.md` as Claude Code's pointer to that law, and `VISION.md` for project intent and decision boundaries. Maintained source mirrors belong in `.agent-sources/` as committed, squashed Git subtrees; the included manifest documents the add/pull convention without vendoring an upstream repo by default. Repo-local Pi extensions belong in `.pi/extensions/`; the included scaffold is inert until you deliberately activate it.
+
 ## Make it yours
 
 1. Rename the package and `bin` entry in `package.json`.
