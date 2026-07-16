@@ -29,6 +29,7 @@
     "xstate": "5.32.5"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.9",
     "@types/node": "24.13.3",
     "oxfmt": "0.59.0",
     "oxlint": "1.74.0",

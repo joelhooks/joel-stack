@@ -66,7 +66,7 @@ Every dependency is pinned exactly. Upgrade pins as a reviewed stack change, not
 
 ## Agentic surface
 
-Every clone includes `AGENTS.md` for repo law and commands, `CLAUDE.md` as Claude Code's pointer to that law, and `VISION.md` for project intent and decision boundaries. Maintained source mirrors belong in `.agent-sources/` as committed, squashed Git subtrees; the included manifest documents the add/pull convention without vendoring an upstream repo by default. Repo-local Pi extensions belong in `.pi/extensions/`; the included scaffold is inert until you deliberately activate it.
+Every clone includes `AGENTS.md` for repo law and commands, `CLAUDE.md` as Claude Code's pointer to that law, and `VISION.md` for project intent and decision boundaries. Maintained source mirrors belong in `.agent-sources/` as committed, squashed Git subtrees; the included manifest documents the add/pull convention without vendoring an upstream repo by default. Repo-local Pi extensions belong in `.pi/extensions/`; the included `project.ts` is live but quiet — one `/project-status` command, nothing at startup — and is the place to grow project behavior. `.pi/APPEND_SYSTEM.md` carries project context Pi appends to its system prompt.
 
 ## Make it yours
 

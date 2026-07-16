@@ -1,6 +1,6 @@
 # Agent instructions
 
-This file is the repo law for agents and contributors. Keep commands, validation rules, architecture constraints, and project-specific stop rules here. Read `VISION.md` for product intent before planning substantial work.
+This file is the repo law for agents and contributors. Keep commands, validation rules, architecture constraints, and project-specific stop rules here. Read `VISION.md` for product intent before planning substantial work. Pi sessions also load `.pi/APPEND_SYSTEM.md` (project context) and the live repo-local extension `.pi/extensions/project.ts`.
 
 ## Stack contract
 

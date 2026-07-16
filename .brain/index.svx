@@ -1,0 +1,7 @@
+# Project Brain
+
+The rendered Brain index is programmatic.
+
+Open `/notes` in the local pi-notes Document Host to browse entries sorted by PARA.
+
+Do not maintain a manual page list here; `.brain/**/*.svx` is discovered automatically.
