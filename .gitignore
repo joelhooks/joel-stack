@@ -3,6 +3,9 @@ dist/
 .turbo/
 coverage/
 .pi/notes-bridge/
+# pi-notes regenerates this default on startup; canonical Brain procedures
+# live in .pi/APPEND_SYSTEM.md
+BRAIN.md
 
 # Source mirrors are committed; dependency installs inside them are not.
 .agent-sources/**/node_modules/
