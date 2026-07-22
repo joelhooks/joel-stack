@@ -7,7 +7,7 @@ This file is the repo law for agents and contributors. Keep commands, validation
 The pinned stack is declared in `package.json` and summarized in [README.md](./README.md#what-is-in-the-stack). Keep dependencies exact. Repo-local config wins; note drift instead of silently migrating the project.
 
 - Node `24.18.0` and npm `11.16.0`; do not replace npm with Bun.
-- Effect `4.0.0-beta.98` and `@effect/platform-node` `4.0.0-beta.98`.
+- Effect `4.0.0-beta.99` and `@effect/platform-node` `4.0.0-beta.99`.
 - XState `5.32.5` for finite lifecycles, retries, cancellation, and resumability.
 - TypeScript `7.0.2` in strict mode.
 - Oxlint `1.74.0` with Ultracite `7.9.4`, Oxfmt `0.59.0`, and Turborepo `2.10.5`.

@@ -39,13 +39,13 @@ The command demonstrates typed arguments, generated help, a typed filesystem err
 
 ## What is in the stack?
 
-- **Effect `4.0.0-beta.98`** provides the typed runtime, errors, filesystem service, and CLI model. The parser comes from `effect/unstable/cli`; the separate `@effect/cli` package is still on the Effect v3 line. Effect v4 is an exact beta pin on purpose.
-- **`@effect/platform-node` `4.0.0-beta.98`** supplies Node-backed services and the process runner. Adapter and core versions stay matched.
+- **Effect `4.0.0-beta.99`** provides the typed runtime, errors, filesystem service, and CLI model. The parser comes from `effect/unstable/cli`; the separate `@effect/cli` package is still on the Effect v3 line. Effect v4 is an exact beta pin on purpose.
+- **`@effect/platform-node` `4.0.0-beta.99`** supplies Node-backed services and the process runner. Adapter and core versions stay matched.
 - **TypeScript `7.0.2`** runs with strict module and index-access checks. The linter owns unused-code policy; TypeScript owns type and module safety.
 - **XState `5.32.5`** is ready for commands that grow real lifecycle states, retries, cancellation, or resumability. Do not replace those states with a pile of booleans.
 - **Oxlint `1.74.0` + Ultracite `7.9.4`** provide native, type-aware linting. `oxlint-tsgolint` enables the type-aware rules without experimental compiler diagnostics.
 - **Oxfmt `0.59.0`** supplies one formatter shared with the Ultracite preset.
-- **Vitest `4.1.10`** runs fast unit and Effect integration tests. The tests use Effect directly because the current `@effect/vitest` release peers on Effect v3 and Vitest v3.
+- **Vitest `4.1.10`** runs fast unit and Effect integration tests. `@effect/vitest@4.0.0-beta.99` now supports Effect v4 beta.99 and Vitest 3 or 4; add it only when its helpers materially improve the tests.
 - **Turborepo `2.10.5`** gives the single package cached `typecheck`, `check`, `test`, and `build` tasks now, without requiring a later task-runner migration.
 - **Node `24.18.0` + npm `11.16.0`** are the runtime. This template does not use Bun.
 
