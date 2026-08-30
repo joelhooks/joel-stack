@@ -9,8 +9,9 @@ export default function projectExtension(pi: ExtensionAPI) {
     handler: (_args, ctx) => {
       const lines = [
         "law: AGENTS.md (via CLAUDE.md @AGENTS.md) · intent: VISION.md",
-        "check: npx turbo run check test · fix: npm run fix",
-        "sources: .agent-sources/ (committed shallow subtrees)",
+        "check: pnpm check && pnpm test · fix: pnpm fix",
+        "fence: no git --no-verify (lefthook + agent hooks)",
+        "sources: .agent_sources/ via pnpm vendor:agent-sources",
       ];
       if (ctx.hasUI) {
         ctx.ui.notify(lines.join("\n"), "info");

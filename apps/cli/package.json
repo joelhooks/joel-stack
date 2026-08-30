@@ -1,0 +1,29 @@
+{
+  "name": "@ts-cli-template/cli",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "ts-cli-template": "./bin/ts-cli-template"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "cli": "pnpm run --silent build && node dist/cli.js",
+    "check": "pnpm run typecheck",
+    "pretest": "pnpm run --silent build",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-rc.112",
+    "@ts-cli-template/core": "workspace:*",
+    "effect": "4.0.0-rc.112",
+    "xstate": "5.32.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

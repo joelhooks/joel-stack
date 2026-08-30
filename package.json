@@ -1,36 +1,26 @@
 {
   "name": "ts-cli-template",
   "version": "0.1.0",
+  "private": true,
   "description": "A strict, batteries-included TypeScript CLI template for Node.js.",
   "license": "MIT",
-  "bin": {
-    "ts-cli-template": "./dist/cli.js"
-  },
-  "files": [
-    "dist"
-  ],
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "check": "npm run typecheck && ultracite check",
-    "cli": "npm run build --silent && node dist/cli.js",
-    "fix": "ultracite fix",
+    "prepare": "lefthook install",
+    "build": "turbo run build",
+    "check": "turbo run typecheck && ultracite check && oxfmt --check .",
+    "cli": "turbo run build --filter=@ts-cli-template/cli && node apps/cli/dist/cli.js",
+    "fix": "ultracite fix && oxfmt .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "prepack": "npm run build",
-    "pretest": "npm run build --silent",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.99",
-    "effect": "4.0.0-beta.99",
-    "xstate": "5.32.5"
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "vendor:agent-sources": "./scripts/vendor-agent-sources.sh"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.80.9",
     "@types/node": "24.13.3",
+    "lefthook": "2.1.10",
     "oxfmt": "0.59.0",
     "oxlint": "1.74.0",
     "oxlint-tsgolint": "0.24.0",
@@ -41,19 +31,19 @@
   },
   "devEngines": {
     "packageManager": {
-      "name": "npm",
-      "version": "11.16.0",
+      "name": "pnpm",
+      "version": "11.3.0",
       "onFail": "error"
     },
     "runtime": {
       "name": "node",
-      "version": ">=24.18.0 <25",
-      "onFail": "error"
+      "version": ">=24.18.0",
+      "onFail": "warn"
     }
   },
   "engines": {
-    "node": ">=24.18.0 <25",
-    "npm": ">=11.16.0 <12"
+    "node": ">=24.18.0",
+    "pnpm": ">=11.1.2"
   },
-  "packageManager": "npm@11.16.0"
+  "packageManager": "pnpm@11.3.0"
 }

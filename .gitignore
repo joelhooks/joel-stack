@@ -7,8 +7,10 @@ coverage/
 # live in .pi/APPEND_SYSTEM.md
 BRAIN.md
 
-# Source mirrors are committed; dependency installs inside them are not.
-.agent-sources/**/node_modules/
+# Shallow source mirrors (populate via ./scripts/vendor-agent-sources.sh)
+.agent_sources/github.com/
+.agent-sources/
+
 .pi-subagents/
 *.log
 .DS_Store

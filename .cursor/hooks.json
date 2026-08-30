@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node scripts/hooks/block-git-no-verify.mjs",
+        "matcher": "git",
+        "failClosed": true
+      }
+    ]
+  }
+}

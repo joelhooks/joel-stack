@@ -6,7 +6,7 @@ import { NodeServices } from "@effect/platform-node";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { readFileStats, summarizeText } from "../src/stats.js";
+import { readFileStats, summarizeText } from "../src/index.js";
 
 const temporaryDirectories: string[] = [];
 

@@ -8,12 +8,13 @@ export interface FileStats {
   readonly words: number;
 }
 
-export class FileStatsError extends Schema.TaggedErrorClass<FileStatsError>(
-  "ts-cli-template/FileStatsError"
-)("FileStatsError", {
-  path: Schema.String,
-  reason: Schema.String,
-}) {
+export class FileStatsError extends Schema.TaggedError<FileStatsError>()(
+  "FileStatsError",
+  {
+    path: Schema.String,
+    reason: Schema.String,
+  }
+) {
   override readonly [Runtime.errorExitCode] = 1;
   override readonly [Runtime.errorReported] = false;
 

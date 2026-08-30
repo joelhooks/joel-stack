@@ -1,9 +1,21 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
-    "typecheck": { "outputs": [] },
-    "check": { "dependsOn": ["typecheck"], "outputs": [] },
-    "test": { "outputs": [] },
-    "build": { "outputs": ["dist/**"] }
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "check": {
+      "dependsOn": ["typecheck"],
+      "outputs": []
+    }
   }
 }

@@ -1,7 +1,6 @@
+import { formatFileStats, readFileStats } from "@ts-cli-template/core";
 import { Console, Effect } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
-
-import { formatFileStats, readFileStats } from "./stats.js";
 
 export const VERSION = "0.1.0";
 
