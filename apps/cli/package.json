@@ -19,7 +19,7 @@
     "@effect/platform-node": "4.0.0-rc.115",
     "@ts-cli-template/core": "workspace:*",
     "effect": "4.0.0-rc.115",
-    "xstate": "5.33.2"
+    "xstate": "6.0.0-alpha.58"
   },
   "devDependencies": {
     "@types/node": "24.13.5",

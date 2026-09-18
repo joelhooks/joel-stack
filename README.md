@@ -50,7 +50,7 @@ node apps/cli/dist/cli.js stats README.md
 - **Effect `4.0.0-rc.115`** — typed runtime, errors, filesystem service, CLI model (`effect/unstable/cli`).
 - **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
-- **XState `5.33.2`** — ready for real lifecycle states; do not replace those with boolean soup.
+- **XState `6.0.0-alpha.58`** — ready for real lifecycle states; do not replace those with boolean soup.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
 - **Vitest `5.0.1`** — unit and Effect integration tests.
 - **varlock `1.19.0`** — `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.

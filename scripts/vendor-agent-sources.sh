@@ -64,8 +64,8 @@ clone_source Effect-TS effect https://github.com/Effect-TS/effect.git effect@4.0
   "Effect v4 monorepo matching package.json effect@4.0.0-rc.115."
 clone_source kitlangton effect-solutions https://github.com/kitlangton/effect-solutions.git main \
   "Idiomatic Effect patterns guide (Kit Langton)."
-clone_source statelyai xstate https://github.com/statelyai/xstate.git xstate@5.33.2 \
-  "Pinned to package.json xstate@5.33.2."
+clone_source statelyai xstate https://github.com/statelyai/xstate.git xstate@6.0.0-alpha.58 \
+  "Pinned to package.json xstate@6.0.0-alpha.58."
 clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git v2.0.0-beta.74 \
   "Alchemy IaC pinned to v2.0.0-beta.74 (imp-proven). Read alchemy/src/cloudflare/."
 
