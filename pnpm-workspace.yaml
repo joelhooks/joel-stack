@@ -8,3 +8,22 @@ allowBuilds:
   lefthook: true
   msgpackr-extract: true
   protobufjs: true
+  workerd: true
+
+minimumReleaseAgeExclude:
+  - xstate@6.0.0-alpha.58
+  - "@alchemy.run/cloudflare-runtime@2.0.0-beta.78"
+  - "@alchemy.run/floci@2.0.0-beta.78"
+  - "@alchemy.run/node-utils@2.0.0-beta.78"
+  - "@distilled.cloud/aws@1.0.0-rc.12"
+  - "@distilled.cloud/axiom@1.0.0-rc.12"
+  - "@distilled.cloud/cloudflare@1.0.0-rc.12"
+  - "@distilled.cloud/core@1.0.0-rc.12"
+  - "@distilled.cloud/fly-io@1.0.0-rc.12"
+  - "@distilled.cloud/hetzner@1.0.0-rc.12"
+  - "@distilled.cloud/neon@1.0.0-rc.12"
+  - "@distilled.cloud/planetscale@1.0.0-rc.12"
+  - "@distilled.cloud/prisma@1.0.0-rc.12"
+  - "@distilled.cloud/railway@1.0.0-rc.12"
+  - "@distilled.cloud/stripe@1.0.0-rc.12"
+  - alchemy@2.0.0-beta.78

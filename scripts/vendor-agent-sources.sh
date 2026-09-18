@@ -66,7 +66,7 @@ clone_source kitlangton effect-solutions https://github.com/kitlangton/effect-so
   "Idiomatic Effect patterns guide (Kit Langton)."
 clone_source statelyai xstate https://github.com/statelyai/xstate.git xstate@6.0.0-alpha.58 \
   "Pinned to package.json xstate@6.0.0-alpha.58."
-clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git v2.0.0-beta.74 \
-  "Alchemy IaC pinned to v2.0.0-beta.74 (imp-proven). Read alchemy/src/cloudflare/."
+clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git v2.0.0-beta.78 \
+  "Alchemy IaC pinned to v2.0.0-beta.78 (imp-proven). Read alchemy/src/cloudflare/."
 
 echo "done — agent sources under ${PREFIX}"

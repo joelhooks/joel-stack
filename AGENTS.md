@@ -10,6 +10,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 - Node `>=24.18.0` and pnpm `11.3.0`; do not replace pnpm with Bun or npm for installs
 - Effect `4.0.0-rc.115` and `@effect/platform-node` `4.0.0-rc.115`
 - XState `6.0.0-alpha.58` for finite lifecycles, retries, cancellation, and resumability
+- Alchemy `2.0.0-beta.78` (Infrastructure as Effects) for every cloud resource; declared in `apps/infra/alchemy.run.ts`, authenticated through Alchemy profiles, never through env vars in this repo
 - TypeScript `7.0.2` in strict mode
 - Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.10.13`
 - varlock `1.19.0`: declare every env var in `.env.schema`, never read `.env.local` directly, run `pnpm env:check` after schema edits
@@ -20,6 +21,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 | --- | --- | --- |
 | `@ts-cli-template/core` | `packages/core` | Domain logic (example: file stats) |
 | `@ts-cli-template/cli` | `apps/cli` | Effect CLI composition root |
+| `@ts-cli-template/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 
 ## Commands
 
@@ -32,6 +34,8 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 | `pnpm build` | Compile packages into `dist/` |
 | `pnpm typecheck` | `turbo run typecheck` |
 | `pnpm vendor:agent-sources` | Shallow-clone Effect, effect-solutions, xstate, and alchemy mirrors |
+| `pnpm infra:plan` | Preview the Alchemy Stack diff without applying |
+| `pnpm infra:deploy` / `pnpm infra:destroy` | Apply or tear down the Stack (asks for approval) |
 | `pnpm exec lefthook install` | Install git hooks (also via `prepare`) |
 | `pnpm turbo run check test build` | Required validation before claiming a change is ready |
 
@@ -65,6 +69,7 @@ Inventory: [`.agent_sources/README.md`](./.agent_sources/README.md).
 | Effect Schema, Context.Service, CLI | `.agent_sources/github.com/Effect-TS/effect/` |
 | Idiomatic Effect | `.agent_sources/github.com/kitlangton/effect-solutions/` |
 | XState | `.agent_sources/github.com/statelyai/xstate/` |
+| Alchemy resources, Cloudflare, AWS | `.agent_sources/github.com/alchemy-run/alchemy/` and https://alchemy.run/llms.txt |
 
 Mirrors are reference material, not runtime dependencies. Exclude them from typecheck, test, lint, and format. Do not vendor product-specific corpora in this template.
 

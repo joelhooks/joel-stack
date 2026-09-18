@@ -27,6 +27,7 @@ Node `24.18.0` and pnpm `11.3.0` are required. The requirement is declared in `.
 | --- | --- | --- |
 | `apps/cli` | `@ts-cli-template/cli` | Effect CLI entry |
 | `packages/core` | `@ts-cli-template/core` | Shared domain example (file stats) |
+| `apps/infra` | `@ts-cli-template/infra` | Alchemy Stack (Cloudflare by default) |
 | `.agent_sources/` | — | Shallow upstream mirrors (gitignored clones; see README there) |
 
 ## Try the example CLI
@@ -51,6 +52,7 @@ node apps/cli/dist/cli.js stats README.md
 - **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
 - **XState `6.0.0-alpha.58`** — ready for real lifecycle states; do not replace those with boolean soup.
+- **Alchemy `2.0.0-beta.78`** — [Infrastructure as Effects](https://alchemy.run): `apps/infra/alchemy.run.ts` is the Stack; `pnpm infra:plan` / `infra:deploy` / `infra:destroy`; auth via `pnpm alchemy profile edit`.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
 - **Vitest `5.0.1`** — unit and Effect integration tests.
 - **varlock `1.19.0`** — `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.
