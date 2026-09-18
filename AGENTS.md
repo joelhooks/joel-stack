@@ -8,10 +8,10 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 
 - pnpm workspaces + Turborepo (`apps/*`, `packages/*`)
 - Node `>=24.18.0` and pnpm `11.3.0`; do not replace pnpm with Bun or npm for installs
-- Effect `4.0.0-rc.112` and `@effect/platform-node` `4.0.0-rc.112`
-- XState `5.32.5` for finite lifecycles, retries, cancellation, and resumability
+- Effect `4.0.0-rc.115` and `@effect/platform-node` `4.0.0-rc.115`
+- XState `5.33.2` for finite lifecycles, retries, cancellation, and resumability
 - TypeScript `7.0.2` in strict mode
-- Oxlint `1.74.0` with Ultracite `7.9.4`, Oxfmt `0.59.0`, and Turborepo `2.10.5`
+- Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.10.13`
 
 ## Packages
 

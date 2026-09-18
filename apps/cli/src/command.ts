@@ -7,11 +7,11 @@ export const VERSION = "0.1.0";
 const statsCommand = Command.make(
   "stats",
   {
-    file: Argument.path("file", {
+    file: Argument.Path("file", {
       mustExist: true,
       pathType: "file",
     }).pipe(Argument.withDescription("File to inspect")),
-    json: Flag.boolean("json").pipe(
+    json: Flag.Boolean("json").pipe(
       Flag.withDescription("Print machine-readable JSON")
     ),
   },

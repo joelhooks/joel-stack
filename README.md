@@ -46,13 +46,13 @@ node apps/cli/dist/cli.js stats README.md
 
 ## What is in the stack?
 
-- **pnpm workspaces + Turborepo `2.10.5`** — cached `typecheck` / `test` / `build` across packages from day one.
-- **Effect `4.0.0-rc.112`** — typed runtime, errors, filesystem service, CLI model (`effect/unstable/cli`).
-- **`@effect/platform-node` `4.0.0-rc.112`** — Node-backed services; keep adapter and core pins matched.
+- **pnpm workspaces + Turborepo `2.10.13`** — cached `typecheck` / `test` / `build` across packages from day one.
+- **Effect `4.0.0-rc.115`** — typed runtime, errors, filesystem service, CLI model (`effect/unstable/cli`).
+- **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
-- **XState `5.32.5`** — ready for real lifecycle states; do not replace those with boolean soup.
+- **XState `5.33.2`** — ready for real lifecycle states; do not replace those with boolean soup.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
-- **Vitest `4.1.10`** — unit and Effect integration tests.
+- **Vitest `5.0.1`** — unit and Effect integration tests.
 - **Vendored agent sources** — Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy) via `./scripts/vendor-agent-sources.sh` (not x-algorithm; that stays app-specific).
 - **Agent fence** — lefthook pre-commit + Pi/Cursor/Claude hooks that block `git … --no-verify`. Cheating should be uncomfortable and obvious.
 
