@@ -14,3 +14,9 @@ BRAIN.md
 .pi-subagents/
 *.log
 .DS_Store
+
+# varlock: keep .env.schema, exclude local values and generated types
+.env
+.env.local
+.env.*.local
+env.d.ts

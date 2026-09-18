@@ -8,14 +8,15 @@
   "scripts": {
     "prepare": "lefthook install",
     "build": "turbo run build",
-    "check": "turbo run typecheck && ultracite check && oxfmt --check .",
+    "check": "varlock load && turbo run typecheck && ultracite check && oxfmt --check .",
     "cli": "turbo run build --filter=@ts-cli-template/cli && node apps/cli/dist/cli.js",
     "fix": "ultracite fix && oxfmt .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "vendor:agent-sources": "./scripts/vendor-agent-sources.sh"
+    "vendor:agent-sources": "./scripts/vendor-agent-sources.sh",
+    "env:check": "varlock load"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
@@ -27,6 +28,7 @@
     "turbo": "2.10.13",
     "typescript": "7.0.2",
     "ultracite": "7.12.0",
+    "varlock": "1.19.0",
     "vitest": "5.0.1"
   },
   "devEngines": {
