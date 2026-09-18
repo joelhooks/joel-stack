@@ -12,6 +12,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 - XState `5.32.5` for finite lifecycles, retries, cancellation, and resumability
 - TypeScript `7.0.2` in strict mode
 - Oxlint `1.74.0` with Ultracite `7.9.4`, Oxfmt `0.59.0`, and Turborepo `2.10.5`
+- varlock `1.19.0`: declare every env var in `.env.schema`, never read `.env.local` directly, run `pnpm env:check` after schema edits
 
 ## Packages
 

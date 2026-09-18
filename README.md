@@ -53,6 +53,7 @@ node apps/cli/dist/cli.js stats README.md
 - **XState `5.32.5`** — ready for real lifecycle states; do not replace those with boolean soup.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
 - **Vitest `4.1.10`** — unit and Effect integration tests.
+- **varlock `1.19.0`** — `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.
 - **Vendored agent sources** — Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy) via `./scripts/vendor-agent-sources.sh` (not x-algorithm; that stays app-specific).
 - **Agent fence** — lefthook pre-commit + Pi/Cursor/Claude hooks that block `git … --no-verify`. Cheating should be uncomfortable and obvious.
 
