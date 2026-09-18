@@ -1,4 +1,4 @@
-import { formatFileStats, readFileStats } from "@ts-cli-template/core";
+import { formatFileStats, readFileStats } from "@joel-stack/core";
 import { Console, Effect } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
@@ -25,7 +25,7 @@ const statsCommand = Command.make(
     )
 ).pipe(Command.withDescription("Count bytes, characters, words, and lines"));
 
-export const rootCommand = Command.make("ts-cli-template").pipe(
+export const rootCommand = Command.make("joel-stack").pipe(
   Command.withDescription("A small Effect v4 file-inspection CLI"),
   Command.withSubcommands([statsCommand])
 );

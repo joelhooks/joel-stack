@@ -19,9 +19,9 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@ts-cli-template/core` | `packages/core` | Domain logic (example: file stats) |
-| `@ts-cli-template/cli` | `apps/cli` | Effect CLI composition root |
-| `@ts-cli-template/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
+| `@joel-stack/core` | `packages/core` | Domain logic (example: file stats) |
+| `@joel-stack/cli` | `apps/cli` | Effect CLI composition root |
+| `@joel-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 
 ## Commands
 

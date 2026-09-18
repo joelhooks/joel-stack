@@ -1,10 +1,10 @@
 # Vision
 
-This repo is an **agentic scaffold** for a TypeScript CLI. It is Joel's opinionated default for starting new work: why in the law files, an enforceable fence in the stack and hooks, so agents write good TypeScript because the cheap path is the honest path.
+This repo is an **agentic scaffold** for a TypeScript Effect app: CLI, XState lifecycles, Alchemy infrastructure, and varlock config. It began life as ts-cli-template. It is Joel's opinionated default for starting new work: why in the law files, an enforceable fence in the stack and hooks, so agents write good TypeScript because the cheap path is the honest path.
 
 Public GitHub is a **steal the ideas** surface, not a product to support. Clones that become a real app should replace this vision with that product's intent. Until then, this thesis is the why.
 
-**Scope:** `joelhooks/ts-cli-template` — the template repo and the shape a clone inherits on day one.
+**Scope:** `joelhooks/joel-stack` — the template repo and the shape a clone inherits on day one.
 
 **Audience:** Joel, agents working in a clone, and anyone reading the public tree for ideas. Not paying users. Not a support queue.
 

@@ -36,7 +36,7 @@ describe("summarizeText", () => {
 
 describe("readFileStats", () => {
   it("runs through the Effect Node filesystem layer", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "ts-cli-template-"));
+    const directory = await mkdtemp(path.join(tmpdir(), "joel-stack-"));
     temporaryDirectories.push(directory);
     const file = path.join(directory, "notes.txt");
     await writeFile(file, "one two\nthree\n", "utf-8");
@@ -49,7 +49,7 @@ describe("readFileStats", () => {
   });
 
   it("reports original bytes even when UTF-8 decoding replaces content", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "ts-cli-template-"));
+    const directory = await mkdtemp(path.join(tmpdir(), "joel-stack-"));
     temporaryDirectories.push(directory);
     const file = path.join(directory, "invalid-utf8.txt");
     await writeFile(file, Uint8Array.of(0xff));

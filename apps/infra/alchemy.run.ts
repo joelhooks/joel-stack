@@ -11,7 +11,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
-  "TsCliTemplate",
+  "JoelStack",
   {
     providers: Cloudflare.providers(),
     state: Cloudflare.state(),

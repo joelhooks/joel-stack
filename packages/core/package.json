@@ -1,5 +1,5 @@
 {
-  "name": "@ts-cli-template/core",
+  "name": "@joel-stack/core",
   "version": "0.1.0",
   "private": true,
   "files": [
