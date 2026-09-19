@@ -1,0 +1,60 @@
+# Effect 4 reference projects (studied 2026-09-18)
+
+Source study of high-quality Effect v4 codebases, used to pressure-test the joel-stack floor. Clones inspected locally under `~/.repo-autopsy/`; versions read from each repo's lockfile or catalog on the day of study.
+
+## Projects
+
+| Repo | Stars | Effect | Runtime | Why it matters to us |
+| --- | --- | --- | --- | --- |
+| [pingdotgg/t3code](https://github.com/pingdotgg/t3code) | 23k | `4.0.0-rc.115` (catalog) | Node 24, pnpm 11, TS 7.0.2 | Same Effect, TS, and pnpm pins as joel-stack. Closest sibling. Heaviest `@effect/vitest` user (479 files). |
+| [anomalyco/opencode](https://github.com/anomalyco/opencode) | 208k | `4.0.0-beta.83` (patched) | Bun | Architecture reference only. Older beta: still has `ServiceMap.Service` remnants and `Schema.TaggedErrorClass`. Do not copy API names from it. |
+| [tim-smart/lalph](https://github.com/tim-smart/lalph) | 130 | `4.0.0-beta.94` | Node, pnpm, tsgo | Effect core maintainer's CLI. Uses `effect/unstable/cli`, `Context.Service` + `static layer`, `@effect/language-service`. Closest shape to our CLI. |
+| [kitlangton/ghui](https://github.com/kitlangton/ghui) | 1.1k | `4.0.0-beta.90` | Bun | Kit's TUI. `Context.Service`, `Schema.TaggedError`, `@effect/language-service`, oxlint + oxfmt. |
+| [alchemy-run/alchemy](https://github.com/alchemy-run/alchemy) | 1.3k | peer `>=4.0.0-rc.115` | Node | Our infra layer. Peer-depends on `@effect/language-service ^0.87`. |
+| [cevr/effect-machine](https://github.com/cevr/effect-machine) | 72 | peer `>=4.0.0-rc.112 <5` | any | Schema-first state machines native to Effect. The Effect-world answer to XState. |
+
+Other Effect 4 adopters found via GitHub code search for `effect/unstable` imports: `alchemy-run/distilled`, `MapleTechLabs/maple`, `tim-smart/receipts`, `tim-smart/dfx`, `kitlangton/motel`, `kitlangton/stack`, `leonitousconforti/the-moby-effect`, `crosshatch/crosshatch`, `anomalyco/effect-http-recorder`, `Effectful-Tech/clanka`.
+
+## Patterns every quality codebase shares
+
+- **Service tags are `Context.Service` classes** with a namespaced string id (`"t3/persistence/Services/ProjectionState"`, `"lalph/Editor"`, `"@opencode/ServerAuthConfig"`). `Effect.Service` is effectively gone (t3code: 4 files, opencode: 0). `ServiceMap` was a beta-only name; rc.115 exports `Context.Service`, `Context.Reference`, `Context.Key`.
+- **`static layer = Layer.effect(this, this.make).pipe(Layer.provide(...))`** co-located on the service class (lalph, ghui, Kit's effect-solutions). t3code splits `Services/` (tag + shape interface) from `Layers/` (implementation) per module.
+- **Errors are `Schema.TaggedError`** with `override get message()` and `cause: Schema.Defect()`. t3code keeps wire-crossing errors in `packages/contracts` so they serialize. Same shape joel-stack already uses in `packages/core/src/stats.ts`.
+- **`Effect.fn("name")` for traced functions, `Effect.fnUntraced` for hot paths.** Straight from `node_modules/effect/AGENTS.md`.
+- **Tests use `@effect/vitest`**: `it.effect`, `it.layer(TestLayer)`, `Layer.mock(Tag)({...})`. t3code enforces this with a custom oxlint rule `no-manual-effect-runtime-in-tests` that bans `Effect.runPromise` and `ManagedRuntime.make` in test files.
+- **`@effect/language-service` is on in every Node project** (lalph, ghui, t3code, alchemy peer). t3code turns ~25 diagnostics to `error`: `leakingRequirements`, `missingEffectServiceDependency`, `importFromBarrel`, `preferSchemaOverJson`, `schemaSyncInEffect`, `nodeBuiltinImport`, `globalDate/Console/Fetch/Timers/Random(InEffect)`, `unknownInEffectCatch`. With TS 7 this runs through `@effect/tsgo` and `effect-tsgo patch` in `prepare`, so diagnostics appear in `tsc --noEmit`, not only in the editor.
+- **CLI entry is `effect/unstable/cli` `Command.runWith` + `NodeRuntime.runMain`.** lalph and t3code scripts do exactly what `apps/cli/src/cli.ts` does. opencode still uses yargs.
+- **Vendored reference source is pinned to the installed version.** t3code's `scripts/sync-reference-repos.ts` derives the git tag from the pnpm catalog entry and mirrors into `.repos/`. Its AGENTS.md says to read `.repos/effect-smol/LLMS.md` before writing Effect.
+- **Config via Effect `Config`.** opencode's `ConfigService.Service(id, { field: Config.string("ENV") })` generates a service with `.layer` (reads env) and `.configLayer(values)` (tests). Small and worth stealing.
+
+## XState 6 and `@xstate/effect` (verified 2026-09-18)
+
+None of the reference apps use XState. t3code models lifecycle as decider, projector, and reactor. opencode uses a `LayerNode` graph. `cevr/effect-machine` is the community Effect-native machine. But XState itself now ships an Effect 4 bridge for v6, and it is the one that matters for this stack.
+
+- **Package:** `@xstate/effect` at `packages/xstate-effect` on the `next` branch of `statelyai/xstate`. PR [#5687](https://github.com/statelyai/xstate/pull/5687) merged 2026-09-15; [#5691](https://github.com/statelyai/xstate/pull/5691) added Effect Schema support. Author David Khourshid.
+- **Pins:** peer `effect ^4.0.0-rc.115` and `xstate` workspace (6.0.0-alpha.58). Both match joel-stack exactly.
+- **Not on npm yet.** Changesets versioned it to `0.1.0-alpha.2` on 2026-09-17. The Publish run for that commit published `xstate@6.0.0-alpha.58` and failed on `@xstate/effect` with `E404 PUT https://registry.npmjs.org/@xstate%2feffect`, a first-publish scope problem, not a build problem. Recheck the registry before pinning.
+- **Shape:** `createEffectActor(machine)` returns `Effect<EffectActor, never, R | Scope>` and drives XState 6's pure `transition` through `xstate/durable` on an Effect fiber. Mailbox is a `Queue`, timers are `Effect.sleep` on the Effect `Clock` so `TestClock` drives `after`, declared Effect actions fork in the actor scope, and `R` is collected from declared actions and actors via `RequirementsFrom`. `fromEffect`, `fromEffectStream`, `fromEffectEventStream` turn Effects and Streams into actor logic with typed `E` and `R`. `setupEffect` accepts Effect schemas and Effect-returning actions. `send`, `waitFor`, `join`, `snapshots`, `inspect`, `deadLetters` are the Effect-native observation API. `taggedState` gives `Match.exhaustive` over states. An actor as a service is `Layer.effect(Tag, createEffectActor(machine))`.
+- **Fence:** the repo ships `scripts/oxlint-plugin-xstate-effect.mjs` (172 lines) with rule `xstate-effect/no-inline-effect`, catching an Effect returned from an inline `enq` callback (created and discarded, since XState awaits only promises) and inline Effect logic passed to `enq.spawn`. Lift it.
+- **Gotchas from the docs:** Effect-backed logic must start under `createEffectActor`, never `createActor`. Only declared actions and actors contribute to `R`; inline Effects infer `never` and fail at runtime. Restoring a persisted snapshot into a new interpreter is not supported yet; the durable loop is the stated path. Requirements collection stops at 10 levels of machine nesting.
+
+## Split, not consensus
+
+- **Barrel vs subpath imports** is a split, not a consensus. t3code uses `import * as Effect from "effect/Effect"` with `importFromBarrel: error` for client bundle size. lalph, ghui, opencode use `import { Effect } from "effect"`. For a Node CLI the barrel is fine.
+
+## Gaps in joel-stack against this bar
+
+1. **No `@effect/language-service`.** This is the single largest missing fence for "agents write good Effect". Every reference project has it.
+2. **No service or layer in the example.** `readFileStats` yields `FileSystem` directly. Agents most often get `Context.Service` + `Layer` + `Layer.mock` wrong in v4, and the template shows none of it.
+3. **Plain vitest, not `@effect/vitest`.** `@effect/vitest@4.0.0-rc.115` is already in the pnpm store via alchemy but not declared. No `it.effect` or `it.layer` example exists.
+4. **Closed 2026-09-18.** `@xstate/effect@0.1.0-alpha.2` is vendored as `vendor/xstate-effect-0.1.0-alpha.2.tgz` (built from tag `xstate@6.0.0-alpha.58`, see `vendor/README.md` for the npm swap rule). `apps/cli/src/inspect-machine.ts` is the reference machine: `setupEffect` with a declared `fromEffect` actor, `reading` to `inspected` or `unreadable`, `join` plus `Effect.orDie` lifting the outcome back into the Effect error channel. Its oxlint rule is ported to `scripts/oxlint-plugin-xstate-effect.ts` on `@oxlint/plugins@1.83.0` and wired as `xstate-effect/no-inline-effect: error`. Two things learned on the way: the machine context must be declared via `types<Ctx>()` or `schemas.context`, otherwise `createMachine`'s function-form `context` falls back to `MachineContext` and the output type collapses to `any`; and `ErrorFrom` of a machine is `unknown`, so `join` needs `orDie` (or an explicit catch) to keep a typed error channel. Also fixed on the way: `Flag.Boolean` in `effect/unstable/cli` rc.115 is required unless `Flag.withDefault(false)` is applied; the template's `--json` flag was silently mandatory.
+5. **Two Effect mirrors, one stale.** `.agent_sources/github.com/Effect-TS/effect` is at rc.115 (correct). `.agent-sources/effect` (the `pi-effect` tool's mirror) is at beta.99. `.agent_sources/README.md` still says rc.110. Effect's own AGENTS.md warns against unrelated copies.
+6. **`node_modules/effect/AGENTS.md` is not referenced.** It ships in the package (409 lines), is always version-matched, and is what other Effect 4 migrations point agents at first.
+7. **Vendor script pins by hand.** t3code derives the ref from the catalog. Ours can derive it from `packages/core/package.json`.
+
+## Sources
+
+- t3code: `tsconfig.base.json`, `oxlint-plugin-t3code/rules/*.ts`, `apps/server/src/persistence/{Services,Layers}/ProjectionState.ts`, `scripts/sync-reference-repos.ts`, `AGENTS.md`
+- opencode: `packages/opencode/src/effect/config-service.ts`, `packages/core/src/effect/{layer-node,runtime}.ts`, `AGENTS.md`
+- lalph: `src/Editor.ts`, `package.json`, `tsconfig.json`
+- Effect rc.115: `node_modules/.pnpm/effect@4.0.0-rc.115/node_modules/effect/{AGENTS.md,src/Context.ts,src/Schema.ts}`
