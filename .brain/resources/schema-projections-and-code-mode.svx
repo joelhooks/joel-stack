@@ -143,6 +143,10 @@ projections. Nothing here needs a new schema language.
 - `apps/cli`: `mcp --code-mode` and `catalog [--types]`. The e2e suite runs a code-mode program against the built binary over stdio.
 - Gotchas. `it.effect` runs on the `TestClock`, so a sandbox timeout never fires under it, and `test.live` inside an `it.layer` block behaved the same; the timeout test is a top-level `it.live` with the layer provided inline. A ternary over two differently typed `Layer`s cannot be piped further; pick the `Layer.launch` per branch instead. The `no-array-sort` lint rule plus an ES2022 lib left no legal way to sort; the workspace target and lib are ES2023 now.
 
+## Template acceptance 2026-09-18
+
+Scaffolded `joelhooks/rat-stack-scaffold-test` from the template (`gh repo create --template`), cloned it, and installed with a fresh pnpm store (`npm_config_store_dir` pointed at an empty directory). Install took 15.6s; corepack picked pnpm 11.3.0 from `packageManager` even with 11.10.0 on PATH. The `prepare` script patched tsc for `@effect/tsgo` and installed the lefthook hook. `pnpm turbo run check test build` passed: 14 tasks, 57 tests. `stats README.md`, `catalog --types`, and `pnpm env:check` all worked on the built output. Nothing needed fixing. The throwaway repo `joelhooks/rat-stack-scaffold-test` still exists (agent tooling blocks `gh repo delete`; Joel removes it). Rerun this after any dependency or vendor change; it is the only test of the template as a template.
+
 ## Seed
 
 `inspectFile` (input `{ path }`, output `FileStats`, failure `FileStatsError`)

@@ -100,10 +100,25 @@ Every clone includes `AGENTS.md` for repo law and commands, `CLAUDE.md` as Claud
 ## Make it yours
 
 1. Rename workspace package names and the `bin` entry.
-2. Rename the root command and version in `apps/cli/src/command.ts`.
-3. Replace `packages/core` stats and its tests with one useful vertical slice.
-4. Keep expected failures typed and map them to deliberate exit codes.
-5. Run `pnpm turbo run check test build` before the first push.
+2. Rename the root command in `apps/cli/src/command.ts` and the version in `apps/cli/src/version.ts`.
+3. Replace `inspectFile` in `packages/core` with one useful capability; everything in `capabilities` shows up on every surface you keep.
+4. Rewrite the Project law, Architecture, and Boundaries sections of `AGENTS.md` and the top of `.pi/APPEND_SYSTEM.md`. They describe rat-stack until you do.
+5. Keep expected failures typed and map them to deliberate exit codes.
+6. Run `pnpm turbo run check test build` before the first push.
+
+## Keep or cut
+
+The template is itself a project, so it ships more than a bare scaffold. Delete what you will not use on day one; the fence will tell you what else has to go. After any cut: trim `packages/capability/src/index.ts`, run `pnpm install`, `pnpm fix`, then `pnpm turbo run check test build`, and update the package table in `AGENTS.md`.
+
+| Want | Keep | Delete |
+| --- | --- | --- |
+| Only the CLI | `packages/capability/src/{capability,to-command}.ts` and their tests; all of `packages/core` | everything else in `packages/capability/src` and `test/`; `apps/cli/src/surfaces.ts`; the `catalog`, `openapi`, `serve`, and `mcp` commands in `apps/cli/src/command.ts`; `apps/cli/test/serve.test.ts` and the MCP and catalog cases in `apps/cli/test/cli.e2e.test.ts` |
+| No code mode |  | `packages/capability/src/{catalog,sandbox,sandbox-error,to-code-mode}.ts` and `test/{catalog,sandbox,to-code-mode}.test.ts`; `codeMode` and `mcpServer.codeMode` in `surfaces.ts`; the `catalog` command and the `--code-mode` flag in `command.ts`; the code-mode and catalog cases in `cli.e2e.test.ts` |
+| No HTTP |  | `packages/capability/src/to-http-api.ts` and its test; `http`, `routes`, and `webServer` in `surfaces.ts`; the `openapi` and `serve` commands; `apps/cli/test/serve.test.ts`; the openapi case in `cli.e2e.test.ts` |
+| No MCP |  | `packages/capability/src/to-toolkit.ts`, its test, and `test/mcp-harness.ts`; `tools` and `mcpServer` in `surfaces.ts`; the `mcp` command; the MCP cases in `cli.e2e.test.ts`. Code mode imports from `to-toolkit.ts`, so cutting MCP cuts code mode too |
+| No XState |  | `packages/core/src/inspect-machine.ts` and its test (call `FileInspector.inspect` directly from `inspect-file.ts`); `xstate` and `@xstate/effect` in `packages/core/package.json`; `vendor/xstate-effect-*.tgz` and its `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`; `scripts/oxlint-plugin-xstate-effect.ts` and its entry in `oxlint.config.ts` |
+
+`defineCapability` plus `toCommand` is the minimum that keeps `stats` working. `capability.ts` has no dependency on the other projections.
 
 ## License
 

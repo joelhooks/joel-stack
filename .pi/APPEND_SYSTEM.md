@@ -1,10 +1,12 @@
-# Project context — fill in
+# Project context
 
-Pi appends this file to its system prompt for sessions in this repo.
+Pi appends this file to its system prompt for sessions in this repo. A child project rewrites this section on day one; what follows describes rat-stack itself.
 
 - Repo law lives in `AGENTS.md`; product intent in `VISION.md`. Read both before substantial work.
-- Validation gate: `npx turbo run check test`.
-- [Add the project-specific context every session should carry: domain terms, active constraints, current focus.]
+- Validation gate: `pnpm turbo run check test build`. Lefthook runs `pnpm check` and `pnpm test` on commit; CI runs the full gate on a cold cache.
+- Domain terms: a **capability** (`defineCapability` in `packages/core`) is one named, schema-typed behavior; a **projection** (`packages/capability`) turns capabilities into a CLI command, an HTTP API, an MCP toolkit, or code mode; the **fence** is the type-aware lint, Effect language-service diagnostics, and hooks that make bypasses fail loudly.
+- Active constraint: `@xstate/effect` is vendored as a tarball until it publishes to npm (`vendor/README.md` has the swap rule).
+- Current focus: keep the template instantiable. Any change must survive `gh repo create <name> --template joelhooks/rat-stack` followed by a cold `pnpm install` and the full gate.
 
 ## Brain procedures
 

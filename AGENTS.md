@@ -84,24 +84,32 @@ Mirrors are reference material, not runtime dependencies. Exclude them from type
 
 Preserve existing work. Inspect status before editing, stage only files changed for the current task, and do not commit generated output, secrets, or populated `.agent_sources/github.com/` trees. Use the repository's existing source-control tool; do not initialize or migrate one without approval. Never pass `--no-verify` to git.
 
-## Project law — fill in
+## Project law
 
-<!-- TEMPLATE: Replace this comment with the product-specific rules that every contributor and agent must follow. Keep durable product intent in VISION.md, not here. -->
+<!-- A child project replaces this section on day one with its own product rules. These are rat-stack's rules; they describe the template, not your product. Keep durable product intent in VISION.md, not here. -->
 
-- [Name the rules that must remain true across implementations.]
+- One capability, every surface. Behavior enters through `defineCapability` in `packages/core` and is added to `capabilities`; CLI, HTTP, MCP, and code mode are projections in `packages/capability`. Do not add a command, route, or tool handler that bypasses a capability.
+- Schemas are the contract. Input, output, and failure are Effect `Schema`; JSON Schema, OpenAPI, and the code-mode declarations are derived from them, never hand-written.
+- Lifecycles are machines. Finite modes, retries, and cancellation live in XState machines started with `createEffectActor`; side effects live in declared `fromEffect` actors, never inline.
+- The sandbox is a surface, not a bypass. Anything reachable from a code-mode program must be a capability and goes through that capability's schemas and handler.
+- Diagnostic overrides are targeted and explained: `// @effect-diagnostics-next-line <rule>:off` with a reason. File-level overrides exist only at projection boundaries (`to-toolkit.ts`, `to-code-mode.ts`) and in process-spawning test files.
+- Pins stay exact. A vendored dependency carries a matching `minimumReleaseAgeExclude` entry and a removal rule in `vendor/README.md`.
 
-## Architecture — fill in
+## Architecture
 
-<!-- TEMPLATE: Record the important module boundaries, dependency direction, data ownership, and state-machine seams. Link deeper docs instead of duplicating them. -->
+<!-- A child project replaces this section on day one. Record module boundaries, dependency direction, data ownership, and state-machine seams; link deeper docs instead of duplicating them. -->
 
-- Domain / shared library code lives in `packages/*`. `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`
-- CLI composition root lives in `apps/cli`; `apps/cli/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect
-- Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases
-- Dependency direction: apps → packages → Effect/XState. Packages do not import apps.
+- Dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps. `core` owns domain behavior and depends on `capability` only for `defineCapability`; `capability` knows nothing about the domain.
+- `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`.
+- `packages/core/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect. `packages/core/src/inspect-file.ts` wraps it as the one shipped capability.
+- Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases.
+- `packages/capability/src`: `capability.ts` (the domain object), `to-command.ts`, `to-http-api.ts`, `to-toolkit.ts` (pure projections onto `effect/unstable/{cli,httpapi,ai}`), `catalog.ts` + `sandbox.ts` + `to-code-mode.ts` (the fourth projection; `Sandbox` is a `Context.Service` with a subprocess implementation). `to-code-mode.ts` imports from `to-toolkit.ts`, so MCP is a prerequisite for code mode.
+- `apps/cli/src/surfaces.ts` is the only place projections are instantiated; `command.ts` maps them to subcommands; `cli.ts` is the single composition root that provides `FileInspector` and `NodeServices`.
+- The [README's Keep or cut section](./README.md#keep-or-cut) lists what to delete per surface.
 
-## Boundaries and sign-off — fill in
+## Boundaries and sign-off
 
-<!-- TEMPLATE: Name changes agents may make directly and changes that need owner approval. Include security, privacy, deployment, public API, dependency, and destructive-data boundaries when they apply. -->
+<!-- A child project replaces this section on day one. Name changes agents may make directly and changes that need owner approval: security, privacy, deployment, public API, dependency, and destructive-data boundaries. -->
 
-- Safe by default: [small, tested changes that preserve the current contract]
-- Needs owner sign-off: [product promises, architecture changes, risky operations, or scope expansion]
+- Safe by default: adding a capability in `packages/core` and wiring it into `capabilities`; new or tightened tests; a targeted diagnostic override with a written reason; README, AGENTS.md, and `.brain/` edits; tightening a lint rule; removing a surface by following Keep or cut.
+- Needs owner sign-off: adding or changing a dependency version (pins are exact and CI installs cold); any edit to `oxlint.config.ts`, the diagnostics map in `tsconfig.base.json`, `lefthook.yml`, or `scripts/vcs-command-policy.js` that loosens the fence; anything under `apps/infra` and any `pnpm infra:deploy` or `infra:destroy`; widening sandbox permissions or adding a runtime that reaches the network; exposing `serve` or `mcp` beyond localhost; removing the vendored `@xstate/effect` tarball before the npm release exists; deleting `.agent_sources/` or `vendor/`.
