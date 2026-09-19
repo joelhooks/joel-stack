@@ -2,7 +2,7 @@
   "name": "joel-stack",
   "version": "0.1.0",
   "private": true,
-  "description": "A strict, batteries-included TypeScript CLI template for Node.js.",
+  "description": "Agentic TypeScript scaffold: Effect 4, XState 6 with @xstate/effect, Alchemy infra, varlock config, and a lint/typecheck fence that makes cheating uncomfortable.",
   "license": "MIT",
   "type": "module",
   "scripts": {

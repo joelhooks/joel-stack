@@ -12,6 +12,9 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - xstate@6.0.0-alpha.58
+  # Vendored file: tarball (see vendor/README.md). pnpm still asks the registry
+  # for its publish date and gets a 404. Remove with the tarball.
+  - "@xstate/effect@0.1.0-alpha.2"
   - "@alchemy.run/cloudflare-runtime@2.0.0-beta.78"
   - "@alchemy.run/floci@2.0.0-beta.78"
   - "@alchemy.run/node-utils@2.0.0-beta.78"
