@@ -1,6 +1,8 @@
-import { formatFileStats, readFileStats } from "@joel-stack/core";
+import { formatFileStats } from "@joel-stack/core";
 import { Console, Effect } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
+
+import { inspectFile } from "./inspect-machine.js";
 
 export const VERSION = "0.1.0";
 
@@ -12,11 +14,12 @@ const statsCommand = Command.make(
       pathType: "file",
     }).pipe(Argument.withDescription("File to inspect")),
     json: Flag.Boolean("json").pipe(
+      Flag.withDefault(false),
       Flag.withDescription("Print machine-readable JSON")
     ),
   },
   ({ file, json }) =>
-    readFileStats(file).pipe(
+    inspectFile(file).pipe(
       Effect.flatMap((stats) =>
         Console.log(
           json ? JSON.stringify(stats, null, 2) : formatFileStats(stats)

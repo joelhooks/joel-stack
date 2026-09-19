@@ -23,6 +23,14 @@ describe("built CLI", () => {
     expect(result.stdout).toContain("stats");
   });
 
+  it("prints human-readable stats without --json", () => {
+    const result = runCli(["stats", readmePath]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(readmePath);
+    expect(result.stdout).toMatch(/words:\s+\d+/u);
+  });
+
   it("prints JSON stats and exits cleanly", () => {
     const result = runCli(["stats", readmePath, "--json"]);
 

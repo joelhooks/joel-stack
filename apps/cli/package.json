@@ -18,6 +18,7 @@
   "dependencies": {
     "@effect/platform-node": "4.0.0-rc.115",
     "@joel-stack/core": "workspace:*",
+    "@xstate/effect": "file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz",
     "effect": "4.0.0-rc.115",
     "xstate": "6.0.0-alpha.58"
   },

@@ -51,7 +51,8 @@ node apps/cli/dist/cli.js stats README.md
 - **Effect `4.0.0-rc.115`** — typed runtime, errors, filesystem service, CLI model (`effect/unstable/cli`).
 - **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
-- **XState `6.0.0-alpha.58`** — ready for real lifecycle states; do not replace those with boolean soup.
+- **XState `6.0.0-alpha.58`** — real lifecycle states; do not replace those with boolean soup.
+- **`@xstate/effect` `0.1.0-alpha.2`** — the official XState v6 to Effect 4 bridge: `createEffectActor` runs a machine as a scoped Effect, `fromEffect` makes Effects into actors with typed failures and requirements. `apps/cli/src/inspect-machine.ts` is the example. Vendored in `vendor/` until its npm publish lands.
 - **Alchemy `2.0.0-beta.78`** — [Infrastructure as Effects](https://alchemy.run): `apps/infra/alchemy.run.ts` is the Stack; `pnpm infra:plan` / `infra:deploy` / `infra:destroy`; auth via `pnpm alchemy profile edit`.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
 - **Vitest `5.0.1`** — unit and Effect integration tests.

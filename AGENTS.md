@@ -10,6 +10,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 - Node `>=24.18.0` and pnpm `11.3.0`; do not replace pnpm with Bun or npm for installs
 - Effect `4.0.0-rc.115` and `@effect/platform-node` `4.0.0-rc.115`
 - XState `6.0.0-alpha.58` for finite lifecycles, retries, cancellation, and resumability
+- `@xstate/effect` `0.1.0-alpha.2` bridges the two: machines run as scoped Effects via `createEffectActor`, side effects are declared `fromEffect` actors. Vendored as a tarball in `vendor/` until npm has it; see `vendor/README.md` for the swap rule
 - Alchemy `2.0.0-beta.78` (Infrastructure as Effects) for every cloud resource; declared in `apps/infra/alchemy.run.ts`, authenticated through Alchemy profiles, never through env vars in this repo
 - TypeScript `7.0.2` in strict mode
 - Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.10.13`
@@ -69,6 +70,7 @@ Inventory: [`.agent_sources/README.md`](./.agent_sources/README.md).
 | Effect Schema, Context.Service, CLI | `.agent_sources/github.com/Effect-TS/effect/` |
 | Idiomatic Effect | `.agent_sources/github.com/kitlangton/effect-solutions/` |
 | XState | `.agent_sources/github.com/statelyai/xstate/` |
+| `@xstate/effect` (v6 Effect bridge) | `.agent_sources/github.com/statelyai/xstate/packages/xstate-effect/` (`README.md`, `docs/`, `src/*.test.ts`) |
 | Alchemy resources, Cloudflare, AWS | `.agent_sources/github.com/alchemy-run/alchemy/` and https://alchemy.run/llms.txt |
 
 Mirrors are reference material, not runtime dependencies. Exclude them from typecheck, test, lint, and format. Do not vendor product-specific corpora in this template.
@@ -88,7 +90,8 @@ Preserve existing work. Inspect status before editing, stage only files changed 
 <!-- TEMPLATE: Record the important module boundaries, dependency direction, data ownership, and state-machine seams. Link deeper docs instead of duplicating them. -->
 
 - Domain / shared library code lives in `packages/*`
-- CLI composition root lives in `apps/cli`
+- CLI composition root lives in `apps/cli`; `apps/cli/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect
+- Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases
 - Dependency direction: apps → packages → Effect/XState. Packages do not import apps.
 
 ## Boundaries and sign-off — fill in

@@ -210,6 +210,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 0.85.1
         version: 0.85.1(ws@8.21.3)(zod@4.6.5)
+      '@oxlint/plugins':
+        specifier: 1.83.0
+        version: 1.83.0
       '@types/node':
         specifier: 24.13.5
         version: 24.13.5
@@ -249,6 +252,9 @@ importers:
       '@joel-stack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@xstate/effect':
+        specifier: file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz
+        version: file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)
       effect:
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115
@@ -1567,6 +1573,10 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@oxlint/plugins@1.83.0':
+    resolution: {integrity: sha512-qD64wr6SS1DL7YbJQ8WWjyUfFfrJsvAy9Vo0sG/PYUQy30w0uemN2h6j4xuvj4noyETDpzcGC20sv+FH7GrN5A==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
   '@prisma/debug@7.2.0':
     resolution: {integrity: sha512-YSGTiSlBAVJPzX4ONZmMotL+ozJwQjRmZweQNIq/ER0tQJKJynNkRB3kyvt37eOfsbMCXk3gnLF6J9OJ4QWftw==}
 
@@ -2125,6 +2135,13 @@ packages:
 
   '@vitest/spy@5.0.1':
     resolution: {integrity: sha512-rbto/mF/SGERxEgYOek7Xm6B9b+y+mVoo+f4b2LymYO8zM1b7uB5nHuhVMTP2hxdzgxvGiZYGxGIaMvL5y180Q==}
+
+  '@xstate/effect@file:vendor/xstate-effect-0.1.0-alpha.2.tgz':
+    resolution: {integrity: sha512-a2Ji3UMBrtpqZ0Ld5+VShetB3uuhHjOGH9kVUVd6iRARkWghILuAlwpES0WecLxpOycSxOBZuMtrTzUPIeFVRg==, tarball: file:vendor/xstate-effect-0.1.0-alpha.2.tgz}
+    version: 0.1.0-alpha.2
+    peerDependencies:
+      effect: ^4.0.0-rc.115
+      xstate: ^6.0.0-alpha.58
 
   acorn@8.18.0:
     resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
@@ -4549,6 +4566,8 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.83.0':
     optional: true
 
+  '@oxlint/plugins@1.83.0': {}
+
   '@prisma/debug@7.2.0': {}
 
   '@prisma/dev@0.20.0(typescript@7.0.2)':
@@ -4925,6 +4944,11 @@ snapshots:
       vite: 8.2.1(@types/node@24.13.5)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)
 
   '@vitest/spy@5.0.1': {}
+
+  '@xstate/effect@file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)':
+    dependencies:
+      effect: 4.0.0-rc.115
+      xstate: 6.0.0-alpha.58
 
   acorn@8.18.0: {}
 
