@@ -16,6 +16,49 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["effect", "@effect/platform-node"],
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "error",
+          "unsafeEffectTypeAssertion": "error",
+          "floatingEffect": "error",
+          "floatingEffectInVitest": "error",
+          "missingEffectContext": "error",
+          "missingEffectError": "error",
+          "missingLayerContext": "error",
+          "leakingRequirements": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "unknownInEffectCatch": "error",
+          "tryCatchInEffectGen": "error",
+          "returnEffectInGen": "error",
+          "runEffectInsideEffect": "error",
+          "schemaSyncInEffect": "error",
+          "instanceOfSchema": "error",
+          "newPromise": "error",
+          "asyncFunction": "error",
+          "globalConsole": "error",
+          "globalConsoleInEffect": "error",
+          "globalDate": "error",
+          "globalDateInEffect": "error",
+          "globalFetch": "error",
+          "globalFetchInEffect": "error",
+          "globalRandom": "error",
+          "globalRandomInEffect": "error",
+          "globalTimers": "error",
+          "globalTimersInEffect": "error",
+          "cryptoRandomUUID": "error",
+          "cryptoRandomUUIDInEffect": "error",
+          "nodeBuiltinImport": "error",
+          "importFromBarrel": "off",
+          "strictEffectProvide": "off",
+          "lazyEffect": "off",
+          "strictBooleanExpressions": "off"
+        }
+      }
+    ]
   }
 }

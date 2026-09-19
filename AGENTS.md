@@ -12,7 +12,9 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 - XState `6.0.0-alpha.58` for finite lifecycles, retries, cancellation, and resumability
 - `@xstate/effect` `0.1.0-alpha.2` bridges the two: machines run as scoped Effects via `createEffectActor`, side effects are declared `fromEffect` actors. Vendored as a tarball in `vendor/` until npm has it; see `vendor/README.md` for the swap rule
 - Alchemy `2.0.0-beta.78` (Infrastructure as Effects) for every cloud resource; declared in `apps/infra/alchemy.run.ts`, authenticated through Alchemy profiles, never through env vars in this repo
-- TypeScript `7.0.2` in strict mode
+- TypeScript `7.0.2` in strict mode, patched by `@effect/tsgo` `0.45.0` in `prepare` so the Effect language service diagnostics in `tsconfig.base.json` fail `tsc`, not just the editor. Escape hatch for a real boundary: `// @effect-diagnostics-next-line <rule>:off` with a reason
+- `@effect/vitest` `4.0.0-rc.115` for every Effect test: `it.effect` and `it.layer(layer)`; `Effect.run*` and `ManagedRuntime.make` in test files are a lint error
+- `@oxlint/plugins` `1.83.0` for the two typed lint rules in `scripts/oxlint-plugin-*.ts`
 - Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.10.13`
 - varlock `1.19.0`: declare every env var in `.env.schema`, never read `.env.local` directly, run `pnpm env:check` after schema edits
 
@@ -55,7 +57,7 @@ If a hook fails, fix the failure. Do not disable the fence.
 
 ## Source-first Effect / XState work
 
-Before writing, reviewing, or refactoring Effect or XState code, inspect vendored source for the pinned versions. Populate mirrors:
+Before writing, reviewing, or refactoring Effect or XState code, read `node_modules/effect/AGENTS.md` first: it ships with the installed version, so it is never stale. Then inspect vendored source for the pinned versions. Populate mirrors:
 
 ```sh
 pnpm vendor:agent-sources
@@ -73,6 +75,8 @@ Inventory: [`.agent_sources/README.md`](./.agent_sources/README.md).
 | `@xstate/effect` (v6 Effect bridge) | `.agent_sources/github.com/statelyai/xstate/packages/xstate-effect/` (`README.md`, `docs/`, `src/*.test.ts`) |
 | Alchemy resources, Cloudflare, AWS | `.agent_sources/github.com/alchemy-run/alchemy/` and https://alchemy.run/llms.txt |
 
+Refs are derived from the workspace pins, so bumping a package and re-running the script keeps them matched. The script also links `.agent-sources/effect` (what the `pi-effect` tool reads) to the pinned Effect mirror.
+
 Mirrors are reference material, not runtime dependencies. Exclude them from typecheck, test, lint, and format. Do not vendor product-specific corpora in this template.
 
 ## Source control
@@ -89,7 +93,7 @@ Preserve existing work. Inspect status before editing, stage only files changed 
 
 <!-- TEMPLATE: Record the important module boundaries, dependency direction, data ownership, and state-machine seams. Link deeper docs instead of duplicating them. -->
 
-- Domain / shared library code lives in `packages/*`
+- Domain / shared library code lives in `packages/*`. `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`
 - CLI composition root lives in `apps/cli`; `apps/cli/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect
 - Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases
 - Dependency direction: apps → packages → Effect/XState. Packages do not import apps.

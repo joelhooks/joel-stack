@@ -59,14 +59,31 @@ EOF
 }
 
 # Core fleet libs only. Product-specific mirrors (e.g. x-algorithm) belong in the consuming app.
-# Match package.json pins. effect-smol is archived — V4 lives in Effect-TS/effect only.
-clone_source Effect-TS effect https://github.com/Effect-TS/effect.git effect@4.0.0-rc.115 \
-  "Effect v4 monorepo matching package.json effect@4.0.0-rc.115."
+# Refs are derived from the workspace pins so a bump in package.json is a bump here.
+# effect-smol is archived: V4 lives in Effect-TS/effect only.
+pin() {
+  node -p "require('${ROOT}/$1').dependencies['$2']"
+}
+EFFECT_VERSION="$(pin packages/core/package.json effect)"
+XSTATE_VERSION="$(pin apps/cli/package.json xstate)"
+ALCHEMY_VERSION="$(pin apps/infra/package.json alchemy)"
+
+clone_source Effect-TS effect https://github.com/Effect-TS/effect.git "effect@${EFFECT_VERSION}" \
+  "Effect v4 monorepo matching packages/core effect@${EFFECT_VERSION}."
 clone_source kitlangton effect-solutions https://github.com/kitlangton/effect-solutions.git main \
   "Idiomatic Effect patterns guide (Kit Langton)."
-clone_source statelyai xstate https://github.com/statelyai/xstate.git xstate@6.0.0-alpha.58 \
-  "Pinned to package.json xstate@6.0.0-alpha.58."
-clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git v2.0.0-beta.78 \
-  "Alchemy IaC pinned to v2.0.0-beta.78 (imp-proven). Read alchemy/src/cloudflare/."
+clone_source statelyai xstate https://github.com/statelyai/xstate.git "xstate@${XSTATE_VERSION}" \
+  "XState v6 matching apps/cli xstate@${XSTATE_VERSION}; packages/xstate-effect is the Effect bridge."
+clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git "v${ALCHEMY_VERSION}" \
+  "Alchemy IaC matching apps/infra alchemy@${ALCHEMY_VERSION}. Read alchemy/src/cloudflare/."
+
+# The pi-effect tool reads .agent-sources/effect. Point it at the pinned mirror
+# instead of letting it hydrate a floating branch.
+PI_EFFECT_LINK="${ROOT}/.agent-sources/effect"
+if [[ ! -e "$PI_EFFECT_LINK" ]]; then
+  mkdir -p "$(dirname "$PI_EFFECT_LINK")"
+  ln -s ../.agent_sources/github.com/Effect-TS/effect "$PI_EFFECT_LINK"
+  echo "link .agent-sources/effect -> .agent_sources/github.com/Effect-TS/effect"
+fi
 
 echo "done — agent sources under ${PREFIX}"

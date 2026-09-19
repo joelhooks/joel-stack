@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Console, Effect } from "effect";
+import { FileInspector } from "@joel-stack/core";
+import { Console, Effect, Layer } from "effect";
 
 import { runCommand } from "./command.js";
 
@@ -11,7 +12,8 @@ const program = runCommand(process.argv.slice(2)).pipe(
   Effect.catchTag("FileStatsError", (error) =>
     Console.error(error.message).pipe(Effect.andThen(Effect.fail(error)))
   ),
-  Effect.provide(NodeServices.layer)
+  // Composition root: the one place layers are assembled and provided.
+  Effect.provide(Layer.provideMerge(FileInspector.layer, NodeServices.layer))
 );
 
 NodeRuntime.runMain(program);

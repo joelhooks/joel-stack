@@ -11,6 +11,8 @@ Layout: `.agent_sources/github.com/<owner>/<repo>/` with `.agent-source.json` me
 
 ## Inventory (core template libs)
 
+Refs below are derived from the workspace `package.json` pins by `scripts/vendor-agent-sources.sh`; the table records what that resolves to today. The script also links `.agent-sources/effect` (read by the `pi-effect` tool) to the Effect mirror.
+
 | Path | Upstream | Ref | Why |
 | --- | --- | --- | --- |
 | `github.com/Effect-TS/effect` | https://github.com/Effect-TS/effect.git | `effect@4.0.0-rc.110` | Effect v4 Schema, Context.Service, platform-node, CLI |

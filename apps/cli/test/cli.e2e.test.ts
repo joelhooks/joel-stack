@@ -1,7 +1,11 @@
+// @effect-diagnostics nodeBuiltinImport:off
+// Black-box test of the built binary: it spawns dist/cli.js as a child process
+// and asserts on stdout, stderr, and exit codes. Node built-ins are the right
+// tool at that boundary, so the Effect-native import diagnostic is off here.
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@effect/vitest";
 
 const cliDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(cliDir, "../..");

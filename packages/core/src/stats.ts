@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Runtime, Schema } from "effect";
+import { Runtime, Schema } from "effect";
 
 export interface FileStats {
   readonly path: string;
@@ -46,23 +46,6 @@ export const summarizeBytes = (
   ...summarizeText(path, new TextDecoder().decode(content)),
   bytes: content.byteLength,
 });
-
-export const readFileStats = Effect.fn("FileStats.read")(
-  function* readFileStats(path: string) {
-    const fileSystem = yield* FileSystem.FileSystem;
-    const content = yield* fileSystem.readFile(path).pipe(
-      Effect.mapError(
-        (error) =>
-          new FileStatsError({
-            path,
-            reason: error.message,
-          })
-      )
-    );
-
-    return summarizeBytes(path, content);
-  }
-);
 
 export const formatFileStats = (stats: FileStats): string =>
   [

@@ -55,7 +55,8 @@ node apps/cli/dist/cli.js stats README.md
 - **`@xstate/effect` `0.1.0-alpha.2`** — the official XState v6 to Effect 4 bridge: `createEffectActor` runs a machine as a scoped Effect, `fromEffect` makes Effects into actors with typed failures and requirements. `apps/cli/src/inspect-machine.ts` is the example. Vendored in `vendor/` until its npm publish lands.
 - **Alchemy `2.0.0-beta.78`** — [Infrastructure as Effects](https://alchemy.run): `apps/infra/alchemy.run.ts` is the Stack; `pnpm infra:plan` / `infra:deploy` / `infra:destroy`; auth via `pnpm alchemy profile edit`.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
-- **Vitest `5.0.1`** — unit and Effect integration tests.
+- **Vitest `5.0.1` + `@effect/vitest` `4.0.0-rc.115`** — `it.effect` and `it.layer` for every Effect test; running Effects by hand in a test file is a lint error.
+- **`@effect/tsgo` `0.45.0`** — patches TypeScript 7 in `prepare` so Effect language-service diagnostics (leaked requirements, `any`/`unknown` in channels, global Date/fetch/console inside Effect, Node built-ins where Effect has a service) fail `tsc`.
 - **varlock `1.19.0`** — `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.
 - **Vendored agent sources** — Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy) via `./scripts/vendor-agent-sources.sh` (not x-algorithm; that stays app-specific).
 - **Agent fence** — lefthook pre-commit + Pi/Cursor/Claude hooks that block `git … --no-verify`. Cheating should be uncomfortable and obvious.
