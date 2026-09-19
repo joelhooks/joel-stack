@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
-import { FileInspector } from "@joel-stack/core";
+import { FileInspector } from "@rat-stack/core";
 import { createEffectActor, join } from "@xstate/effect";
 import { Effect, FileSystem, Layer, Path } from "effect";
 

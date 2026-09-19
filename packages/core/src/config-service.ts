@@ -32,7 +32,7 @@ export type ServiceClass<
  *
  * ```ts
  * class AppConfig extends ConfigService.Service<AppConfig>()(
- *   "@joel-stack/core/AppConfig",
+ *   "@rat-stack/core/AppConfig",
  *   { appEnv: Config.Literals(["development", "production"], "APP_ENV") }
  * ) {}
  *

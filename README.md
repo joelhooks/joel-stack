@@ -1,13 +1,13 @@
-# joel-stack
+# rat-stack 🐀
 
-[![CI](https://github.com/joelhooks/joel-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/joel-stack/actions/workflows/ci.yml)
+[![CI](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml)
 
 Joel's **agentic scaffold** for an Effect app (CLI, XState lifecycles, Alchemy infra, varlock config): why in `VISION.md` / `AGENTS.md`, fence in pins + checks + hooks. Public tree is steal-the-ideas, not a supported product. It ships as a **pnpm + Turborepo workspace** with a real Effect v4 CLI, tests, formatting, type-aware linting, and vendored source mirrors for Effect, effect-solutions, XState, and Alchemy.
 
 ## Create a repository
 
 ```sh
-gh repo create <name> --template joelhooks/joel-stack
+gh repo create <name> --template joelhooks/rat-stack
 ```
 
 Clone the new repository, then install and verify it:
@@ -25,9 +25,9 @@ Node `24.18.0` and pnpm `11.3.0` are required. The requirement is declared in `.
 
 | Path | Package | Role |
 | --- | --- | --- |
-| `apps/cli` | `@joel-stack/cli` | Effect CLI entry |
-| `packages/core` | `@joel-stack/core` | Shared domain example (file stats) |
-| `apps/infra` | `@joel-stack/infra` | Alchemy Stack (Cloudflare by default) |
+| `apps/cli` | `@rat-stack/cli` | Effect CLI entry |
+| `packages/core` | `@rat-stack/core` | Shared domain example (file stats) |
+| `apps/infra` | `@rat-stack/infra` | Alchemy Stack (Cloudflare by default) |
 | `.agent_sources/` | — | Shallow upstream mirrors (gitignored clones; see README there) |
 
 ## Try the example CLI

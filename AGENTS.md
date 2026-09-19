@@ -22,9 +22,9 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@joel-stack/core` | `packages/core` | Domain logic (example: file stats) |
-| `@joel-stack/cli` | `apps/cli` | Effect CLI composition root |
-| `@joel-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
+| `@rat-stack/core` | `packages/core` | Domain logic (example: file stats) |
+| `@rat-stack/cli` | `apps/cli` | Effect CLI composition root |
+| `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 
 ## Commands
 

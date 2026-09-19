@@ -5,8 +5,8 @@
 // requirement, which `createEffectActor` collects into its `R` channel. Neither
 // side re-implements the other's job: no boolean soup in the machine, no
 // hand-rolled state tracking around the Effect.
-import { FileInspector } from "@joel-stack/core";
-import type { FileStats, FileStatsError } from "@joel-stack/core";
+import { FileInspector } from "@rat-stack/core";
+import type { FileStats, FileStatsError } from "@rat-stack/core";
 import {
   createEffectActor,
   fromEffect,

@@ -14,7 +14,7 @@ export class FileInspector extends Context.Service<
       path: string
     ) => Effect.Effect<FileStats, FileStatsError>;
   }
->()("@joel-stack/core/FileInspector", {
+>()("@rat-stack/core/FileInspector", {
   make: Effect.gen(function* makeFileInspector() {
     const fileSystem = yield* FileSystem.FileSystem;
 

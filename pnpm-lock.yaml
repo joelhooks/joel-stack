@@ -252,7 +252,7 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)
-      '@joel-stack/core':
+      '@rat-stack/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@xstate/effect':

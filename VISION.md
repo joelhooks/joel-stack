@@ -4,7 +4,7 @@ This repo is an **agentic scaffold** for a TypeScript Effect app: CLI, XState li
 
 Public GitHub is a **steal the ideas** surface, not a product to support. Clones that become a real app should replace this vision with that product's intent. Until then, this thesis is the why.
 
-**Scope:** `joelhooks/joel-stack` — the template repo and the shape a clone inherits on day one.
+**Scope:** `joelhooks/rat-stack` — the template repo and the shape a clone inherits on day one.
 
 **Audience:** Joel, agents working in a clone, and anyone reading the public tree for ideas. Not paying users. Not a support queue.
 

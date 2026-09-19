@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { FileInspector } from "@joel-stack/core";
+import { FileInspector } from "@rat-stack/core";
 import { Console, Effect, Layer } from "effect";
 
 import { runCommand } from "./command.js";
