@@ -46,6 +46,12 @@ describe("toHttpApi", () => {
           .pipe(Effect.flip);
 
         expect(error._tag).toBe("NotFound");
+
+        const response = yield* client.capabilities.greet({
+          payload: { name: "nobody" },
+          responseMode: "response-only",
+        });
+        expect(response.status).toBe(422);
       })
     );
   });
@@ -57,7 +63,7 @@ describe("toHttpApi", () => {
     expect(paths).toHaveLength(2);
     expect(paths).toContain("/echo");
     expect(paths).toContain("/greet");
-    expect(document.paths["/greet"]?.post?.description).toBeUndefined();
+    expect(document.info.title).toBe("TestApi");
     expect(document.paths["/greet"]?.post?.requestBody).toBeDefined();
   });
 });

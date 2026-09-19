@@ -1,12 +1,16 @@
 import { Runtime, Schema } from "effect";
 
-export interface FileStats {
-  readonly path: string;
-  readonly bytes: number;
-  readonly characters: number;
-  readonly lines: number;
-  readonly words: number;
-}
+// A Schema rather than an interface so the same shape serves as a Capability
+// output: encoded for the CLI's --json, the REST body, and MCP structured
+// content, and described in OpenAPI and MCP tool listings.
+export const FileStatsSchema = Schema.Struct({
+  bytes: Schema.Int,
+  characters: Schema.Int,
+  lines: Schema.Int,
+  path: Schema.String,
+  words: Schema.Int,
+});
+export type FileStats = typeof FileStatsSchema.Type;
 
 export class FileStatsError extends Schema.TaggedError<FileStatsError>()(
   "FileStatsError",

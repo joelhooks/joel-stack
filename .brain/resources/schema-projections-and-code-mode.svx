@@ -1,7 +1,7 @@
 ---
 title: One Schema, many surfaces (CLI, REST/OpenAPI, MCP, code mode)
 type: resource
-status: proposal
+status: in-progress
 created: 2026-09-18
 updated: 2026-09-18
 tags: [effect, mcp, openapi, cli, code-mode, executor, kody, architecture]
@@ -127,13 +127,20 @@ projections. Nothing here needs a new schema language.
   can use `needsApproval`, REST can return 202 with a resume token, code mode
   can pause like Cloudflare's runtime.
 
+## Applied 2026-09-18 (slices 1 and 2)
+
+- `packages/capability`: `defineCapability` and `toCommand`, `toHttpApi`, `toToolkit`. Twelve tests run each surface for real (CLI under `TestConsole`, HTTP via `HttpApiTest.groups`, MCP through an in-memory web handler with `RpcClient`).
+- `packages/core`: `FileStats` became a Schema; `inspectFile` is the first capability; the lifecycle machine moved here from the CLI so every surface runs it.
+- `apps/cli`: `stats` is `toCommand(inspectFile)`, plus `openapi`, `serve --port` (API, `/openapi.json`, Scalar at `/docs`), and `mcp` over stdio with logs on stderr. The e2e suite drives the built binary's MCP server over stdio and checks `readOnlyHint`.
+- Type lessons. A heterogeneous list of capabilities needs a handler typed `(input: never) => Effect<unknown, unknown, unknown>` (contravariant parameters) and extractors that infer every type parameter at once. Schemas are bounded by `PlainSchema` (no decoding or encoding services) because projections decode at process edges. `HttpApiEndpoint.post` guards the error schema with a non-exported conditional type, so the runtime call goes through a loosely typed alias while `EndpointOf` names the precise type. The lint config bans namespaces and same-name redeclaration, so the API is plain named exports.
+- Casts live at exactly two boundaries per projection (tuple-to-record and handler record), each with a reason; the two projection files turn off three language-service diagnostics that cannot tell a typed boundary from a leak.
+
 ## Seed
 
-`FileInspector.inspect` plus the `inspect-machine` is the first capability.
-One `Capability` named `inspectFile` with `input: { path }`, `output:
-FileStats`, `error: FileStatsError`, projected to the existing `stats`
-command, a `GET /files/stats`, and an MCP tool, would prove the shape without
-inventing a product.
+`inspectFile` (input `{ path }`, output `FileStats`, failure `FileStatsError`)
+is the one capability shipped, projected to `stats`, `POST /inspectFile`, and
+the `inspectFile` MCP tool. Slices 3 and 4 (catalog IR with generated types,
+`search` + `execute`, subprocess sandbox) are next.
 
 ## Cautions
 

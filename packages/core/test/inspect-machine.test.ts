@@ -1,10 +1,10 @@
 import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
-import { FileInspector } from "@rat-stack/core";
 import { createEffectActor, join } from "@xstate/effect";
 import { Effect, FileSystem, Layer, Path } from "effect";
 
-import { inspectFile, inspectMachine } from "../src/inspect-machine.js";
+import { FileInspector } from "../src/file-inspector.js";
+import { inspectMachine, runInspectMachine } from "../src/inspect-machine.js";
 
 // Same composition as the CLI entry: the machine's declared actor requires
 // FileInspector, which requires FileSystem from NodeServices.
@@ -53,11 +53,11 @@ it.layer(TestLayer)("inspectMachine", (test) => {
   );
 
   test.effect(
-    "inspectFile lifts the unreadable outcome into the error channel",
+    "runInspectMachine lifts the unreadable outcome into the error channel",
     () =>
       Effect.gen(function* liftsUnreadableIntoErrors() {
         const error = yield* Effect.flip(
-          inspectFile("/definitely-not-here/notes.txt")
+          runInspectMachine("/definitely-not-here/notes.txt")
         );
 
         expect(error._tag).toBe("FileStatsError");

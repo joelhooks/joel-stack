@@ -8,7 +8,7 @@
 // body. POST for everything is deliberate: it keeps the projection total (any
 // Struct input fits a JSON body) and keeps one rule for agents to learn.
 // `OpenApi.fromApi(api)` then derives the document for free.
-import type { Effect, Layer } from "effect";
+import type { Effect, Layer, Schema } from "effect";
 import {
   HttpApi,
   HttpApiBuilder,
@@ -42,11 +42,23 @@ const post = HttpApiEndpoint.post as unknown as (
   name: string,
   path: `/${string}`,
   options: {
-    readonly error: PlainSchema;
+    readonly error: Schema.Top;
     readonly payload: InputSchema;
     readonly success: PlainSchema;
   }
 ) => HttpApiEndpoint.Constraint;
+
+/**
+ * A declared failure is the caller's problem, so it answers 422 unless the
+ * capability annotated its failure schema with a status of its own (for
+ * example `HttpApiSchema.status(404)`). Undeclared errors stay 500.
+ */
+const DEFAULT_FAILURE_STATUS = 422;
+
+const withFailureStatus = (failure: PlainSchema): Schema.Top =>
+  failure.ast.annotations?.httpApiStatus === undefined
+    ? failure.annotate({ httpApiStatus: DEFAULT_FAILURE_STATUS })
+    : failure;
 
 export type EndpointOf<C> = ReturnType<
   typeof HttpApiEndpoint.post<
@@ -73,7 +85,10 @@ const groupFor = <
 const apiFor = <const Id extends string, Group extends HttpApiGroup.Constraint>(
   id: Id,
   group: Group
-) => HttpApi.make(id).add(group);
+) =>
+  HttpApi.make(id)
+    .add(group)
+    .annotateMerge(OpenApi.annotations({ title: id }));
 
 export type EndpointsOf<Caps extends readonly AnyCapability[]> = {
   readonly [K in keyof Caps]: EndpointOf<Caps[K]>;
@@ -118,7 +133,7 @@ export const toHttpApi = <
 ): HttpApiProjection<Id, Caps> => {
   const endpoints = capabilities.map((capability) =>
     post(capability.name, `/${capability.name}`, {
-      error: capability.failure,
+      error: withFailureStatus(capability.failure),
       payload: capability.input,
       success: capability.output,
     })

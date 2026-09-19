@@ -4,6 +4,8 @@
 
 Joel's **agentic scaffold** for an Effect app (CLI, XState lifecycles, Alchemy infra, varlock config): why in `VISION.md` / `AGENTS.md`, fence in pins + checks + hooks. Public tree is steal-the-ideas, not a supported product. It ships as a **pnpm + Turborepo workspace** with a real Effect v4 CLI, tests, formatting, type-aware linting, and vendored source mirrors for Effect, effect-solutions, XState, and Alchemy.
 
+The shape it teaches: define a **Capability** once (Effect Schema in, out, and failure; an Effect handler; read-only / destructive / approval annotations) and project it onto every agent surface. The same `inspectFile` capability is the `stats` command, `POST /inspectFile` with an OpenAPI document, and an MCP tool over stdio.
+
 ## Create a repository
 
 ```sh
@@ -25,8 +27,9 @@ Node `24.18.0` and pnpm `11.3.0` are required. The requirement is declared in `.
 
 | Path | Package | Role |
 | --- | --- | --- |
-| `apps/cli` | `@rat-stack/cli` | Effect CLI entry |
-| `packages/core` | `@rat-stack/core` | Shared domain example (file stats) |
+| `apps/cli` | `@rat-stack/cli` | Composition root: `stats`, `openapi`, `serve`, `mcp` |
+| `packages/capability` | `@rat-stack/capability` | `defineCapability` plus `toCommand`, `toHttpApi`, `toToolkit` |
+| `packages/core` | `@rat-stack/core` | Domain example: the `inspectFile` capability and its lifecycle machine |
 | `apps/infra` | `@rat-stack/infra` | Alchemy Stack (Cloudflare by default) |
 | `.agent_sources/` | — | Shallow upstream mirrors (gitignored clones; see README there) |
 
@@ -45,10 +48,20 @@ After `pnpm build`, you can run the built entrypoint directly:
 node apps/cli/dist/cli.js stats README.md
 ```
 
+The same capability on the other surfaces:
+
+```sh
+pnpm cli openapi                 # OpenAPI 3.1 document for the REST projection
+pnpm cli serve --port 3000       # POST /inspectFile, GET /openapi.json, GET /docs
+pnpm cli mcp                     # MCP server over stdio; add to any MCP client
+```
+
+`packages/capability/src` is where a capability becomes a `Command`, an `HttpApiEndpoint`, and a `Tool`. `packages/core/src/inspect-file.ts` is the one capability shipped; add another to `capabilities` and all four commands pick it up.
+
 ## What is in the stack?
 
 - **pnpm workspaces + Turborepo `2.10.13`** — cached `typecheck` / `test` / `build` across packages from day one.
-- **Effect `4.0.0-rc.115`** — typed runtime, errors, filesystem service, CLI model (`effect/unstable/cli`).
+- **Effect `4.0.0-rc.115`** — typed runtime, errors, filesystem service, and the three surfaces the capabilities project onto: `effect/unstable/cli`, `effect/unstable/httpapi` (with `OpenApi.fromApi`), and `effect/unstable/ai` (`Toolkit` + `McpServer`).
 - **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
 - **XState `6.0.0-alpha.58`** — real lifecycle states; do not replace those with boolean soup.

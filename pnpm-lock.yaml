@@ -252,18 +252,15 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)
+      '@rat-stack/capability':
+        specifier: workspace:*
+        version: link:../../packages/capability
       '@rat-stack/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@xstate/effect':
-        specifier: file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz
-        version: file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)
       effect:
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115
-      xstate:
-        specifier: 6.0.0-alpha.58
-        version: 6.0.0-alpha.58
     devDependencies:
       '@effect/vitest':
         specifier: 4.0.0-rc.115
@@ -324,9 +321,18 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115(effect@4.0.0-rc.115)(redis@6.2.1)
+      '@rat-stack/capability':
+        specifier: workspace:*
+        version: link:../capability
+      '@xstate/effect':
+        specifier: file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz
+        version: file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)
       effect:
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115
+      xstate:
+        specifier: 6.0.0-alpha.58
+        version: 6.0.0-alpha.58
     devDependencies:
       '@effect/vitest':
         specifier: 4.0.0-rc.115

@@ -23,6 +23,8 @@ import type {
 } from "./capability.js";
 
 export interface ToCommandOptions<Output> {
+  /** Command name; defaults to the capability's name. */
+  readonly name?: string | undefined;
   /** Input fields to take as positional arguments, in order. */
   readonly positional?: readonly string[] | undefined;
   /** Human-readable rendering; enables a `--json` flag for the raw output. */
@@ -181,7 +183,7 @@ export const toCommand = <C extends AnyCapability>(
   >;
 
   return Command.make(
-    capability.name,
+    options?.name ?? capability.name,
     config,
     Effect.fn(`Capability.${capability.name}`)(function* runCommand(parsed) {
       const { [JSON_FLAG]: json, ...fields } = parsed;
