@@ -1,0 +1,149 @@
+---
+title: One Schema, many surfaces (CLI, REST/OpenAPI, MCP, code mode)
+type: resource
+status: proposal
+created: 2026-09-18
+updated: 2026-09-18
+tags: [effect, mcp, openapi, cli, code-mode, executor, kody, architecture]
+sources:
+  - https://github.com/UsefulSoftwareCo/executor
+  - https://github.com/kentcdodds/kody
+  - https://blog.cloudflare.com/code-mode/
+  - https://developers.cloudflare.com/agents/api-reference/codemode/
+  - .agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/{ai,cli,httpapi,rpc}
+related:
+  - ./effect-4-reference-projects.svx
+---
+
+# One Schema, many surfaces
+
+Joel (2026-09-18): rat-stack is meant to build agent-first tools. The interesting
+question is whether one Effect Schema definition can project into a CLI, a REST
+API with OpenAPI, an MCP server, and a code-mode surface, and what Executor and
+Kody teach about the last two.
+
+## What Effect rc.115 already ships
+
+Every target below is in `effect/unstable/*` today and takes `Schema` directly.
+None of them talk to each other.
+
+| Surface | Module | Entry | Schema goes in as |
+| --- | --- | --- | --- |
+| CLI | `unstable/cli` | `Command.make(name, config, handler)` | `Flag.withSchema`, `Flag.FileSchema`, `Argument.*` |
+| REST + OpenAPI | `unstable/httpapi` | `HttpApi` / `HttpApiGroup` / `HttpApiEndpoint.{get,post,...}` | payload, success, error schemas |
+| OpenAPI doc | `unstable/httpapi/OpenApi` | `OpenApi.fromApi(api)` | derived from the HttpApi |
+| Typed client | `unstable/httpapi/HttpApiClient` | `HttpApiClient.make(api)` | derived from the HttpApi |
+| MCP | `unstable/ai` | `Tool.make(name, { parameters, success, failure, dependencies, needsApproval })`, `Toolkit.make(...)`, `McpServer.toolkit(toolkit)`, `McpServer.layerStdio` / `layerHttp` | parameters, success, failure |
+| JSON Schema | `unstable/ai/Tool` | `Tool.getJsonSchema(tool)`, `Tool.getJsonSchemaFromSchema(schema)` | any Schema |
+| RPC | `unstable/rpc` | `Rpc.make`, `RpcGroup` | payload, success, error |
+
+Tool annotations already exist as Context references: `Tool.Readonly`,
+`Tool.Destructive`, `Tool.Idempotent`, `Tool.OpenWorld`. `needsApproval` is a
+first-class option on `Tool.make`.
+
+**The gap:** there is no `Toolkit.fromHttpApi`, no `Command.fromToolkit`, nothing
+that lets one definition feed all four. That is the seam rat-stack can own.
+
+## What the two reference repos do
+
+### Executor (UsefulSoftwareCo, Effect 4)
+
+- Integration layer, not a tool author: ingests MCP servers, OpenAPI, GraphQL,
+  Google Discovery into one catalog, adds auth and per-tool policy
+  (allow / approve / block), serves the catalog back over MCP.
+- MCP surface: `execute` (code mode), `skills` (server-side guides for the
+  model), `tools search` / `describe` / `call`, plus artifacts. The catalog is
+  the product; code mode is one way to hold it.
+- The kernel (`packages/kernel`) is the reusable idea. `ir/registry.ts`
+  serializes a catalog as `{ version: "v4.1", types: Record<string, JsonSchema>,
+  tools: [{ path, description, integrationId, input?, output?, error? }] }`.
+  Live registrations carry `Schema.Top` for input/output/error; the serialized
+  form carries JSON Schema names. Runtimes are pluggable: QuickJS, Deno
+  subprocess, Cloudflare dynamic worker, workerd subprocess.
+- Contract at the kernel edge is Standard Schema (`inputSchema: StandardSchema`),
+  Effect Schema inside plugins. Effect in, JSON Schema at the wire.
+- `execute-action` (artifact channel) is parsed against a one-call grammar
+  instead of accepting arbitrary code. Good instinct: narrow the surface to what
+  the producer can emit.
+
+### Kody (Kent C. Dodds, Cloudflare Workers, Zod)
+
+- Deliberately compact MCP surface: `search` (discovery over Vectorize plus
+  lexical) and `execute` (sandboxed capability calls). "Do not add a new public
+  MCP tool per capability."
+- Authoring: `defineDomainCapability(domain, { name, description, inputSchema,
+  outputSchema?, handler, tags?, keywords?, readOnly?, idempotent?,
+  destructive?, requiredRole?, requiredPermission?, featureFlag? })`, grouped by
+  `defineDomain`, flattened into a registry. Zod is normalized to JSON Schema
+  for both the MCP description and the code-mode types.
+- Same annotation vocabulary as Effect's `Tool` references, plus RBAC and flags.
+
+### Cloudflare Code Mode (the origin)
+
+One tool, `codemode({ code })`. The MCP or OpenAPI schema becomes a typed
+TypeScript API with doc comments; the model writes TS against it; it runs in an
+isolated Worker with no network, only bindings. Inside the sandbox:
+`search(query)`, `describe(target)`, `step(name, fn)` (run once, replay), and
+`run(snippet)`. Durable log, approval pause, rollback. The OpenAPI MCP server
+variant exposes exactly two tools, `search` and `execute`.
+
+## Proposed rat-stack shape
+
+Keep Effect Schema as the single source and add one domain object plus
+projections. Nothing here needs a new schema language.
+
+```
+                 Capability (Effect Schema in / out / error, Effect handler,
+                             dependencies, annotations, approval)
+                                          │
+        ┌──────────────┬──────────────────┼──────────────────┬──────────────┐
+        ▼              ▼                  ▼                  ▼              ▼
+  Command.make   HttpApiEndpoint     Tool.make          catalog IR      (later)
+  (unstable/cli) (unstable/httpapi)  Toolkit.make       JSON Schema +   Rpc.make
+        │              │              McpServer.toolkit  generated d.ts
+        ▼              ▼                  │                  ▼
+     rat-stack     REST + OpenApi.fromApi │           search + execute
+       CLI         + HttpApiClient        ▼           (two MCP tools,
+                                     stdio / http      sandboxed runner)
+```
+
+- **Capability** is a `Schema`-typed record: `name`, `description`, `input`,
+  `output`, `error`, `handler: (input) => Effect<Output, Error, Deps>`,
+  annotations (`readOnly` / `destructive` / `idempotent` / `openWorld`),
+  `needsApproval`. This is Kody's `defineDomainCapability` and Executor's
+  `LiveToolRegistration` said in Effect.
+- **Projections** are pure functions from a `Capability[]` (or a `Domain`) to
+  the Effect surface: `toToolkit`, `toHttpApi`, `toCommand`. The handler's
+  dependencies flow through unchanged, so the composition root stays one
+  `Layer` as it is today in `apps/cli/src/cli.ts`.
+- **Code mode** is a fourth projection, not a different system: serialize the
+  catalog (Executor IR shape: JSON Schema per type, path per capability), emit
+  `.d.ts` from the JSON Schema, expose `search` and `execute` as two ordinary
+  `Tool`s whose `execute` handler runs model code in a sandbox that can only
+  call capabilities by path. Executor's kernel proves the runtime is swappable;
+  start with a subprocess, not a Worker.
+- **Approval and policy** belong on the Capability, so all four surfaces agree
+  on what is destructive. The CLI can prompt (`Prompt` in `unstable/cli`), MCP
+  can use `needsApproval`, REST can return 202 with a resume token, code mode
+  can pause like Cloudflare's runtime.
+
+## Seed
+
+`FileInspector.inspect` plus the `inspect-machine` is the first capability.
+One `Capability` named `inspectFile` with `input: { path }`, `output:
+FileStats`, `error: FileStatsError`, projected to the existing `stats`
+command, a `GET /files/stats`, and an MCP tool, would prove the shape without
+inventing a product.
+
+## Cautions
+
+- Every module involved is `effect/unstable/*`. Pin and vendor as now; expect
+  renames between rc's.
+- `McpServer.layerHttp` requires `protocols: NonEmptyReadonlyArray<ProtocolAdapter>`
+  and an `HttpRouter`; `layerStdio` is the cheap first target.
+- Do not build the sandbox first. Three projections ship on top of shipped
+  Effect modules; the sandbox is the only new runtime and should come after the
+  catalog IR exists.
+- JSON Schema is the wire type everywhere (Executor, Kody, Cloudflare). Keep
+  Effect Schema inside the process and `Tool.getJsonSchemaFromSchema` at the
+  edge; do not leak Effect types into the sandbox API.
