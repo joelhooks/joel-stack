@@ -1,7 +1,7 @@
 ---
 title: One Schema, many surfaces (CLI, REST/OpenAPI, MCP, code mode)
 type: resource
-status: in-progress
+status: applied
 created: 2026-09-18
 updated: 2026-09-18
 tags: [effect, mcp, openapi, cli, code-mode, executor, kody, architecture]
@@ -134,6 +134,14 @@ projections. Nothing here needs a new schema language.
 - `apps/cli`: `stats` is `toCommand(inspectFile)`, plus `openapi`, `serve --port` (API, `/openapi.json`, Scalar at `/docs`), and `mcp` over stdio with logs on stderr. The e2e suite drives the built binary's MCP server over stdio and checks `readOnlyHint`.
 - Type lessons. A heterogeneous list of capabilities needs a handler typed `(input: never) => Effect<unknown, unknown, unknown>` (contravariant parameters) and extractors that infer every type parameter at once. Schemas are bounded by `PlainSchema` (no decoding or encoding services) because projections decode at process edges. `HttpApiEndpoint.post` guards the error schema with a non-exported conditional type, so the runtime call goes through a loosely typed alias while `EndpointOf` names the precise type. The lint config bans namespaces and same-name redeclaration, so the API is plain named exports.
 - Casts live at exactly two boundaries per projection (tuple-to-record and handler record), each with a reason; the two projection files turn off three language-service diagnostics that cannot tell a typed boundary from a leak.
+
+## Applied 2026-09-18 (slices 3 and 4)
+
+- `catalog.ts`: `toCatalog` (JSON Schema per channel via `Tool.getJsonSchemaFromSchema`, the same schemas MCP and OpenAPI publish), `toTypeScript` (a `.d.ts` for the `tools` object with `$defs` as named aliases and `@throws` on the failure), `searchCatalog` (token overlap over name, input fields, description; deterministic, no dependencies).
+- `sandbox.ts`: a `Sandbox` service and `layerSubprocess`. The runner is passed with `node --permission --input-type=module -e <source>` so the permission model never has to allow a file read (`--allow-fs-read` needs the real path, which on macOS `/tmp` is not). File system, child processes, and workers are denied; `fetch` is not. Protocol is newline-delimited JSON over stdio through `ChildProcessSpawner`, a `Queue` feeding `handle.stdin`, and `Stream.decodeText` + `splitLines` on stdout.
+- `to-code-mode.ts`: `search` and `execute` as two ordinary `Tool`s. `execute`'s description carries the generated declarations. Every `tools.<name>(input)` call decodes through the capability's input schema, runs the handler with the captured context, and encodes the output or the declared failure back; the program sees `InvalidInput`, `UnknownCapability`, or the failure's `_tag`.
+- `apps/cli`: `mcp --code-mode` and `catalog [--types]`. The e2e suite runs a code-mode program against the built binary over stdio.
+- Gotchas. `it.effect` runs on the `TestClock`, so a sandbox timeout never fires under it, and `test.live` inside an `it.layer` block behaved the same; the timeout test is a top-level `it.live` with the layer provided inline. A ternary over two differently typed `Layer`s cannot be piped further; pick the `Layer.launch` per branch instead. The `no-array-sort` lint rule plus an ES2022 lib left no legal way to sort; the workspace target and lib are ES2023 now.
 
 ## Seed
 

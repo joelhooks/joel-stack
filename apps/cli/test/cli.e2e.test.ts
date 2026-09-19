@@ -51,14 +51,15 @@ const runCli = (arguments_: readonly string[]) =>
     encoding: "utf-8",
   });
 
-/** Runs `rat-stack mcp` and speaks newline-delimited JSON-RPC to it. */
+/** Runs `rat-stack mcp [flags]` and speaks newline-delimited JSON-RPC to it. */
 const mcpConversation = async (
-  messages: readonly object[]
+  messages: readonly object[],
+  flags: readonly string[] = []
 ): Promise<(typeof JsonRpcResponse.Type)[]> =>
   // A child process conversation has no library Promise to return.
   // oxlint-disable-next-line promise/avoid-new
   await new Promise<(typeof JsonRpcResponse.Type)[]>((resolve, reject) => {
-    const child = spawn(process.execPath, [cliPath, "mcp"], {
+    const child = spawn(process.execPath, [cliPath, "mcp", ...flags], {
       cwd: repoRoot,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -101,7 +102,7 @@ describe("built CLI", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("USAGE");
-    for (const name of ["stats", "openapi", "serve", "mcp"]) {
+    for (const name of ["stats", "catalog", "openapi", "serve", "mcp"]) {
       expect(result.stdout).toContain(name);
     }
   });
@@ -131,6 +132,14 @@ describe("built CLI", () => {
     );
   });
 
+  it("prints the catalog as TypeScript declarations", () => {
+    const result = runCli(["catalog", "--types"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("declare const tools: {");
+    expect(result.stdout).toContain("readonly inspectFile: (input:");
+  });
+
   it("prints an OpenAPI document with one path per capability", () => {
     const result = runCli(["openapi"]);
 
@@ -140,7 +149,47 @@ describe("built CLI", () => {
   });
 });
 
+const initialize = [
+  {
+    id: 1,
+    jsonrpc: "2.0",
+    method: "initialize",
+    params: {
+      capabilities: {},
+      clientInfo: { name: "e2e", version: "0.0.0" },
+      protocolVersion: "2025-06-18",
+    },
+  },
+  { jsonrpc: "2.0", method: "notifications/initialized" },
+] as const;
+
 describe("built MCP server", () => {
+  it("runs a program against the capabilities in code mode", async () => {
+    const responses = await mcpConversation(
+      [
+        ...initialize,
+        {
+          id: 2,
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: {
+            arguments: {
+              code: `const stats = await tools.inspectFile({ path: ${JSON.stringify(readmePath)} }); return stats.lines > 10;`,
+            },
+            name: "execute",
+          },
+        },
+      ],
+      ["--code-mode"]
+    );
+
+    const call = responses.find((response) => response.id === 2);
+    expect(call?.error).toBeUndefined();
+    expect(call?.result).toMatchObject({
+      structuredContent: { logs: [], result: true },
+    });
+  });
+
   it("lists the capabilities as tools over stdio", async () => {
     const responses = await mcpConversation([
       {

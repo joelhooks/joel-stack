@@ -53,10 +53,14 @@ The same capability on the other surfaces:
 ```sh
 pnpm cli openapi                 # OpenAPI 3.1 document for the REST projection
 pnpm cli serve --port 3000       # POST /inspectFile, GET /openapi.json, GET /docs
-pnpm cli mcp                     # MCP server over stdio; add to any MCP client
+pnpm cli mcp                     # MCP server over stdio, one tool per capability
+pnpm cli mcp --code-mode         # MCP server with two tools: search and execute
+pnpm cli catalog --types         # the `tools` declarations a code-mode program sees
 ```
 
-`packages/capability/src` is where a capability becomes a `Command`, an `HttpApiEndpoint`, and a `Tool`. `packages/core/src/inspect-file.ts` is the one capability shipped; add another to `capabilities` and all four commands pick it up.
+Code mode is the fourth projection. The model gets `search` (ranked matches with TypeScript signatures) and `execute` (a JavaScript program with `tools` in scope). The program runs in a fresh Node subprocess under `--permission`, so it cannot touch the file system or spawn processes; its only way out is `tools.<name>(input)`, which the host validates against that capability's input schema and runs through the same handler as every other surface. Network egress is not blocked by Node's permission model; put a Worker or Deno runtime behind the same `Sandbox` service for real isolation.
+
+`packages/capability/src` is where a capability becomes a `Command`, an `HttpApiEndpoint`, a `Tool`, and a catalog entry. `packages/core/src/inspect-file.ts` is the one capability shipped; add another to `capabilities` and every command picks it up.
 
 ## What is in the stack?
 

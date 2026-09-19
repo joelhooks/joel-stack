@@ -6,7 +6,7 @@ import { formatFileStats, inspectFile } from "@rat-stack/core";
 import { Console, Effect, Layer } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
-import { http, mcpServer, webServer } from "./surfaces.js";
+import { codeMode, http, mcpServer, webServer } from "./surfaces.js";
 import { VERSION } from "./version.js";
 
 export { VERSION } from "./version.js";
@@ -36,16 +36,50 @@ const serveCommand = Command.make(
   )
 );
 
-const mcpCommand = Command.make("mcp", {}, () =>
-  Layer.launch(mcpServer).pipe(Effect.orDie)
+const mcpCommand = Command.make(
+  "mcp",
+  {
+    codeMode: Flag.Boolean("code-mode").pipe(
+      Flag.withDefault(false),
+      Flag.withDescription(
+        "Expose search and execute instead of one tool per capability"
+      )
+    ),
+  },
+  ({ codeMode: enabled }) =>
+    (enabled
+      ? Layer.launch(mcpServer.codeMode)
+      : Layer.launch(mcpServer.tools)
+    ).pipe(Effect.orDie)
 ).pipe(
   Command.withDescription("Serve the capabilities as an MCP server over stdio")
+);
+
+const catalogCommand = Command.make(
+  "catalog",
+  {
+    types: Flag.Boolean("types").pipe(
+      Flag.withDefault(false),
+      Flag.withDescription(
+        "Print the TypeScript declarations a code-mode program sees"
+      )
+    ),
+  },
+  ({ types }) =>
+    Console.log(
+      types ? codeMode.declarations : JSON.stringify(codeMode.catalog, null, 2)
+    )
+).pipe(
+  Command.withDescription(
+    "Print the capability catalog as JSON Schema, or as TypeScript with --types"
+  )
 );
 
 export const rootCommand = Command.make("rat-stack").pipe(
   Command.withDescription("Agent-first file inspection: CLI, REST, and MCP"),
   Command.withSubcommands([
     statsCommand,
+    catalogCommand,
     openapiCommand,
     serveCommand,
     mcpCommand,

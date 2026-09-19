@@ -12,6 +12,31 @@ export {
   type PlainSchema,
   type RequirementsOf,
 } from "./capability.js";
+export {
+  searchCatalog,
+  signatureOf,
+  toCatalog,
+  toTypeScript,
+  type Catalog,
+  type CatalogEntry,
+  type SearchMatch,
+} from "./catalog.js";
+export {
+  layerSubprocess,
+  Sandbox,
+  SandboxError,
+  type Invoke,
+  type InvokeOutcome,
+  type SandboxRun,
+  type SubprocessOptions,
+} from "./sandbox.js";
+export {
+  ExecuteResult,
+  SearchResult,
+  toCodeMode,
+  type CodeModeOptions,
+  type CodeModeProjection,
+} from "./to-code-mode.js";
 export { toCommand, type ToCommandOptions } from "./to-command.js";
 export {
   GROUP as HTTP_API_GROUP,

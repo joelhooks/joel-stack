@@ -6,7 +6,12 @@ import { createServer } from "node:http";
 // The REST and MCP surfaces, each a projection of the same capabilities.
 // Nothing here knows what the capabilities do; it only chooses transports.
 import { NodeHttpServer } from "@effect/platform-node";
-import { toHttpApi, toToolkit } from "@rat-stack/capability";
+import {
+  layerSubprocess,
+  toCodeMode,
+  toHttpApi,
+  toToolkit,
+} from "@rat-stack/capability";
 import { capabilities } from "@rat-stack/core";
 import { Layer, Logger } from "effect";
 import { McpProtocol, McpServer } from "effect/unstable/ai";
@@ -17,6 +22,7 @@ import { VERSION } from "./version.js";
 
 export const http = toHttpApi("RatStack", capabilities);
 export const tools = toToolkit(capabilities);
+export const codeMode = toCodeMode(capabilities);
 
 /** Routes: the API, its OpenAPI document, and a Scalar reference page. */
 export const routes = Layer.merge(
@@ -31,22 +37,38 @@ export const webServer = (port: number) =>
     Layer.provide(NodeHttpServer.layer(() => createServer(), { port }))
   );
 
+const stdio = McpServer.layerStdio({
+  name: "rat-stack",
+  protocols: [
+    McpProtocol.v2025_06_18,
+    McpProtocol.v2025_03_26,
+    McpProtocol.v2024_11_05,
+  ],
+  version: VERSION,
+});
+
 /**
  * MCP over stdio. Stdout is the protocol channel, so logs go to stderr; the
  * three protocol versions are the ones current clients negotiate.
+ *
+ * `tools` lists one tool per capability. `codeMode` lists `search` and
+ * `execute` instead, and runs model programs in a subprocess sandbox that can
+ * only reach the same capabilities.
  */
-export const mcpServer = McpServer.toolkit(tools.toolkit).pipe(
-  Layer.provideMerge(tools.layer),
-  Layer.provide(
-    McpServer.layerStdio({
-      name: "rat-stack",
-      protocols: [
-        McpProtocol.v2025_06_18,
-        McpProtocol.v2025_03_26,
-        McpProtocol.v2024_11_05,
-      ],
-      version: VERSION,
-    })
+const withStdio = <A, E, R>(server: Layer.Layer<A, E, R>) =>
+  server.pipe(
+    Layer.provide(stdio),
+    Layer.provide(Layer.succeed(Logger.LogToStderr, true))
+  );
+
+export const mcpServer = {
+  codeMode: withStdio(
+    McpServer.toolkit(codeMode.toolkit).pipe(
+      Layer.provideMerge(codeMode.layer),
+      Layer.provide(layerSubprocess())
+    )
   ),
-  Layer.provide(Layer.succeed(Logger.LogToStderr, true))
-);
+  tools: withStdio(
+    McpServer.toolkit(tools.toolkit).pipe(Layer.provideMerge(tools.layer))
+  ),
+} as const;

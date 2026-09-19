@@ -22,9 +22,9 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@rat-stack/capability` | `packages/capability` | `defineCapability` and the projections `toCommand`, `toHttpApi`, `toToolkit` |
+| `@rat-stack/capability` | `packages/capability` | `defineCapability` and the projections `toCommand`, `toHttpApi`, `toToolkit`, `toCodeMode` (catalog, `search`/`execute`, subprocess `Sandbox`) |
 | `@rat-stack/core` | `packages/core` | Domain logic: the `inspectFile` capability, its lifecycle machine, `FileInspector` |
-| `@rat-stack/cli` | `apps/cli` | Composition root: `stats`, `openapi`, `serve`, `mcp` commands |
+| `@rat-stack/cli` | `apps/cli` | Composition root: `stats`, `catalog`, `openapi`, `serve`, `mcp [--code-mode]` commands |
 | `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 
 ## Commands
