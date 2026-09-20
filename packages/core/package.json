@@ -25,7 +25,7 @@
   "dependencies": {
     "@effect/platform-node": "4.0.0-rc.115",
     "@rat-stack/capability": "workspace:*",
-    "@xstate/effect": "file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz",
+    "@xstate/effect": "0.1.0-alpha.2",
     "effect": "4.0.0-rc.115",
     "xstate": "6.0.0-alpha.58"
   },

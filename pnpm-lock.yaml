@@ -325,8 +325,8 @@ importers:
         specifier: workspace:*
         version: link:../capability
       '@xstate/effect':
-        specifier: file:../../vendor/xstate-effect-0.1.0-alpha.2.tgz
-        version: file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)
+        specifier: 0.1.0-alpha.2
+        version: 0.1.0-alpha.2(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)
       effect:
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115
@@ -2212,9 +2212,8 @@ packages:
   '@vitest/spy@5.0.1':
     resolution: {integrity: sha512-rbto/mF/SGERxEgYOek7Xm6B9b+y+mVoo+f4b2LymYO8zM1b7uB5nHuhVMTP2hxdzgxvGiZYGxGIaMvL5y180Q==}
 
-  '@xstate/effect@file:vendor/xstate-effect-0.1.0-alpha.2.tgz':
-    resolution: {integrity: sha512-a2Ji3UMBrtpqZ0Ld5+VShetB3uuhHjOGH9kVUVd6iRARkWghILuAlwpES0WecLxpOycSxOBZuMtrTzUPIeFVRg==, tarball: file:vendor/xstate-effect-0.1.0-alpha.2.tgz}
-    version: 0.1.0-alpha.2
+  '@xstate/effect@0.1.0-alpha.2':
+    resolution: {integrity: sha512-r55Pf0b8j4DBw24Yq7inJlYFRtru+JZmYx2dacCmRTAnlGEHh92pO+Dp1rMw7WkPPK9EBVShYddluu7xPOKskA==}
     peerDependencies:
       effect: ^4.0.0-rc.115
       xstate: ^6.0.0-alpha.58
@@ -5052,7 +5051,7 @@ snapshots:
 
   '@vitest/spy@5.0.1': {}
 
-  '@xstate/effect@file:vendor/xstate-effect-0.1.0-alpha.2.tgz(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)':
+  '@xstate/effect@0.1.0-alpha.2(effect@4.0.0-rc.115)(xstate@6.0.0-alpha.58)':
     dependencies:
       effect: 4.0.0-rc.115
       xstate: 6.0.0-alpha.58

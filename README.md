@@ -69,7 +69,7 @@ Code mode is the fourth projection. The model gets `search` (ranked matches with
 - **`@effect/platform-node` `4.0.0-rc.115`** — Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`** — strict module and index-access checks.
 - **XState `6.0.0-alpha.58`** — real lifecycle states; do not replace those with boolean soup.
-- **`@xstate/effect` `0.1.0-alpha.2`** — the official XState v6 to Effect 4 bridge: `createEffectActor` runs a machine as a scoped Effect, `fromEffect` makes Effects into actors with typed failures and requirements. `apps/cli/src/inspect-machine.ts` is the example. Vendored in `vendor/` until its npm publish lands.
+- **`@xstate/effect` `0.1.0-alpha.2`** — the official XState v6 to Effect 4 bridge: `createEffectActor` runs a machine as a scoped Effect, `fromEffect` makes Effects into actors with typed failures and requirements. `packages/core/src/inspect-machine.ts` is the example.
 - **Alchemy `2.0.0-beta.78`** — [Infrastructure as Effects](https://alchemy.run): `apps/infra/alchemy.run.ts` is the Stack; `pnpm infra:plan` / `infra:deploy` / `infra:destroy`; auth via `pnpm alchemy profile edit`.
 - **Oxlint + Ultracite + Oxfmt** — native lint and format.
 - **Vitest `5.0.1` + `@effect/vitest` `4.0.0-rc.115`** — `it.effect` and `it.layer` for every Effect test; running Effects by hand in a test file is a lint error.
@@ -116,7 +116,7 @@ The template is itself a project, so it ships more than a bare scaffold. Delete 
 | No code mode |  | `packages/capability/src/{catalog,sandbox,sandbox-error,to-code-mode}.ts` and `test/{catalog,sandbox,to-code-mode}.test.ts`; `codeMode` and `mcpServer.codeMode` in `surfaces.ts`; the `catalog` command and the `--code-mode` flag in `command.ts`; the code-mode and catalog cases in `cli.e2e.test.ts` |
 | No HTTP |  | `packages/capability/src/to-http-api.ts` and its test; `http`, `routes`, and `webServer` in `surfaces.ts`; the `openapi` and `serve` commands; `apps/cli/test/serve.test.ts`; the openapi case in `cli.e2e.test.ts` |
 | No MCP |  | `packages/capability/src/to-toolkit.ts`, its test, and `test/mcp-harness.ts`; `tools` and `mcpServer` in `surfaces.ts`; the `mcp` command; the MCP cases in `cli.e2e.test.ts`. Code mode imports from `to-toolkit.ts`, so cutting MCP cuts code mode too |
-| No XState |  | `packages/core/src/inspect-machine.ts` and its test (call `FileInspector.inspect` directly from `inspect-file.ts`); `xstate` and `@xstate/effect` in `packages/core/package.json`; `vendor/xstate-effect-*.tgz` and its `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`; `scripts/oxlint-plugin-xstate-effect.ts` and its entry in `oxlint.config.ts` |
+| No XState |  | `packages/core/src/inspect-machine.ts` and its test (call `FileInspector.inspect` directly from `inspect-file.ts`); `xstate` and `@xstate/effect` in `packages/core/package.json` and their `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`; `scripts/oxlint-plugin-xstate-effect.ts` and its entry in `oxlint.config.ts` |
 
 `defineCapability` plus `toCommand` is the minimum that keeps `stats` working. `capability.ts` has no dependency on the other projections.
 
