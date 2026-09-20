@@ -86,10 +86,9 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   // `Toolkit.make` is variadic over a tuple of tools; the tuple type is
   // recovered by `ToolsOf<Caps>`, which `map` over the runtime array cannot
   // carry. One cast at this boundary keeps every caller fully typed.
+  const made: unknown = Toolkit.make(...capabilities.map(toTool));
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const toolkit = Toolkit.make(
-    ...capabilities.map(toTool)
-  ) as unknown as Toolkit.Toolkit<ToolsOf<Caps>>;
+  const toolkit = made as Toolkit.Toolkit<ToolsOf<Caps>>;
 
   const layer = toolkit.toLayer(
     Effect.gen(function* buildHandlers() {

@@ -12,6 +12,7 @@
     "cli": "turbo run build --filter=@rat-stack/cli && node apps/cli/dist/cli.js",
     "env:check": "varlock load",
     "fix": "ultracite fix && oxfmt .",
+    "lint": "ultracite check && oxfmt --check .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "infra:deploy": "pnpm --filter @rat-stack/infra deploy",
@@ -24,18 +25,18 @@
     "vendor:agent-sources": "./scripts/vendor-agent-sources.sh"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.86.1",
     "@effect/tsgo": "0.45.0",
     "@oxlint/plugins": "1.83.0",
-    "@types/node": "24.13.5",
+    "@types/node": "24.13.6",
     "lefthook": "2.1.14",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
-    "oxlint-tsgolint": "7.0.2001",
-    "turbo": "2.10.13",
+    "oxlint-tsgolint": "7.0.2002",
+    "turbo": "2.11.2",
     "typescript": "7.0.2",
     "ultracite": "7.12.0",
-    "varlock": "1.19.0",
+    "varlock": "1.20.0",
     "vitest": "5.0.1"
   },
   "devEngines": {

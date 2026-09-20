@@ -57,6 +57,17 @@ Local branch `xstate-effect-typed-lint-plugin` in `~/.repo-autopsy/statelyai/xst
 - **Mirrors.** `vendor-agent-sources.sh` derives refs from the package pins and links `.agent-sources/effect` (pi-effect's path) to the pinned mirror; the beta.99 copy that the pi-effect hydrate could not fix is parked at `/tmp/agent-sources-effect-beta99`. AGENTS.md now points at `node_modules/effect/AGENTS.md` first.
 - **Gotchas hit.** `classSelfMismatch` fires on any generic service factory. `no-barrel-file` counts `export * as` re-exports against Effect's whole module graph, so namespaces are exported as a const object. pnpm 11's `verify-deps-before-run` re-serializes a lockfile it did not write (drops `tarball:` fields), which matters when preparing patches for repos whose lock keeps them.
 
+## Sweep 2026-09-20
+
+Joel asked for a library sweep. Bumped to the newest tag on each pinned line: `effect`, `@effect/platform-node`, `@effect/vitest` rc.115 to rc.116; `alchemy` beta.78 to beta.79; `turbo` 2.10.13 to 2.11.2; `varlock` 1.19.0 to 1.20.0; `oxlint-tsgolint` 7.0.2001 to 7.0.2002; `@earendil-works/pi-coding-agent` 0.85.1 to 0.86.1; `@types/node` 24.13.5 to 24.13.6 (staying on the Node 24 line; 26.x exists). Already latest: TypeScript 7.0.2, vitest 5.0.1, oxlint and `@oxlint/plugins` 1.83.0, ultracite 7.12.0, oxfmt 0.68.0, lefthook 2.1.14, xstate 6.0.0-alpha.58, `@xstate/effect` 0.1.0-alpha.2, `@effect/tsgo` 0.45.0. Gate green with no source change for rc.116. pnpm wrote the six `@earendil-works/*@0.86.1` entries into `minimumReleaseAgeExclude` itself ("loose mode"); the dead beta.78 entries were removed by hand. `capnp-es` still wants TypeScript 5 or 6 under alchemy; pre-existing, ignored.
+
+Two fence findings on the way:
+
+- **`turbo run check` never linted.** Each package's `check` script is just `typecheck`, so `pnpm turbo run check test build`, the documented gate and what CI runs, skipped `ultracite check` and `oxfmt --check`. Only the root `pnpm check`, which lefthook runs on commit, linted. Every lint failure this week was caught by the hook, never by CI. Fixed by a root `lint` script and a `//#lint` turbo task that `check` depends on; the gate now runs 15 tasks.
+- **`oxlint-tsgolint` 7.0.2002 reports a multi-line `x as unknown as T` on the line holding the second `as`,** out of reach of a `disable-next-line` above the statement. `to-toolkit.ts` now binds the value as `unknown` on its own line and casts on the next. Pattern for the other cast sites if the rule moves again.
+
+The vendor script's xstate pin still pointed at `apps/cli/package.json` after the machine moved to `packages/core`; it resolved `xstate@undefined`. Fixed, mirrors refreshed to rc.116 and beta.79.
+
 ## Gaps in rat-stack against this bar (as found 2026-09-18, all now closed)
 
 1. **No `@effect/language-service`.** This is the single largest missing fence for "agents write good Effect". Every reference project has it.

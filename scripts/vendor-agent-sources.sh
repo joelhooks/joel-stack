@@ -65,7 +65,7 @@ pin() {
   node -p "require('${ROOT}/$1').dependencies['$2']"
 }
 EFFECT_VERSION="$(pin packages/core/package.json effect)"
-XSTATE_VERSION="$(pin apps/cli/package.json xstate)"
+XSTATE_VERSION="$(pin packages/core/package.json xstate)"
 ALCHEMY_VERSION="$(pin apps/infra/package.json alchemy)"
 
 clone_source Effect-TS effect https://github.com/Effect-TS/effect.git "effect@${EFFECT_VERSION}" \
@@ -73,7 +73,7 @@ clone_source Effect-TS effect https://github.com/Effect-TS/effect.git "effect@${
 clone_source kitlangton effect-solutions https://github.com/kitlangton/effect-solutions.git main \
   "Idiomatic Effect patterns guide (Kit Langton)."
 clone_source statelyai xstate https://github.com/statelyai/xstate.git "xstate@${XSTATE_VERSION}" \
-  "XState v6 matching apps/cli xstate@${XSTATE_VERSION}; packages/xstate-effect is the Effect bridge."
+  "XState v6 matching packages/core xstate@${XSTATE_VERSION}; packages/xstate-effect is the Effect bridge."
 clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git "v${ALCHEMY_VERSION}" \
   "Alchemy IaC matching apps/infra alchemy@${ALCHEMY_VERSION}. Read alchemy/src/cloudflare/."
 

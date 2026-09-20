@@ -13,8 +13,11 @@
       "dependsOn": ["build"],
       "outputs": []
     },
+    "//#lint": {
+      "outputs": []
+    },
     "check": {
-      "dependsOn": ["typecheck"],
+      "dependsOn": ["typecheck", "//#lint"],
       "outputs": []
     }
   }

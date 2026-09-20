@@ -10,12 +10,11 @@ allowBuilds:
   protobufjs: true
   workerd: true
 
+# Exact prerelease pins that pnpm's release-age check would otherwise hold back.
+# One entry per version; a bump replaces its entry rather than adding one.
 minimumReleaseAgeExclude:
   - xstate@6.0.0-alpha.58
   - "@xstate/effect@0.1.0-alpha.2"
-  - "@alchemy.run/cloudflare-runtime@2.0.0-beta.78"
-  - "@alchemy.run/floci@2.0.0-beta.78"
-  - "@alchemy.run/node-utils@2.0.0-beta.78"
   - "@distilled.cloud/aws@1.0.0-rc.12"
   - "@distilled.cloud/axiom@1.0.0-rc.12"
   - "@distilled.cloud/cloudflare@1.0.0-rc.12"
@@ -27,4 +26,9 @@ minimumReleaseAgeExclude:
   - "@distilled.cloud/prisma@1.0.0-rc.12"
   - "@distilled.cloud/railway@1.0.0-rc.12"
   - "@distilled.cloud/stripe@1.0.0-rc.12"
-  - alchemy@2.0.0-beta.78
+  - "@earendil-works/chord@0.86.1"
+  - "@earendil-works/pi-agent-core@0.86.1"
+  - "@earendil-works/pi-ai@0.86.1"
+  - "@earendil-works/pi-coding-agent@0.86.1"
+  - "@earendil-works/pi-telemetry@0.86.1"
+  - "@earendil-works/pi-tui@0.86.1"

@@ -8,15 +8,15 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 
 - pnpm workspaces + Turborepo (`apps/*`, `packages/*`)
 - Node `>=24.18.0` and pnpm `11.3.0`; do not replace pnpm with Bun or npm for installs
-- Effect `4.0.0-rc.115` and `@effect/platform-node` `4.0.0-rc.115`
+- Effect `4.0.0-rc.116` and `@effect/platform-node` `4.0.0-rc.116`
 - XState `6.0.0-alpha.58` for finite lifecycles, retries, cancellation, and resumability
 - `@xstate/effect` `0.1.0-alpha.2` bridges the two: machines run as scoped Effects via `createEffectActor`, side effects are declared `fromEffect` actors. Published to npm 2026-09-19; `vendor/README.md` keeps the rules for the next unpublished pin
-- Alchemy `2.0.0-beta.78` (Infrastructure as Effects) for every cloud resource; declared in `apps/infra/alchemy.run.ts`, authenticated through Alchemy profiles, never through env vars in this repo
+- Alchemy `2.0.0-beta.79` (Infrastructure as Effects) for every cloud resource; declared in `apps/infra/alchemy.run.ts`, authenticated through Alchemy profiles, never through env vars in this repo
 - TypeScript `7.0.2` in strict mode, patched by `@effect/tsgo` `0.45.0` in `prepare` so the Effect language service diagnostics in `tsconfig.base.json` fail `tsc`, not just the editor. Escape hatch for a real boundary: `// @effect-diagnostics-next-line <rule>:off` with a reason
-- `@effect/vitest` `4.0.0-rc.115` for every Effect test: `it.effect` and `it.layer(layer)`; `Effect.run*` and `ManagedRuntime.make` in test files are a lint error
+- `@effect/vitest` `4.0.0-rc.116` for every Effect test: `it.effect` and `it.layer(layer)`; `Effect.run*` and `ManagedRuntime.make` in test files are a lint error
 - `@oxlint/plugins` `1.83.0` for the two typed lint rules in `scripts/oxlint-plugin-*.ts`
-- Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.10.13`
-- varlock `1.19.0`: declare every env var in `.env.schema`, never read `.env.local` directly, run `pnpm env:check` after schema edits
+- Oxlint `1.83.0` with Ultracite `7.12.0`, Oxfmt `0.68.0`, and Turborepo `2.11.2`
+- varlock `1.20.0`: declare every env var in `.env.schema`, never read `.env.local` directly, run `pnpm env:check` after schema edits
 
 ## Packages
 
@@ -33,6 +33,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 | --- | --- |
 | `pnpm install` | Install workspace dependencies |
 | `pnpm check` | Typecheck, verify formatting, and run type-aware linting |
+| `pnpm lint` | Type-aware lint plus format check only; `turbo run check` runs this once at the root as `//#lint` |
 | `pnpm fix` | Apply Oxfmt and safe Oxlint fixes |
 | `pnpm test` | Build and run the Vitest suite once |
 | `pnpm build` | Compile packages into `dist/` |

@@ -13,12 +13,12 @@
     "logs": "alchemy logs"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-rc.115",
-    "alchemy": "2.0.0-beta.78",
-    "effect": "4.0.0-rc.115"
+    "@effect/platform-node": "4.0.0-rc.116",
+    "alchemy": "2.0.0-beta.79",
+    "effect": "4.0.0-rc.116"
   },
   "devDependencies": {
-    "@types/node": "24.13.5",
+    "@types/node": "24.13.6",
     "typescript": "7.0.2"
   }
 }
