@@ -10,6 +10,8 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
+import Mischief from "../mischief/src/worker.js";
+
 export default Alchemy.Stack(
   "RatStack",
   {
@@ -18,8 +20,15 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* stack() {
     const bucket = yield* Cloudflare.R2.Bucket("Bucket");
+    const dev = yield* Alchemy.ALCHEMY_DEV;
+    if (!dev) {
+      return { bucketName: bucket.bucketName };
+    }
+
+    const mischief = yield* Mischief;
     return {
       bucketName: bucket.bucketName,
+      mischiefUrl: mischief.url,
     };
   })
 );

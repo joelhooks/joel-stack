@@ -1,0 +1,24 @@
+{
+  "name": "@rat-stack/mischief",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate-content.ts",
+    "typecheck": "pnpm run --silent generate && tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "pnpm run --silent generate && tsc -p tsconfig.build.json",
+    "check": "pnpm run typecheck",
+    "pretest": "pnpm run --silent build"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.79",
+    "effect": "4.0.0-rc.116"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.116",
+    "@types/node": "24.13.6",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}

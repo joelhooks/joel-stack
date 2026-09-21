@@ -9,6 +9,7 @@
     "plan": "alchemy plan",
     "deploy": "alchemy deploy",
     "destroy": "alchemy destroy",
+    "predev": "pnpm --filter @rat-stack/mischief generate",
     "dev": "alchemy dev",
     "logs": "alchemy logs"
   },

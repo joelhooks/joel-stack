@@ -13,6 +13,16 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./define": {
+      "types": "./src/define.ts",
+      "import": "./dist/define.js",
+      "default": "./dist/define.js"
+    },
+    "./toolkit": {
+      "types": "./src/toolkit.ts",
+      "import": "./dist/toolkit.js",
+      "default": "./dist/toolkit.js"
     }
   },
   "scripts": {

@@ -2,6 +2,9 @@ node_modules/
 dist/
 .turbo/
 coverage/
+**/.alchemy/bundles/
+**/.alchemy/local/
+**/.alchemy/log/
 .pi/notes-bridge/
 # pi-notes regenerates this default on startup; canonical Brain procedures
 # live in .pi/APPEND_SYSTEM.md
@@ -20,3 +23,4 @@ BRAIN.md
 .env.local
 .env.*.local
 env.d.ts
+apps/mischief/src/bundled-content.generated.ts

@@ -294,6 +294,28 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  apps/mischief:
+    dependencies:
+      alchemy:
+        specifier: 2.0.0-beta.79
+        version: 2.0.0-beta.79(@effect/platform-node@4.0.0-rc.116(effect@4.0.0-rc.116)(redis@6.2.1))(@types/node@24.13.6)(effect@4.0.0-rc.116)(typescript@7.0.2)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))(vitest@5.0.1(@types/node@24.13.6)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))(ws@8.21.3)
+      effect:
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.0-rc.116
+        version: 4.0.0-rc.116(effect@4.0.0-rc.116)(vitest@5.0.1(@types/node@24.13.6)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@24.13.6)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/capability:
     dependencies:
       effect:
@@ -1887,9 +1909,6 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
-
-  '@types/node@24.13.5':
-    resolution: {integrity: sha512-TXyindR+lBr22aJIdMQzCFHPHR6cR4js838mRDCSz5hOKWZvZwsXSSiXDmjRj4iJmgl+sR9O+1mkoVBSMadNug==}
 
   '@types/node@24.13.6':
     resolution: {integrity: sha512-SGrw/h3KPFshy3OE6ZL53LMBG5vGQQ8/gIpiqz/kRZhPJ7HgwCEs8LBuNtWLa8dvGZVpSF7+Bf+c11HUrCb/yg==}
@@ -4575,10 +4594,6 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
-  '@types/node@24.13.5':
-    dependencies:
-      undici-types: 7.18.2
-
   '@types/node@24.13.6':
     dependencies:
       undici-types: 7.18.2
@@ -4587,7 +4602,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 24.13.5
+      '@types/node': 24.13.6
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -5444,7 +5459,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 24.13.5
+      '@types/node': 24.13.6
       long: 5.3.2
 
   proxy-agent-negotiate@1.1.0: {}

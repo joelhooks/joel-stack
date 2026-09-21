@@ -15,3 +15,51 @@ created_at: "2026-09-21"
 ## Step
 
 Build the smallest `apps/mischief` that runs under `alchemy dev` in workerd: `GET /` plain text, `GET /llms.txt`, `/mcp` with one resource (`AGENTS.md`) and one prompt (a stub skill), using the shapes from the two research assets. Joel connects an MCP client and fetches the root with curl. The point is a reaction to the page voice and the MCP shape before the content set is final. Record what felt wrong.
+
+## Result (2026-09-21)
+
+Built the local-only Effect Worker in `apps/mischief` and wired it into `apps/infra/alchemy.run.ts` behind `Alchemy.ALCHEMY_DEV`. The Worker serves Markdown by default at `/`, an HTML `<pre>` shell for `Accept: text/html`, `/llms.txt`, `/robots.txt`, and a stateless MCP endpoint at `/mcp` restricted to protocol `2026-07-28`. MCP exposes the repository `AGENTS.md` as `ratstack://repo/AGENTS.md` and the bundled `learn-rat-stack` prompt.
+
+Added worker-safe `@rat-stack/capability/define` and `@rat-stack/capability/toolkit` exports without changing the Node-oriented root barrel. The prototype does not yet consume them because it does not expose a capability tool.
+
+A direct `?raw` Markdown import worked in Vite tests and the Worker bundler but failed while Alchemy imported the stack module in Node (`ERR_UNKNOWN_FILE_EXTENSION` for `SKILL.md`). The final shape uses `apps/mischief/scripts/generate-content.ts` to produce a Worker-safe TypeScript string module before typecheck, build, test, and `infra:dev`. No request-time filesystem access remains.
+
+`pnpm infra:dev` created the Bucket and Mischief Worker through local providers and reported `http://localhost:1337`. The required curl checks returned HTTP 200 with `text/markdown; charset=utf-8`.
+
+### `curl -H 'Accept: text/markdown' http://localhost:1337/`
+
+```md
+# rat-stack
+
+An Effect-first TypeScript stack for agents. Define one schema-typed capability, then project it to CLI, HTTP, MCP, and code mode.
+
+## Start here
+
+1. Read `AGENTS.md` for the project law.
+2. Read `VISION.md` for product intent.
+3. Add behavior with `defineCapability`.
+4. Add the capability to the catalog.
+5. Run `pnpm turbo run check test build`.
+
+## Connect
+
+MCP endpoint: `/mcp`
+Protocol: `2026-07-28`
+
+The prototype MCP exposes the project law as a resource and a guided learn-rat-stack prompt.
+```
+
+### `curl http://localhost:1337/llms.txt`
+
+```md
+# rat-stack
+
+> An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode.
+
+## Start here
+
+- [Agent-first guide](https://ratstack.sh/): The shortest path into the stack.
+- [MCP endpoint](https://ratstack.sh/mcp): The project law and learn-rat-stack prompt over Streamable HTTP.
+```
+
+The dev process was stopped and `localhost:1337` no longer accepts connections. `pnpm turbo run check test build` passed with 19/19 Turbo tasks; Mischief's four fetch/MCP tests passed.
