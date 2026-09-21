@@ -1,0 +1,176 @@
+---
+title: "MCP client protocol support and Durable Object fallback"
+type: "asset"
+parent: "./research-mcp-client-protocol-support.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# MCP client protocol support and Durable Object fallback
+
+## Decision
+
+Serve **both eras, with a sunset note**:
+
+1. Send `2026-07-28` requests directly to the stateless Effect Worker handler.
+2. Send legacy `initialize` and `Mcp-Session-Id` traffic to one named Durable Object that owns one long-lived Effect stateful runtime.
+3. Publish legacy support as temporary. Remove it after all named first-party clients negotiate `2026-07-28` by default and production telemetry shows less than 1% legacy traffic for 30 days, with at least 90 days' notice.
+
+Do not put modern traffic behind the Durable Object. It would add an extra hop and serialize traffic that Effect and MCP deliberately made stateless.
+
+Modern-only is too early on 2026-09-21. Claude Code reaches `2026-07-28` over direct HTTP, but Cursor, Pi's installed MCP adapter, Codex, MCP Inspector, and the v1 TypeScript SDK still negotiate a 2025 revision by default.
+
+## What changed in MCP `2026-07-28`
+
+The current protocol removed the initialization lifecycle and protocol sessions, including `Mcp-Session-Id`. Each request carries protocol version, client identity, and capabilities in `_meta`; `server/discover` provides optional up-front discovery. This is why Effect can implement `McpProtocol.v2026_07_28` without a session map. Source: [MCP `2026-07-28` changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), read 2026-09-21.
+
+## Client matrix
+
+“Default against HTTP” is the deployment-relevant column for `https://ratstack.sh/mcp`. Local probes used a server that accepted both eras and recorded the first request. Probe artifacts remain under `/tmp`; the relevant wire facts are copied below so the result does not depend on those temporary files.
+
+| Client checked on 2026-09-21 | Default against HTTP | Newest available today | Evidence and confidence |
+| --- | --- | --- | --- |
+| Claude Code `2.1.278` | `2026-07-28` | `2026-07-28` | **Verified locally.** `/tmp/mcp-http-probe-claude.jsonl` begins with `server/discover`, `Mcp-Protocol-Version: 2026-07-28`, and matching `_meta`; later `tools/list` uses the same revision. Direct stdio still opened with `initialize` at `2025-11-25` in `/tmp/mcp-probe-claude.jsonl`, so transport matters. Independent remote-connector evidence: [anthropics/claude-code#93290](https://github.com/anthropics/claude-code/issues/93290). |
+| Claude Desktop `2.2553.1` installed locally | `2026-07-28` for a claude.ai remote connector | `2026-07-28` | **Externally observed; this exact local build was not wire-probed.** [anthropics/claude-code#93290](https://github.com/anthropics/claude-code/issues/93290), opened 2026-09-10, records Claude for Mac sending `2026-07-28` request metadata through a custom connector. [#94806](https://github.com/anthropics/claude-code/issues/94806), opened 2026-09-16, records the Cowork desktop MCP client negotiating `2026-07-28`. Treat local stdio servers separately until directly tested. |
+| Pi package `@earendil-works/pi-coding-agent` `0.86.1` plus installed `pi-mcp-adapter` `2.34.0` | `2025-11-25` | `2026-07-28`, only when the server config explicitly sets `protocolVersion: "auto"` or `"2026-07-28"` | **Verified from installed source.** Pi core intentionally has no MCP client: `node_modules/@earendil-works/pi-coding-agent/docs/usage.md` (“does not include built-in MCP”). The extension's `~/.pi/agent/npm/node_modules/pi-mcp-adapter/types.ts` says the default is `"legacy"`; `server-manager.ts` maps `"auto"` and `"2026-07-28"` to SDK v2 negotiation. Its installed `@modelcontextprotocol/client` `2.0.0` proposes `2025-11-25` in legacy mode. |
+| Codex CLI `0.155.0` | `2025-06-18` | `2026-07-28`, behind an under-development feature and, for stdio, a server opt-in | **Verified locally and in source.** `/tmp/mcp-probe-codex.jsonl` records `initialize.params.protocolVersion: "2025-06-18"`. [`protocol_mode.rs`](https://github.com/openai/codex/blob/main/codex-rs/rmcp-client/src/protocol_mode.rs) makes `Legacy` the default and proposes `2025-06-18`; [`features/src/lib.rs`](https://github.com/openai/codex/blob/main/codex-rs/features/src/lib.rs) marks `mcp_2026_07_28` under development and disabled by default. |
+| Cursor Agent `2026.09.18-9a7762b` | `2025-11-25` | No verified `2026-07-28` mode | **Verified locally.** `/tmp/mcp-http-probe-cursor.jsonl` records `initialize` at `2025-11-25`, then `Mcp-Session-Id` and `Mcp-Protocol-Version: 2025-11-25` on later HTTP calls. `/tmp/mcp-probe.jsonl` records the same revision over stdio. No current source or documented switch proving modern negotiation was found; modern support is therefore unverified. |
+| MCP Inspector source `2.7.0` | `2025-11-25` | `2026-07-28` when `protocolEra` is `"auto"` or `"modern"` | **Verified from current source.** [`package.json`](https://github.com/modelcontextprotocol/inspector/blob/main/package.json) pins `@modelcontextprotocol/client` `2.0.0`. [`core/mcp/types.ts`](https://github.com/modelcontextprotocol/inspector/blob/main/core/mcp/types.ts) defines modern as `2026-07-28` but says an omitted era means legacy `2025-11-25`; [`clients/cli/src/cli.ts`](https://github.com/modelcontextprotocol/inspector/blob/main/clients/cli/src/cli.ts) exposes `--protocol-era legacy|auto|modern` and says ad-hoc targets otherwise default to legacy. |
+| `@modelcontextprotocol/sdk` npm client `1.30.0` | `2025-11-25` | `2025-11-25` | **Verified from installed package.** `~/.pi/agent/npm/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js` sets `LATEST_PROTOCOL_VERSION = "2025-11-25"` and lists no `2026-07-28` support. Do not confuse this v1 package with the split `@modelcontextprotocol/client` `2.0.0`: v2 can negotiate `2026-07-28`, but its default is still legacy unless the host opts into `versionNegotiation`. Source: [`packages/client/src/client/client.ts`](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/packages/client/src/client/client.ts) and [`versionNegotiation.ts`](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/packages/client/src/client/versionNegotiation.ts). |
+
+### Local wire excerpts
+
+Claude Code direct HTTP:
+
+```json
+{"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}
+```
+
+The request also carried `Mcp-Method: server/discover` and `Mcp-Protocol-Version: 2026-07-28`. The next `tools/list` request carried the same body revision and headers. Source: `/tmp/mcp-http-probe-claude.jsonl`, captured 2026-09-21.
+
+Cursor direct HTTP:
+
+```json
+{"method":"initialize","params":{"protocolVersion":"2025-11-25"},"clientInfo":{"name":"Cursor","version":"1.0.0"}}
+```
+
+Later requests carried both `Mcp-Session-Id: probe-session` and `Mcp-Protocol-Version: 2025-11-25`. Source: `/tmp/mcp-http-probe-cursor.jsonl`, captured 2026-09-21.
+
+Codex stdio:
+
+```json
+{"method":"initialize","params":{"protocolVersion":"2025-06-18"},"clientInfo":{"name":"codex-mcp-client","version":"0.155.0"}}
+```
+
+Source: `/tmp/mcp-probe-codex.jsonl`, captured 2026-09-21.
+
+## Why legacy Effect MCP needs one owner
+
+Effect rc.116 stores legacy protocol state in process memory:
+
+- `mcpRuntime.ts` creates a random UUID during HTTP `initialize`, calls `stateful.registerHttp(sessionId, registration)`, and returns `Mcp-Session-Id`.
+- `mcpStatefulRuntime.ts` keeps sessions in `Map<string, Session>` and resolves each later request by that header.
+- `2026-07-28` bypasses this runtime and validates request metadata instead.
+
+Sources: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpRuntime.ts` and `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpStatefulRuntime.ts`.
+
+A normal Worker deployment can send two requests from one client to different isolates. The second isolate has no matching map entry. A Durable Object fixes request ownership: every legacy request sent to one named object reaches the same single-threaded instance.
+
+## Durable Object architecture
+
+```text
+                         ┌──────────────────────────────┐
+2026-07-28 request ─────▶│ Worker: stateless Effect MCP│
+                         └──────────────────────────────┘
+       /mcp
+         │
+         └─ legacy initialize or Mcp-Session-Id
+                         ┌──────────────────────────────┐
+                       ─▶│ DO "legacy-mcp-v1"          │
+                         │ one Effect handler/runtime   │
+                         │ all legacy session Maps      │
+                         └──────────────────────────────┘
+```
+
+The front Worker must inspect a cloned JSON body and headers:
+
+- Route `server/discover` and requests whose `_meta.io.modelcontextprotocol/protocolVersion` is `2026-07-28` to the modern handler.
+- Route legacy `initialize` and requests carrying `Mcp-Session-Id` to `env.LegacyMcp.getByName("legacy-mcp-v1")`.
+- Reject mixed or malformed version claims rather than guessing.
+
+A compact shape is:
+
+```ts
+// alchemy.run.ts
+export const LegacyMcp = Cloudflare.DurableObject<LegacyMcpClass>(
+  "LegacyMcp",
+  { className: "LegacyMcp" },
+)
+
+export const Worker = Cloudflare.Worker("Worker", {
+  main: "./src/worker.ts",
+  env: { LegacyMcp },
+})
+
+// worker.ts — abbreviated; request classification needs tests
+export default {
+  async fetch(request: Request, env: Env) {
+    const body = await request.clone().json<Record<string, unknown>>()
+    return isModernMcp(body, request.headers)
+      ? modernMcpHandler(request)
+      : env.LegacyMcp.getByName("legacy-mcp-v1").fetch(request)
+  },
+}
+
+export class LegacyMcp extends DurableObject<Env> {
+  // Build once per DO activation so Effect's legacy session Maps survive
+  // across all requests handled by this object.
+  private readonly handle = makeLegacyEffectMcpHandler()
+
+  fetch(request: Request) {
+    return this.handle(request)
+  }
+}
+```
+
+Alchemy beta.79 can declare a Durable Object resource, bind it into a Worker environment, and obtain a stub with `getByName`. The Effect-native API also exposes `Cloudflare.DurableObjectState` and typed RPC methods. Sources:
+
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/compute/durable-objects.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/compute/cross-worker-durable-object.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/examples/cloudflare-worker-async/alchemy.run.ts`
+- `.agent_sources/github.com/alchemy-run/alchemy/examples/cloudflare-worker-async/src/worker.ts`
+
+### Important durability limit
+
+A Durable Object gives a stable routing identity, not immortal JavaScript memory. Cloudflare may evict and restart it. The sketch above retains Effect's session map only for one object activation. A restarted object loses those sessions, and legacy clients must initialize again.
+
+Persisting the current runtime exactly is not a small configuration change. Effect's session contains protocol adapter objects, sets, and mutable log-level state, and rc.116 exposes no public session-store injection seam. A restart-durable implementation must either:
+
+1. add an upstream/public Effect session-store seam and persist a serializable session snapshot in `DurableObjectState.storage`, or
+2. duplicate private runtime behavior in application code.
+
+Prefer the first. The second couples ratstack.sh to Effect internals.
+
+## One object or one object per session?
+
+Use **one named legacy object** first.
+
+| Shape | Benefit | Problem | Estimated code cost |
+| --- | --- | --- | --- |
+| One named legacy DO | No lookup table; `initialize` and every later session request automatically meet the same Effect runtime | All legacy traffic is serialized through one object; activation restart drops sessions unless a store seam is added | About 120–200 production lines plus 100–180 test lines for routing, headers, lifecycle, and restart behavior |
+| One DO per `Mcp-Session-Id` | Removes the global legacy bottleneck | Effect creates the session ID *inside* `initialize`, after routing has already chosen a DO. It therefore needs a bootstrap/index DO or a change that lets the caller supply the ID | About 350–600 production lines plus tests; two ownership layers and cleanup policy |
+| All protocols behind one DO | One endpoint and one runtime owner | Adds latency, cost, and head-of-line blocking to stateless modern traffic for no protocol reason | Similar code to hybrid, worse runtime shape |
+
+These are engineering estimates, not measured implementation totals.
+
+## Recommended implementation boundary
+
+Build the smallest hybrid slice:
+
+1. Keep `McpProtocol.v2026_07_28` as the direct Worker path.
+2. Add one `LegacyMcp` Durable Object containing a handler configured only with the legacy adapters that telemetry says clients actually use. Start with `v2025_11_25` and `v2025_06_18`; do not advertise every historical revision by reflex.
+3. Add black-box tests proving initialize and the next request hit the same object, modern calls bypass the object, malformed mixed-era requests fail, and a DO restart produces a clear invalid-session response.
+4. Count negotiated revisions. The sunset rule should use those counts, not vibes.
+5. Before claiming restart durability, add or upstream a public Effect session-store seam. Until then, describe the fallback accurately as **durable routing with activation-memory sessions**.
+
+This gives current legacy clients a working path without turning the new stateless protocol back into a stateful bottleneck. 🐀

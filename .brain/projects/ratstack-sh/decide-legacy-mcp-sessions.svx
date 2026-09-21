@@ -1,0 +1,23 @@
+---
+title: "Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28"
+type: "step"
+kind: "grilling"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28
+
+## Step
+
+The [client matrix](./research-mcp-client-protocol-support-asset.svx) shows a split: Claude Code speaks `2026-07-28` today; Cursor, Codex, the reference SDK, and the defaults of Pi's adapter and MCP Inspector negotiate a 2025 revision, which Effect serves only with in-process sessions. Three honest shapes:
+
+1. `2026-07-28` only. Smallest Worker, no state. Claude Code and any client set to the modern era work; Cursor and Codex users get an initialize failure and a plain-text note at `/mcp` explaining the version requirement.
+2. Hybrid. Stateless Worker for modern requests, one named Durable Object that owns Effect's stateful runtime for legacy sessions, with a documented sunset. Serves everyone today; costs one DO, a router split, and a durability caveat (an activation restart drops sessions).
+3. Legacy best-effort in the Worker. Serve every version from the isolate's memory and accept that a session can vanish between isolates. Cheapest and least honest.
+
+Recommendation: 1 for the prototype and the first deploy, 2 as the next step only if the scan or real use shows agents failing; never 3. The site's promise is "point an agent at it," and today the agent most likely to be pointed is Claude Code. Record the choice in the brief's Notes and in `llms.txt` under the MCP heading.
