@@ -1,0 +1,24 @@
+---
+title: "Build the tools, catalogue, and well-known documents into the Mischief Worker"
+type: "step"
+kind: "build"
+interaction: "AFK"
+status: "open"
+assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-21)"
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Build the tools, catalogue, and well-known documents into the Mischief Worker
+
+## Step
+
+Grow `apps/mischief` from the prototype into the decided shape, in this order and each slice gate-green before the next:
+
+1. Sandbox seam: split `packages/capability/src/sandbox.ts` into the Worker-safe contract (`sandbox-service.ts`: `Sandbox`, `Invoke`, `InvokeOutcome`, `SandboxRun`, with `SandboxError` staying in its file) and the Node runner (`sandbox-subprocess.ts`: `layerSubprocess`); add the `@rat-stack/capability/sandbox` subpath; keep the root barrel exporting both; `apps/cli` unchanged in behavior. Then a `@rat-stack/capability/code-mode` subpath for `toCodeMode` and `catalog` if they are Worker-safe (they must not import the subprocess runner).
+2. Capabilities in `apps/mischief/src/capabilities/`: `search` (query to ranked matches over the law files and skills, reusing `searchCatalog`'s token-overlap ranking or a small copy of it), `read` (resource id to text), and code mode's `execute` over those two, with the Worker Loader `Sandbox` layer from the research asset (`apps/mischief/src/sandbox-worker-loader.ts`) and the `CODE_SANDBOX` binding declared on the Mischief Worker. Projected with `toToolkit` on `/mcp` and `toHttpApi` at `/api` with `/openapi.json`.
+3. Content: the generate script bundles the seven law files (`AGENTS.md`, `VISION.md`, `README.md`, `vendor/README.md`, pins generated from every workspace `package.json`, both `.brain/resources/*.svx`) and every `skills/*/SKILL.md`. Routes: root as the catalogue (install line, groups, Law, MCP), `/skills` and `/skills/<name>` as Markdown, `/llms.txt` and `/llms-full.txt`, `/.well-known/agent-skills/index.json` (v0.2.0 with sha256 digests per the checks asset), `/.well-known/api-catalog`, `/.well-known/mcp.json` server card, `/sitemap.xml`, `Link` headers, `Content-Signal` in robots. Every law file an MCP resource, every skill an MCP prompt.
+4. Tests for each route and each tool over `HttpRouter.toWebHandler`; an `execute` test that runs a program calling `search` then `read`. Note `alchemy dev` compatibility-date limits from the research asset.
+
+Resolved when `pnpm turbo run check test build` is green, `pnpm infra:dev` answers on `:1337` for `/`, `/skills/add-a-capability`, `/.well-known/agent-skills/index.json`, and an MCP `tools/list` shows `search`, `read`, `execute`, with the curl outputs in the step's Result.

@@ -1,0 +1,33 @@
+---
+title: "Worker task: build-mischief-tools"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: build-mischief-tools
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary and Decision ledger bind you). Assets: every `.brain/projects/ratstack-sh/*-asset.svx`, especially `research-worker-sandbox-asset.svx`, `research-agent-ready-checks-asset.svx`, `research-effect-mcp-over-http-asset.svx`, `research-alchemy-effect-worker-asset.svx`.
+Your step: `.brain/projects/ratstack-sh/build-mischief-tools.svx` (already claimed for you).
+
+## What to do
+
+Grow `apps/mischief` from the prototype into the decided shape, in this order and each slice gate-green before the next:
+
+1. Sandbox seam: split `packages/capability/src/sandbox.ts` into the Worker-safe contract (`sandbox-service.ts`: `Sandbox`, `Invoke`, `InvokeOutcome`, `SandboxRun`, with `SandboxError` staying in its file) and the Node runner (`sandbox-subprocess.ts`: `layerSubprocess`); add the `@rat-stack/capability/sandbox` subpath; keep the root barrel exporting both; `apps/cli` unchanged in behavior. Then a `@rat-stack/capability/code-mode` subpath for `toCodeMode` and `catalog` if they are Worker-safe (they must not import the subprocess runner).
+2. Capabilities in `apps/mischief/src/capabilities/`: `search` (query to ranked matches over the law files and skills, reusing `searchCatalog`'s token-overlap ranking or a small copy of it), `read` (resource id to text), and code mode's `execute` over those two, with the Worker Loader `Sandbox` layer from the research asset (`apps/mischief/src/sandbox-worker-loader.ts`) and the `CODE_SANDBOX` binding declared on the Mischief Worker. Projected with `toToolkit` on `/mcp` and `toHttpApi` at `/api` with `/openapi.json`.
+3. Content: the generate script bundles the seven law files (`AGENTS.md`, `VISION.md`, `README.md`, `vendor/README.md`, pins generated from every workspace `package.json`, both `.brain/resources/*.svx`) and every `skills/*/SKILL.md`. Routes: root as the catalogue (install line, groups, Law, MCP), `/skills` and `/skills/<name>` as Markdown, `/llms.txt` and `/llms-full.txt`, `/.well-known/agent-skills/index.json` (v0.2.0 with sha256 digests per the checks asset), `/.well-known/api-catalog`, `/.well-known/mcp.json` server card, `/sitemap.xml`, `Link` headers, `Content-Signal` in robots. Every law file an MCP resource, every skill an MCP prompt.
+4. Tests for each route and each tool over `HttpRouter.toWebHandler`; an `execute` test that runs a program calling `search` then `read`. Note `alchemy dev` compatibility-date limits from the research asset.
+
+Resolved when `pnpm turbo run check test build` is green, `pnpm infra:dev` answers on `:1337` for `/`, `/skills/add-a-capability`, `/.well-known/agent-skills/index.json`, and an MCP `tools/list` shows `search`, `read`, `execute`, with the curl outputs in the step's Result.
+
+## Write scope
+
+packages/capability, apps/mischief (not public/), apps/infra/alchemy.run.ts (dev-only block), pnpm-lock.yaml if a workspace link changes; no new dependency versions; no Cloudflare auth; no deploy. Another worker runs in parallel with the other scope; do not touch it. Do not edit the brief.
+
+## Deliverables
+
+- The work, with `pnpm turbo run check test build` green (run `pnpm fix` first when formatting complains; never loosen the fence).
+- In the step file: `## Result (2026-09-21)` with what exists, what was verified and how, and what felt forced; set `status: "closed"` and `closed_at: "2026-09-21"` when the resolved-when line holds, otherwise leave it open and say what is missing.
+- Do not commit. Print a DONE summary with the file list and the gate result.

@@ -3,11 +3,12 @@ title: "Decide which repo files become resources, llms-full, and the three skill
 type: "step"
 kind: "grilling"
 interaction: "HITL"
-status: "open"
-assignee: ""
+status: "closed"
+assignee: "Joel with pi (flagg, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
+closed_at: "2026-09-21"
 ---
 
 # Decide which repo files become resources, llms-full, and the three skills
@@ -19,3 +20,7 @@ Pick the exact file list the site serves: resources (`AGENTS.md`, `VISION.md`, `
 ## Direction (2026-09-21)
 
 Joel: skills are site content, not just MCP prompts; see `aihero.dev/skills` for the shape. What that page does (observed 2026-09-21, `https://www.aihero.dev/skills.md` serves the same page as Markdown): one install command up top (`npx skills@latest add mattpocock/skills`), skills grouped by when you reach for them with a "start with" per group and a one-line promise per skill, each skill at its own URL, a "what is a skill" section, a changelog. Consequence for ratstack.sh: `/skills` is a page of its own in the content set, each skill is served at `/skills/<name>`, the agent-skills index at `/.well-known/agent-skills/index.json` is the machine form of the same list, and the install path is `npx skills add joelhooks/rat-stack` (the `skills` CLI reads `skills/*/SKILL.md` from the repo; verify in the prototype).
+
+## Result (2026-09-21)
+
+Joel: "sounds good" to the catalogue-first shape. Root page leads with `npx skills add joelhooks/rat-stack`, then the skill groups with a one-line promise each ("Start here": `learn-rat-stack`; "Build": `add-a-capability`, `add-a-lifecycle-machine`; "Shape": `keep-or-cut`), then "Law" linking `AGENTS.md`, `VISION.md`, `README.md`, `vendor/README.md`, the generated pins, and both `.brain/resources` notes, then the MCP line. `/skills` and `/skills/<name>` serve Markdown; `/.well-known/agent-skills/index.json` is the machine form; each skill is also an MCP prompt; each law file is an MCP resource. `llms.txt` lists the same in that order; `llms-full.txt` concatenates all of it. Work: [write-skills](./write-skills.svx) and [build-mischief-tools](./build-mischief-tools.svx).

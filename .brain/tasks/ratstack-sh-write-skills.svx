@@ -1,0 +1,28 @@
+---
+title: "Worker task: write-skills"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: write-skills
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary and Decision ledger bind you). Assets: every `.brain/projects/ratstack-sh/*-asset.svx`, especially `research-worker-sandbox-asset.svx`, `research-agent-ready-checks-asset.svx`, `research-effect-mcp-over-http-asset.svx`, `research-alchemy-effect-worker-asset.svx`.
+Your step: `.brain/projects/ratstack-sh/write-skills.svx` (already claimed for you).
+
+## What to do
+
+Write the four skills the site ships, each as `skills/<name>/SKILL.md` in the repo root, in the shape the `skills` CLI and Claude Code read (frontmatter `name` and `description`, then the body): `learn-rat-stack` (replace the stub: what the stack is, the four projections, where law and intent live, the gate command, and which skill to reach for next), `add-a-capability` (the exact moves from `defineCapability` in `packages/core` through registering in `capabilities` to seeing it on CLI, HTTP, MCP, and code mode, with the file paths and the test shape), `add-a-lifecycle-machine` (the `inspect-machine.ts` shape: `setupEffect`, `fromEffect` actors, `createEffectActor`, `join` plus `Effect.orDie`, the lint rule that guards it), `keep-or-cut` (the README table as a procedure: what to delete per surface and what the minimum is). Source-grounded: every claim comes from `AGENTS.md`, `README.md`, `VISION.md`, `packages/*/src`, or the `.brain/resources` notes; reorganize, do not invent. Voice: plain, short, written for an agent; use the `writing-for-agents` skill if installed. Each skill under 120 lines.
+
+Resolved when the four `SKILL.md` files exist, `pnpm lint` passes (oxfmt checks Markdown), and a fresh agent could follow `add-a-capability` without opening the README.
+
+## Write scope
+
+skills/ only (create the three new skill directories, rewrite the learn-rat-stack stub). Another worker runs in parallel with the other scope; do not touch it. Do not edit the brief.
+
+## Deliverables
+
+- The work, with `pnpm turbo run check test build` green (run `pnpm fix` first when formatting complains; never loosen the fence).
+- In the step file: `## Result (2026-09-21)` with what exists, what was verified and how, and what felt forced; set `status: "closed"` and `closed_at: "2026-09-21"` when the resolved-when line holds, otherwise leave it open and say what is missing.
+- Do not commit. Print a DONE summary with the file list and the gate result.
