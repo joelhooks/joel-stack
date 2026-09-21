@@ -1,0 +1,17 @@
+---
+title: "Decide which repo files become resources, llms-full, and the three skills"
+type: "step"
+kind: "grilling"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Decide which repo files become resources, llms-full, and the three skills
+
+## Step
+
+Pick the exact file list the site serves: resources (`AGENTS.md`, `VISION.md`, `README.md`, `vendor/README.md`, the pins from `package.json` files, which `.brain/resources/*.svx`), the order and headings of `llms.txt`, whether `llms-full.txt` concatenates all of them, and the first three skills (recommendation: `add-a-capability`, `add-a-lifecycle-machine`, `keep-or-cut`) with their `SKILL.md` outlines. Boundary: only files in this public repo; nothing from dark-wizard, the operator Brain, or local skills.

@@ -1,0 +1,17 @@
+---
+title: "Prototype apps/mischief in alchemy dev: root page, llms.txt, and an MCP with one resource and one prompt"
+type: "step"
+kind: "prototype"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: ["./research-alchemy-effect-worker.svx", "./research-effect-mcp-over-http.svx"]
+created_at: "2026-09-21"
+---
+
+# Prototype apps/mischief in alchemy dev: root page, llms.txt, and an MCP with one resource and one prompt
+
+## Step
+
+Build the smallest `apps/mischief` that runs under `alchemy dev` in workerd: `GET /` plain text, `GET /llms.txt`, `/mcp` with one resource (`AGENTS.md`) and one prompt (a stub skill), using the shapes from the two research assets. Joel connects an MCP client and fetches the root with curl. The point is a reaction to the page voice and the MCP shape before the content set is final. Record what felt wrong.

@@ -1,0 +1,51 @@
+---
+title: "ratstack.sh: the agent-first front door for rat-stack"
+type: "brief"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# ratstack.sh: the agent-first front door for rat-stack
+
+Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template's demo app stops being a hello world and becomes the stack's own front door: `apps/mischief` serves `https://ratstack.sh`, the page and MCP you point an agent at to learn and use rat-stack. The site is built from the repo's own files, so it cannot drift from the template it ships in, and a child project clears it by deleting one directory and a few Stack lines.
+
+## Finish line
+
+- `https://ratstack.sh/` returns plain text written for an agent: what rat-stack is, where the law lives, how to add a capability, how to connect the MCP. No HTML on day one.
+- `https://ratstack.sh/mcp` is an Effect `McpServer` over streamable HTTP with tools, resources, and prompts. Every resource body is a file in this repo (`AGENTS.md`, `VISION.md`, `README.md`, the pins, chosen `.brain/resources`). Every prompt is a skill file in this repo, also served as plain text at `/skills/<name>`.
+- `isitagentready.com` scans `ratstack.sh` at Level 5 with every applicable check passing; checks that do not apply (commerce, auth) are listed with the reason in the site's own `llms.txt`.
+- The Worker is `apps/mischief`, declared in the single Stack in `apps/infra`, runs locally with `alchemy dev` in workerd, and ships with `pnpm infra:deploy` from a machine with the Alchemy profile. CI proves the fetch handler with tests; a smoke script proves the deploy and prints the scan level.
+- Maintained: the README's keep-or-cut table has a row for clearing it; `AGENTS.md` Project law says product capabilities live in `core` and the demo owns its own; the template acceptance receipt in the Brain includes the deploy and scan.
+
+## Vocabulary
+
+- **mischief** — the app at `apps/mischief` (a group of rats); also the Cloudflare Worker name `Mischief`.
+- **agent-first page** — a plain-text body served with `text/markdown` or `text/plain`, written for an agent to read first and a human second.
+- **resource** — an MCP resource whose body is one file from this repo, never authored separately.
+- **skill** — a `skills/<name>/SKILL.md` file in this repo, served as an MCP prompt and at `/skills/<name>`, installable by any harness that reads a skills directory.
+- **projection** — as in `packages/capability`: the same capability appearing as an MCP tool, an HTTP route with OpenAPI, or a CLI command.
+- **Level 5** — isitagentready.com's top level, "agent-native"; the scanner's 22 checks are the checklist.
+- **Stack** — the one `Alchemy.Stack` in `apps/infra/alchemy.run.ts`; every cloud resource is declared there.
+
+## Notes
+
+- Skills every session consults: `effect` and `pi-effect` (source first, `.agent_sources/github.com/Effect-TS/effect` at rc.116); the Alchemy mirror at `.agent_sources/github.com/alchemy-run/alchemy` (`website/src/content/docs/cloudflare/` for Workers, custom domains, local development); `grill-master` conventions for this brief.
+- Facts settled at charter: `ratstack.sh` was registered 2026-09-21 17:05 UTC through Cloudflare Registrar, nameservers on Cloudflare, no records yet. Alchemy's Worker takes a `domain` prop that provisions DNS and certificate on an existing zone. `alchemy dev` runs Workers in workerd. Effect `McpServer` ships `layerHttp`, `resource`, and `prompt`. `packages/core` and `packages/capability` import nothing from Node at module level except `sandbox.ts` (`effect/unstable/process`); whether that bundles on workerd is a research question.
+- Standing calls (Joel, 2026-09-21): EXTREME plain text for the root page and every resource body. Skills are authored as files and served two ways. One Stack, no second `alchemy.run.ts`. App name `mischief`. The site is what the template serves; the earlier `greet` hello-world capability is dropped in favor of the site's own capabilities (pending the capabilities step).
+- Execution authorization (Joel, 2026-09-21): research steps run AFK. The `alchemy dev` prototype and the fetch-handler tests may be built without further approval. The first deploy to `ratstack.sh` and any change under `apps/infra` are confirmed with Joel before running, per `AGENTS.md` Boundaries; after that first confirmation, redeploys inside this effort are authorized.
+- Workers do not commit and do not edit this brief; the steering session writes ledger lines at harvest.
+
+## Decision ledger
+
+## Latent
+
+- Deploy from CI with a scoped Cloudflare token, so a merge to `main` redeploys the site; today deploy is manual from a machine with the profile.
+- Content freshness: the site reads repo files at bundle time, so every doc change needs a redeploy until CI deploys.
+- A human-facing website (`Cloudflare.Website.*`) beside the Worker, later.
+- `capnp-es` under alchemy wants TypeScript 5 or 6; harmless so far.
+- Whether `apps/mischief` also gets a CLI projection (`pnpm mischief search ...`) for local use of the same capabilities.
+
+## Out of scope
+
+- A human-facing website, auth, analytics, and every commerce protocol on day one (Joel, 2026-09-21). They return only as a fresh effort if the finish line is redrawn.

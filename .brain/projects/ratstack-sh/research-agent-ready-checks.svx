@@ -1,0 +1,19 @@
+---
+title: "Research the 22 isitagentready checks and their exact fix recipes"
+type: "step"
+kind: "research"
+interaction: "AFK"
+status: "open"
+assignee: "researcher subagent (flagg, pi-subagents, 2026-09-21)"
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Research the 22 isitagentready checks and their exact fix recipes
+
+## Step
+
+Produce an asset listing every isitagentready.com check with: the URL or header it probes, the exact format it expects (with a minimal passing example), the level it gates, and whether it applies to a docs-plus-MCP site with no auth and no commerce. Sources: `https://isitagentready.com/llms.txt`, `https://isitagentready.com/.well-known/agent-skills/index.json` and each skill it links, `POST https://isitagentready.com/api/scan` with `{"url": "...", "format": "agent"}` run against a known Level 5 site to capture the prompt shape, and the linked specs (llmstxt.org, RFC 8288 Link headers, RFC 9727 API catalog, RFC 9728, MCP server card SEP-1649, Cloudflare agent-skills discovery RFC, A2A agent card, DNS-AID, Content Signals). Note which checks need DNS records rather than HTTP responses, since those go in the Stack.
+
+Resolved when the asset `research-agent-ready-checks-asset.svx` exists with one row per check, and a short "what a Worker must serve" list grouped by path and header.

@@ -1,0 +1,19 @@
+---
+title: "Document mischief in README, AGENTS.md, and the Brain, with the clear path"
+type: "step"
+kind: "task"
+interaction: "AFK"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: ["./reach-level-five.svx"]
+created_at: "2026-09-21"
+---
+
+# Document mischief in README, AGENTS.md, and the Brain, with the clear path
+
+## Step
+
+README: what ratstack.sh is, the `alchemy dev` and deploy commands, and a keep-or-cut row that names the directory, the Stack lines, and the skills directory. `AGENTS.md`: Project law says product capabilities live in `packages/core` and the demo app owns its own; Architecture names `apps/mischief` as a fifth surface and the single Stack. Brain: the template acceptance receipt gains the deploy and scan. `.pi/APPEND_SYSTEM.md` current focus updated.
+
+Resolved when `pnpm turbo run check test build` passes and the docs say what the site is and how to remove it.

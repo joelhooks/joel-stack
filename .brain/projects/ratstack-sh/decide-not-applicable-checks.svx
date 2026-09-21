@@ -1,0 +1,17 @@
+---
+title: "Decide how to treat checks that do not apply: auth, A2A, WebMCP, DNS-AID, commerce"
+type: "step"
+kind: "grilling"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: ["./research-agent-ready-checks.svx"]
+created_at: "2026-09-21"
+---
+
+# Decide how to treat checks that do not apply: auth, A2A, WebMCP, DNS-AID, commerce
+
+## Step
+
+With the check list in hand, decide per non-applicable check whether the site serves an honest document (an A2A card that says what the MCP offers; OAuth discovery that says no auth), a deliberate 404 with the reason in `llms.txt`, or a DNS record in the Stack (DNS-AID). Level 5 must still hold, so the research asset says which of these the scanner requires. Commerce stays out of scope.

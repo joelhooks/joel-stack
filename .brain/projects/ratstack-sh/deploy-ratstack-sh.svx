@@ -1,0 +1,19 @@
+---
+title: "Deploy the mischief Worker to ratstack.sh from the single Stack"
+type: "step"
+kind: "task"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: ["./prototype-mischief-dev.svx", "./decide-site-capabilities.svx", "./decide-public-content-set.svx"]
+created_at: "2026-09-21"
+---
+
+# Deploy the mischief Worker to ratstack.sh from the single Stack
+
+## Step
+
+Replace the placeholder R2 bucket in `apps/infra/alchemy.run.ts` with the `Mischief` Worker, `domain: "ratstack.sh"`, plus any DNS records the not-applicable step decided. Confirm with Joel, then `pnpm infra:deploy`, curl `/`, `/llms.txt`, `/mcp` (initialize), and record the URL and the Stack output. Add `pnpm mischief:smoke` that does the curls and runs the isitagentready scan API, printing the level.
+
+Resolved when `https://ratstack.sh/` answers with the agent-first page over TLS and the smoke script prints a level.

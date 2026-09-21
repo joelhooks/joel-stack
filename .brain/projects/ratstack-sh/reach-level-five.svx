@@ -1,0 +1,19 @@
+---
+title: "Iterate the site until isitagentready reports Level 5"
+type: "step"
+kind: "task"
+interaction: "AFK"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: ["./deploy-ratstack-sh.svx", "./decide-not-applicable-checks.svx"]
+created_at: "2026-09-21"
+---
+
+# Iterate the site until isitagentready reports Level 5
+
+## Step
+
+Run `POST https://isitagentready.com/api/scan` with `format: "agent"` against `https://ratstack.sh`, fix failing applicable checks in `apps/mischief` (paths, headers, Link headers, well-known documents), redeploy, rescan; stop at Level 5 or when the only failures are the not-applicable set with their documented treatment.
+
+Resolved when the smoke script prints Level 5 and the scan output is saved as an asset.

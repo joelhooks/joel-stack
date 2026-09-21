@@ -1,0 +1,17 @@
+---
+title: "Decide the site's capabilities: search and read over the knowledge base"
+type: "step"
+kind: "grilling"
+interaction: "HITL"
+status: "open"
+assignee: ""
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Decide the site's capabilities: search and read over the knowledge base
+
+## Step
+
+The finish line says every MCP tool is a capability. Decide which: the recommendation is two, `search` (query to ranked matches over the resources and skills, with the same token-overlap ranking `catalog.ts` already has) and `read` (a resource id to its text), defined with `defineCapability` inside `apps/mischief` and projected with `toToolkit` and `toHttpApi`, so `/openapi.json` and the API catalog come for free. Decide whether the code-mode `execute` tool is exposed too (recommendation: no, on day one; there is nothing to compose) and whether `greet` survives anywhere (recommendation: no).

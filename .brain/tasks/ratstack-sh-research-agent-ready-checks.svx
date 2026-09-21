@@ -1,0 +1,26 @@
+---
+title: "Worker task: research-agent-ready-checks"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: research-agent-ready-checks
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you).
+Your step: `.brain/projects/ratstack-sh/research-agent-ready-checks.svx` (already claimed for you).
+
+## What to do
+
+Produce an asset listing every isitagentready.com check with: the URL or header it probes, the exact format it expects (with a minimal passing example), the level it gates, and whether it applies to a docs-plus-MCP site with no auth and no commerce. Sources: `https://isitagentready.com/llms.txt`, `https://isitagentready.com/.well-known/agent-skills/index.json` and each skill it links, `POST https://isitagentready.com/api/scan` with `{"url": "...", "format": "agent"}` run against a known Level 5 site to capture the prompt shape, and the linked specs (llmstxt.org, RFC 8288 Link headers, RFC 9727 API catalog, RFC 9728, MCP server card SEP-1649, Cloudflare agent-skills discovery RFC, A2A agent card, DNS-AID, Content Signals). Note which checks need DNS records rather than HTTP responses, since those go in the Stack.
+
+Resolved when the asset `research-agent-ready-checks-asset.svx` exists with one row per check, and a short "what a Worker must serve" list grouped by path and header.
+
+## Deliverables (file edits only)
+
+1. Write the asset `.brain/projects/ratstack-sh/research-agent-ready-checks-asset.svx` with frontmatter `title`, `type: "asset"`, `parent: "./research-agent-ready-checks.svx"`, `created_at: "2026-09-21"`, `privacy: "public"`, then plain Markdown. Cite file paths in `.agent_sources/` or URLs for every claim; mark anything unverified as such.
+2. In `.brain/projects/ratstack-sh/research-agent-ready-checks.svx`: add a `## Result (2026-09-21)` section with the gist and a link to the asset, and set `status: "closed"` plus `closed_at: "2026-09-21"` in the frontmatter.
+3. Do not edit the brief. Do not touch files outside `.brain/`. Do not run `pnpm install`, deploy anything, or write outside this repo except scratch under `/tmp`.
+
+Work autonomously, do not commit, print a DONE summary with the asset path.

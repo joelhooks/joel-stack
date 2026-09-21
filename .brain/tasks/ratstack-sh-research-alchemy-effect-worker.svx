@@ -1,0 +1,26 @@
+---
+title: "Worker task: research-alchemy-effect-worker"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: research-alchemy-effect-worker
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you).
+Your step: `.brain/projects/ratstack-sh/research-alchemy-effect-worker.svx` (already claimed for you).
+
+## What to do
+
+From the mirror at `.agent_sources/github.com/alchemy-run/alchemy` (docs under `website/src/content/docs/cloudflare/`, examples under `examples/cloudflare-*`), record: the Effect-native `Cloudflare.Worker<T>()(name, {main}, Effect.gen(...))` class shape and how `fetch` returns an `HttpServerResponse`; how to mount an Effect `HttpRouter` or `HttpApiBuilder` layer and `McpServer.layerHttp` inside that `fetch` (or the plain `main: "./src/worker.ts"` form with `HttpRouter.toWebHandler`, whichever the source supports on workerd); the `domain` prop and zone adoption for a domain already in the account (`ratstack.sh`, registered through Cloudflare Registrar, so the zone exists); what `alchemy dev` runs and on which port; how Worker bundling treats `effect`, `effect/unstable/process`, and `@xstate/effect` (does importing the `@rat-stack/capability` barrel pull `sandbox.ts` into the bundle, and does workerd accept it, or does the site need a subpath import); how a DNS record (for DNS-AID) is declared; and the smallest test shape for a Worker fetch handler under `@effect/vitest`.
+
+Resolved when `research-alchemy-effect-worker-asset.svx` exists with copy-ready snippets for the Stack declaration, the Worker entry, the dev command, and the bundling verdict with evidence (file paths in the mirror, or a scratch build under `/tmp`).
+
+## Deliverables (file edits only)
+
+1. Write the asset `.brain/projects/ratstack-sh/research-alchemy-effect-worker-asset.svx` with frontmatter `title`, `type: "asset"`, `parent: "./research-alchemy-effect-worker.svx"`, `created_at: "2026-09-21"`, `privacy: "public"`, then plain Markdown. Cite file paths in `.agent_sources/` or URLs for every claim; mark anything unverified as such.
+2. In `.brain/projects/ratstack-sh/research-alchemy-effect-worker.svx`: add a `## Result (2026-09-21)` section with the gist and a link to the asset, and set `status: "closed"` plus `closed_at: "2026-09-21"` in the frontmatter.
+3. Do not edit the brief. Do not touch files outside `.brain/`. Do not run `pnpm install`, deploy anything, or write outside this repo except scratch under `/tmp`.
+
+Work autonomously, do not commit, print a DONE summary with the asset path.
