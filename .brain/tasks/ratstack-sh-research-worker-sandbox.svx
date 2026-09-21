@@ -1,0 +1,26 @@
+---
+title: "Worker task: research-worker-sandbox"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: research-worker-sandbox
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you). Prior assets: `research-alchemy-effect-worker-asset.svx` (bundling verdict, Alchemy shapes), `research-effect-mcp-over-http-asset.svx`.
+Your step: `.brain/projects/ratstack-sh/research-worker-sandbox.svx` (already claimed for you).
+
+## What to do
+
+Joel decided the site exposes code mode's `execute`. The template's `Sandbox` is a `Context.Service` in `packages/capability/src/sandbox.ts` whose one implementation spawns `node --permission` and talks NDJSON; workerd has no child processes and forbids `eval` and `new Function`. Find the honest Worker-side implementation of the same service shape. Candidates to evaluate with evidence: Cloudflare Worker Loaders (the `worker_loaders` binding that runs untrusted code in a fresh isolate, with `globalOutbound` for network cut-off), Cloudflare Sandbox SDK and Containers, Workers for Platforms dispatch namespaces, and a pure-JS interpreter bundled into the Worker (QuickJS via WebAssembly, or similar). For each: availability and pricing tier as of today, whether Alchemy beta.79 declares it (search the mirror at `.agent_sources/github.com/alchemy-run/alchemy` for the binding, resource, or `wrangler.json` passthrough), how the code-mode program's `search` and `execute` callbacks reach back into the host (service binding, `fetch` to the parent, or a message channel), the timeout story, and what the `Sandbox` layer would look like in Effect (read `sandbox.ts`, `sandbox-error.ts`, and `to-code-mode.ts` first so the shape matches). Do a scratch spike under `/tmp` for the top candidate if it can run locally with `wrangler dev` or `alchemy dev` without a Cloudflare login; record whether it can.
+
+Resolved when `research-worker-sandbox-asset.svx` exists with a comparison table, the recommended candidate with a copy-ready `Sandbox` layer sketch and its Alchemy declaration, the local-dev verdict, and what stays unverified.
+
+## Deliverables (file edits only)
+
+1. Write `.brain/projects/ratstack-sh/research-worker-sandbox-asset.svx` with frontmatter `title`, `type: "asset"`, `parent: "./research-worker-sandbox.svx"`, `created_at: "2026-09-21"`, `privacy: "public"`, then plain Markdown. Cite a URL or file path for every claim; mark anything unverified. Web fetches are fine; scratch installs only under /tmp; do not add dependencies to the repo, do not authenticate with Cloudflare, do not deploy.
+2. In the step file: add `## Result (2026-09-21)` with the gist and a link to the asset; set `status: "closed"` and `closed_at: "2026-09-21"`.
+3. Do not edit the brief. Write only under `.brain/` and `/tmp`. Do not commit.
+
+Work autonomously, do not commit, print a DONE summary with the asset path.
