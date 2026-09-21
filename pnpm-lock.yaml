@@ -280,6 +280,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.116
         version: 4.0.0-rc.116(effect@4.0.0-rc.116)(redis@6.2.1)
+      '@rat-stack/mischief':
+        specifier: workspace:*
+        version: link:../mischief
       alchemy:
         specifier: 2.0.0-beta.79
         version: 2.0.0-beta.79(@effect/platform-node@4.0.0-rc.116(effect@4.0.0-rc.116)(redis@6.2.1))(@types/node@24.13.6)(effect@4.0.0-rc.116)(typescript@7.0.2)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))(vitest@5.0.1(@types/node@24.13.6)(vite@8.2.1(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))(ws@8.21.3)
