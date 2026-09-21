@@ -1,0 +1,205 @@
+---
+title: "Research asset: isitagentready.com checks and Worker fixtures"
+type: "asset"
+parent: "./research-agent-ready-checks.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# isitagentready.com checks and Worker fixtures
+
+Research performed against the live scanner on 2026-09-21. The current JSON result contains exactly 22 check keys. `llms.txt` and `llms-full.txt` have implementation skills, but they are **not** check keys in the current 22-check JSON result. Serve them anyway because they are part of the ratstack.sh brief and the llms.txt proposal.
+
+## Scanner level rules
+
+The scanner's own `scan-site` skill defines the levels as follows:
+
+| Level | Gate |
+| --- | --- |
+| 0, Not Ready | Fewer than two of `robotsTxt`, `sitemap`, and `linkHeaders` pass. |
+| 1, Basic Web Presence | Any two of those three pass. |
+| 2, Bot-Aware | Level 1 plus both `robotsTxtAiRules` and `contentSignals`. |
+| 3, Agent-Readable | Level 2 plus `markdownNegotiation`. |
+| 4, Agent-Integrated | Level 3 plus at least one of `mcpServerCard`, `a2aAgentCard`, `agentSkills`, or `apiCatalog`. |
+| 5, Agent-Native | Level 4 plus two of three groups: Web Bot Auth; all four Level 4 integrations; auth metadata (OAuth or Auth.md). |
+
+Source: [live scan-site skill](https://isitagentready.com/.well-known/agent-skills/scan-site/SKILL.md).
+
+The exact server-side expression of the three Level 5 groups is not published. The interpretation above is the scanner skill's wording. A live Level 4 scan of `isitagentready.com` recommended the one missing integration (`a2aAgentCard`) and one auth route (`authMd`) as the two changes needed for Level 5, which is consistent with that interpretation. Treat the precise Level 5 grouping as **observed, not source-code verified**.
+
+Commerce checks do not contribute to the level. When the scanner does not detect a commerce site, it returns them as `neutral` and excludes them. DNS-AID, OAuth Protected Resource Metadata, WebMCP, and ARD are reported but are not named as direct level gates in the scanner skill.
+
+## The 22 checks
+
+Each row gives the live probe, the smallest safe fixture that matches the published skill/spec, its level effect, and whether ratstack.sh should implement it as a public docs-plus-MCP site with no auth and no commerce.
+
+### Discoverability
+
+| # | Check | Probe and minimal passing fixture | Level gate | ratstack.sh? | Sources |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `robotsTxt` | `GET /robots.txt` → 200 `text/plain`; body: `User-agent: *\nAllow: /\nSitemap: https://ratstack.sh/sitemap.xml` | One of three Level 1 quorum checks. | **Yes.** | [skill](https://isitagentready.com/.well-known/agent-skills/robots-txt/SKILL.md), [RFC 9309](https://www.rfc-editor.org/rfc/rfc9309) |
+| 2 | `sitemap` | `GET /sitemap.xml` → 200 XML; body: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://ratstack.sh/</loc></url></urlset>`; also reference it from `robots.txt`. | One of three Level 1 quorum checks. | **Yes.** List every public path. | [skill](https://isitagentready.com/.well-known/agent-skills/sitemap/SKILL.md), [Sitemaps protocol](https://www.sitemaps.org/protocol.html) |
+| 3 | `linkHeaders` | `GET /` response header: `Link: </.well-known/api-catalog>; rel="api-catalog", </.well-known/mcp/server-card.json>; rel="service-desc", </llms.txt>; rel="describedby"` | One of three Level 1 quorum checks. | **Yes.** | [skill](https://isitagentready.com/.well-known/agent-skills/link-headers/SKILL.md), [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288), [RFC 9727 §3](https://www.rfc-editor.org/rfc/rfc9727#section-3) |
+| 4 | `dnsAid` | DNS-over-HTTPS queries for `SVCB` and `HTTPS` at `_index._agents`, `_a2a._agents`, and `_mcp._agents`, plus `TXT _index._agents`. Minimal relevant record: `_mcp._agents.ratstack.sh. 3600 IN SVCB 1 ratstack.sh. alpn="h2" port=443 mandatory=alpn,port`; zone must validate with DNSSEC. | Reported, not a named level gate. | **Yes, Stack-owned DNS.** Publish only services that exist. | [skill](https://isitagentready.com/.well-known/agent-skills/dns-aid/SKILL.md), [DNS-AID draft](https://datatracker.ietf.org/doc/draft-mozleywilliams-dnsop-dnsaid/), [RFC 9460](https://www.rfc-editor.org/rfc/rfc9460) |
+
+**DNS boundary:** `dnsAid` is the one check that cannot be satisfied by the Worker response. Its SVCB/HTTPS records and DNSSEC belong in the Stack or the zone configuration. ARD can optionally add `_catalog._agents` TXT and `_search._agents` SRV records, but the primary ARD well-known path is sufficient for the ARD check.
+
+### Content accessibility
+
+| # | Check | Probe and minimal passing fixture | Level gate | ratstack.sh? | Sources |
+| --- | --- | --- | --- | --- | --- |
+| 5 | `markdownNegotiation` | Scanner sends `GET /` with `Accept: text/markdown` and expects 200 with `Content-Type: text/markdown`. `x-markdown-tokens` is optional. The brief's plain-text root may return the same Markdown body by default and under negotiation. | Required for Level 3. | **Yes.** | [skill](https://isitagentready.com/.well-known/agent-skills/markdown-negotiation/SKILL.md), [Cloudflare Markdown for Agents](https://developers.cloudflare.com/fundamentals/reference/markdown-for-agents/) |
+
+### Bot access control
+
+| # | Check | Probe and minimal passing fixture | Level gate | ratstack.sh? | Sources |
+| --- | --- | --- | --- | --- | --- |
+| 6 | `robotsTxtAiRules` | Parses `/robots.txt`. Durable fixture: `User-agent: GPTBot\nAllow: /\n\nUser-agent: Claude-Web\nAllow: /`. The skill asks for explicit blocks for GPTBot, OAI-SearchBot, Claude-Web, Google-Extended, Amazonbot, anthropic-ai, Bytespider, CCBot, and Applebot-Extended. | Required for Level 2. | **Yes.** State an intentional allow/disallow policy. | [skill](https://isitagentready.com/.well-known/agent-skills/ai-rules/SKILL.md), [RFC 9309](https://www.rfc-editor.org/rfc/rfc9309) |
+| 7 | `contentSignals` | Under a `User-agent` group in `/robots.txt`: `Content-Signal: ai-train=no, search=yes, ai-input=yes` (the values may instead be `yes`/`no` according to policy). | Required for Level 2. | **Yes.** Joel must choose the policy values; the scanner only checks that the directive exists. | [skill](https://isitagentready.com/.well-known/agent-skills/content-signals/SKILL.md), [Content Signals](https://contentsignals.org/), [IETF draft](https://datatracker.ietf.org/doc/draft-romm-aipref-contentsignals/) |
+| 8 | `webBotAuth` | `GET /.well-known/http-message-signatures-directory` → 200 JWKS with at least one public key, e.g. `{"keys":[{"crv":"Ed25519","x":"M8ah2xN_SOFLiil6rkkeg7gRQKSWwbWx8hcwjZiq-SI","kty":"OKP","kid":"ratstack-webbot-1","use":"sig","alg":"EdDSA"}]}`. The corresponding private key must sign the site's outbound bot requests with `Signature-Agent` and `Signature-Input`; a decorative JWKS is not an implementation. | One Level 5 group. Neutral/informational when absent in current scans. | **No, unless ratstack.sh itself sends bot requests.** | [skill](https://isitagentready.com/.well-known/agent-skills/web-bot-auth/SKILL.md), [IETF WebBotAuth WG](https://datatracker.ietf.org/wg/webbotauth/about/) |
+
+**Scanner drift:** the `ai-rules` skill says explicit AI user agents are required. A live scan of `isitagentready.com` passed this check with only `User-agent: *` and said the wildcard rules applied to all AI bots. Use explicit blocks anyway; they satisfy the published skill and make policy legible.
+
+### API, auth, MCP, and skill discovery
+
+| # | Check | Probe and minimal passing fixture | Level gate | ratstack.sh? | Sources |
+| --- | --- | --- | --- | --- | --- |
+| 9 | `apiCatalog` | `GET /.well-known/api-catalog` → 200 `application/linkset+json`; minimal body: `{"linkset":[{"anchor":"https://ratstack.sh/mcp","service-desc":[{"href":"https://ratstack.sh/.well-known/mcp/server-card.json","type":"application/json"}],"service-doc":[{"href":"https://ratstack.sh/llms.txt","type":"text/plain"}]}]}` | One of four Level 4 integrations; likely part of the Level 5 “all integrations” group. | **Yes.** The MCP endpoint is an API. | [skill](https://isitagentready.com/.well-known/agent-skills/api-catalog/SKILL.md), [RFC 9727](https://www.rfc-editor.org/rfc/rfc9727), [RFC 9264 Linkset JSON](https://www.rfc-editor.org/rfc/rfc9264) |
+| 10 | `oauthDiscovery` | `GET /.well-known/oauth-authorization-server` or `/.well-known/openid-configuration` → JSON. Robust OAuth fixture: `{"issuer":"https://auth.example","authorization_endpoint":"https://auth.example/authorize","token_endpoint":"https://auth.example/token","jwks_uri":"https://auth.example/jwks","grant_types_supported":["authorization_code"],"response_types_supported":["code"]}` | Part of the Level 5 auth-metadata group (“OAuth or Auth.md”). | **No.** Do not claim an authorization server that does not exist. | [skill](https://isitagentready.com/.well-known/agent-skills/oauth-discovery/SKILL.md), [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414), [OIDC Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html) |
+| 11 | `oauthProtectedResource` | `GET /.well-known/oauth-protected-resource` → 200 JSON, e.g. `{"resource":"https://ratstack.sh","authorization_servers":["https://auth.example"],"scopes_supported":["docs:read"],"bearer_methods_supported":["header"]}`. A protected endpoint may also return `WWW-Authenticate: Bearer resource_metadata="https://ratstack.sh/.well-known/oauth-protected-resource"`. | Reported auth support; not separately named as a level gate. | **No.** The site has no protected resource. | [skill](https://isitagentready.com/.well-known/agent-skills/oauth-protected-resource/SKILL.md), [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) |
+| 12 | `authMd` | `GET /auth.md` → Markdown whose H1 contains `auth.md`. For a real self-contained flow, state the agent audience, registration/provisioning endpoint, supported method, and credential use. When OAuth exists, also publish Protected Resource Metadata and `agent_auth` in Authorization Server metadata, e.g. `{"agent_auth":{"skill":"https://example/auth.md","register_uri":"https://example/agent/auth","identity_types_supported":["anonymous"],"anonymous":{"credential_types_supported":["access_token"],"claim_uri":"https://example/agent/claim"}}}`. | Part of the Level 5 auth-metadata group (“OAuth or Auth.md”). | **No.** A “no auth required” explanation is useful in `llms.txt`, but should not invent registration endpoints to satisfy this check. | [skill](https://isitagentready.com/.well-known/agent-skills/auth-md/SKILL.md), [Auth.md](https://github.com/workos/auth.md) |
+| 13 | `mcpServerCard` | Scanner tries `/.well-known/mcp/server-cards.json`, `/.well-known/mcp.json`, and `/.well-known/mcp/server-card.json`; serve the SEP path. Minimal card: `{"protocolVersion":"2025-06-18","serverInfo":{"name":"ratstack","version":"1.0.0"},"transport":{"type":"streamable-http","endpoint":"https://ratstack.sh/mcp"},"capabilities":{"tools":{},"resources":{},"prompts":{}},"authentication":{"required":false}}` | One of four Level 4 integrations; likely part of Level 5 “all integrations.” | **Yes.** | [skill](https://isitagentready.com/.well-known/agent-skills/mcp-server-card/SKILL.md), [SEP-1649](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127) |
+| 14 | `a2aAgentCard` | `GET /.well-known/agent-card.json` → 200 JSON. Minimal current-schema card: `{"name":"Rat Stack","description":"Explains rat-stack","version":"1.0.0","supportedInterfaces":[{"url":"https://ratstack.sh/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{},"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],"skills":[{"id":"learn-rat-stack","name":"Learn rat-stack","description":"Explain the stack","tags":["docs"]}]}`. It is only truthful if `/a2a` implements A2A. | One of four Level 4 integrations; likely part of Level 5 “all integrations.” | **No on day one.** MCP is not A2A. Do not publish a fake service URL. | [skill](https://isitagentready.com/.well-known/agent-skills/a2a-agent-card/SKILL.md), [A2A specification](https://a2a-protocol.org/latest/specification/), [A2A discovery](https://a2a-protocol.org/latest/topics/agent-discovery/) |
+| 15 | `agentSkills` | `GET /.well-known/agent-skills/index.json` → 200 JSON with the v0.2.0 schema and at least one valid entry. Minimal index: `{"$schema":"https://schemas.agentskills.io/discovery/0.2.0/schema.json","skills":[{"name":"learn-rat-stack","type":"skill-md","description":"Learn rat-stack from its public docs.","url":"/.well-known/agent-skills/learn-rat-stack/SKILL.md","digest":"sha256:7df7c575e55296a5644e950980b409d48f62410aeb3b9cace2dc0bdcd6bfcb7c"}]}`. That digest matches the exact UTF-8 skill body shown below. | One of four Level 4 integrations; likely part of Level 5 “all integrations.” | **Yes.** The brief explicitly ships skills. | [skill](https://isitagentready.com/.well-known/agent-skills/agent-skills/SKILL.md), [Cloudflare discovery RFC v0.2.0](https://github.com/cloudflare/agent-skills-discovery-rfc) |
+| 16 | `webMcp` | Loads `/` in a browser and watches `navigator.modelContext`. Minimal imperative registration: `navigator.modelContext.registerTool({name:"learn_rat_stack",description:"Explain rat-stack",inputSchema:{type:"object",properties:{}},execute:async()=>({content:[{type:"text",text:"See /llms.txt"}]})})`. | Reported; not a named level gate. | **No on day one.** The brief chooses a plain-text root, not an HTML page with browser JavaScript. | [skill](https://isitagentready.com/.well-known/agent-skills/webmcp/SKILL.md), [WebMCP API](https://webmachinelearning.github.io/webmcp/) |
+| 17 | `ard` | `GET /.well-known/ai-catalog.json` → 200 `application/json` plus `Access-Control-Allow-Origin: *`. Minimal body: `{"specVersion":"1.0","host":{"displayName":"Rat Stack","identifier":"did:web:ratstack.sh"},"entries":[{"identifier":"urn:air:ratstack.sh:server:mcp","displayName":"Rat Stack MCP","type":"application/mcp-server-card+json","url":"https://ratstack.sh/.well-known/mcp/server-card.json","representativeQueries":["how do I add a capability","show the rat-stack project law"]}]}`. Each entry needs exactly one of `url` or `data`. | Reported; not a named level gate. | **Yes.** It truthfully points to the MCP card and skills. | [skill](https://isitagentready.com/.well-known/agent-skills/ard/SKILL.md), [ARD](https://agenticresourcediscovery.org/), [ai-catalog model](https://github.com/Agent-Card/ai-catalog) |
+
+Exact companion body for row 15, including the final newline whose bytes the digest covers:
+
+```markdown
+---
+name: learn-rat-stack
+description: Learn rat-stack from its public docs.
+---
+# Learn rat-stack
+Read the public project resources.
+```
+
+### Commerce
+
+The scanner classifies a site as commerce from site signals. When `isCommerce` is false, all five checks below are `neutral`; they do not block the readiness level.
+
+| # | Check | Probe and minimal passing fixture | Level gate | ratstack.sh? | Sources |
+| --- | --- | --- | --- | --- | --- |
+| 18 | `x402` | Scanner probes `GET /`, `/api`, and `/api/v1` for HTTP 402, and queries Coinbase Bazaar. A valid x402 v2 response is HTTP 402 with JSON such as `{"x402Version":2,"resource":{"url":"https://example/api","description":"Paid API","mimeType":"application/json"},"accepts":[{"scheme":"exact","network":"eip155:84532","amount":"1000","asset":"0x…","payTo":"0x…","maxTimeoutSeconds":60}]}`. **Unverified scanner detail:** live evidence proves the status/paths and Bazaar probe, but not how deeply this scanner validates the 402 body. | Commerce-only; not a level gate. | **No.** | [skill](https://isitagentready.com/.well-known/agent-skills/x402/SKILL.md), [x402 docs](https://docs.x402.org) |
+| 19 | `mpp` | `GET /openapi.json` → OpenAPI with a payable operation: `{"openapi":"3.1.0","info":{"title":"Paid API","version":"1.0.0"},"paths":{"/buy":{"post":{"x-payment-info":{"intent":"charge","method":"card","amount":"100","currency":"USD"},"responses":{"200":{"description":"ok"},"402":{"description":"payment required"}}}}}}` | Commerce-only; not a level gate. | **No.** | [skill](https://isitagentready.com/.well-known/agent-skills/mpp/SKILL.md), [payment discovery draft](https://paymentauth.org/draft-payment-discovery-00.txt), [MPP discovery](https://mpp.dev/advanced/discovery) |
+| 20 | `ucp` | `GET /.well-known/ucp` → 200 JSON business profile. Current UCP shape starts `{"ucp":{"version":"2026-04-08","services":{"dev.ucp.shopping":[{"version":"2026-04-08","spec":"https://ucp.dev/2026-04-08/specification/overview","transport":"mcp","endpoint":"https://example/ucp/mcp"}]},"capabilities":{}}}`. **Scanner drift:** the live skill still describes older top-level `protocol_version`, `services`, `capabilities`, and `endpoints`; no live passing response was available to settle which parser version it uses. | Commerce-only; not a level gate. | **No.** | [skill](https://isitagentready.com/.well-known/agent-skills/ucp/SKILL.md), [UCP specification](https://ucp.dev/specification/overview/) |
+| 21 | `acp` | `GET /.well-known/acp.json` → 200 JSON: `{"protocol":{"name":"acp","version":"1.0"},"api_base_url":"https://example/api","transports":["https"],"capabilities":{"services":["checkout"]}}` | Commerce-only; not a level gate. | **No.** | [skill](https://isitagentready.com/.well-known/agent-skills/acp/SKILL.md), [ACP](https://agenticcommerce.dev), [ACP discovery RFC](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol/blob/main/rfcs/rfc.discovery.md) |
+| 22 | `ap2` | Reuses `/.well-known/agent-card.json`; add an A2A extension: `"capabilities":{"extensions":[{"uri":"https://github.com/google-agentic-commerce/ap2/tree/v0.1","required":true,"params":{"roles":["merchant"]}}]}`. At least one role is required: `merchant`, `shopper`, `credentials-provider`, or `payment-processor`. | Commerce-only; not a level gate. | **No.** | [AP2 A2A extension](https://ap2-protocol.org/a2a-extension/), [A2A Agent Card](https://a2a-protocol.org/latest/specification/) |
+
+## What the Worker must serve
+
+### Paths owned by `apps/mischief`
+
+Required for the brief and the applicable scanner gates:
+
+- `/` — plain Markdown/text; return `text/markdown` when requested with `Accept: text/markdown`.
+- `/robots.txt` — wildcard policy, explicit AI crawler policy, `Content-Signal`, and `Sitemap`.
+- `/sitemap.xml` — all canonical public paths.
+- `/llms.txt` — H1, concise site summary, and links to the important agent resources.
+- `/llms-full.txt` — expanded bundled docs; linked from `/llms.txt`.
+- `/mcp` — real Streamable HTTP MCP endpoint.
+- `/.well-known/mcp/server-card.json` — real MCP card for `/mcp`.
+- `/.well-known/api-catalog` — RFC 9727 linkset for `/mcp` and its docs/card.
+- `/.well-known/agent-skills/index.json` — v0.2.0 index with real SHA-256 digests.
+- `/.well-known/agent-skills/<name>/SKILL.md` — exact bytes covered by each digest. The brief may additionally expose the same files at `/skills/<name>`.
+- `/.well-known/ai-catalog.json` — ARD manifest containing only real resources.
+
+Intentionally absent until the product grows the corresponding capability:
+
+- `/.well-known/agent-card.json` and `/a2a` — no A2A implementation.
+- `/.well-known/openid-configuration`, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, `/auth.md` — no auth or protected resources.
+- WebMCP page script — the root is deliberately plain text.
+- `/.well-known/http-message-signatures-directory` — ratstack.sh does not send signed outbound bot requests.
+- All commerce paths and declarations: `/.well-known/ucp`, `/.well-known/acp.json`, payable `/openapi.json`, x402 responses, and AP2 extensions.
+
+### Response headers owned by `apps/mischief`
+
+- `Content-Type: text/plain` for `robots.txt`.
+- `Content-Type: application/xml` for `sitemap.xml`.
+- `Content-Type: text/markdown; charset=utf-8` for the root Markdown representation, `llms.txt`, `llms-full.txt`, and skill files.
+- `Content-Type: application/json` for cards, indexes, and ARD.
+- `Content-Type: application/linkset+json` for `/.well-known/api-catalog`.
+- `Access-Control-Allow-Origin: *` on `/.well-known/ai-catalog.json`; reasonable on the other public discovery JSON too.
+- Homepage `Link` values for `api-catalog`, MCP `service-desc`, skills/llms `describedby`, and Markdown `alternate` where useful.
+
+### DNS owned by the Stack/zone
+
+- At least the truthful MCP service binding at `_mcp._agents.ratstack.sh` as ServiceMode SVCB or HTTPS with `alpn`, `port`, and `mandatory` parameters.
+- DNSSEC enabled so the scanner's DoH response has authenticated data.
+- Do not publish `_a2a._agents` until A2A exists.
+- Optional ARD records (`_catalog._agents` TXT and `_search._agents` SRV) are secondary discovery, not required when the well-known ARD file exists.
+
+## llms.txt and llms-full.txt: required by the brief, not current check keys
+
+The current scan object contains no `llmsTxt` or `llmsFullTxt` key even though the site's skill index publishes skills for both and `llms.txt` says they are checked. This is a scanner/documentation mismatch.
+
+Minimal useful `/llms.txt`:
+
+```markdown
+# rat-stack
+
+> An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode.
+
+## Start here
+
+- [Project law](https://ratstack.sh/resources/AGENTS.md): Constraints and validation.
+- [Vision](https://ratstack.sh/resources/VISION.md): Product intent.
+- [Full agent context](https://ratstack.sh/llms-full.txt): Expanded source-backed context.
+- [MCP server card](https://ratstack.sh/.well-known/mcp/server-card.json): Connect to the live MCP server.
+```
+
+The llmstxt.org proposal requires the H1; the blockquote, prose, and H2 link lists are optional structure. `/llms-full.txt` is expanded text for ingestion and should be linked from `/llms.txt`. Sources: [llmstxt.org](https://llmstxt.org/), [llms.txt skill](https://isitagentready.com/.well-known/agent-skills/llms-txt/SKILL.md), and [llms-full.txt skill](https://isitagentready.com/.well-known/agent-skills/llms-full-txt/SKILL.md).
+
+## Agent-format scan receipt
+
+The required probe against `https://isitagentready.site` was attempted on 2026-09-21 with:
+
+```http
+POST https://isitagentready.com/api/scan
+Content-Type: application/json
+
+{"url":"https://isitagentready.site","format":"agent"}
+```
+
+It returned an agent-format error because the target returned Cloudflare HTTP 525. A fallback probe of the currently Level 5 `https://ta93abe.com` captured the successful shape:
+
+```markdown
+# Site Analysis: https://ta93abe.com
+
+Score: 5/5 (Agent-Native)
+
+The following issues were found. Fix them to improve your agent-readiness score:
+
+## Publish DNS for AI Discovery (DNS-AID) SVCB/HTTPS records for DNS-based agent discovery
+Publish DNS for AI Discovery (DNS-AID) ServiceMode SVCB or HTTPS records under _agents with DNSSEC validation enabled.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/dns-aid/SKILL.md
+```
+
+So the agent format is one Markdown prompt: H1 site analysis, score, introductory sentence, then one H2 + fix text + skill URL per unresolved applicable or informational item. A Level 5 result may still list a non-gating failure such as DNS-AID.
+
+There is one live bug worth remembering: the same endpoint returned `# Site Analysis: ...\n\nAll checks passed! Your site is agent-ready.` for `isitagentready.com`, even though its JSON form was Level 4 and contained failures. Treat JSON as the validation source of truth; use agent format only to harvest fix prompts. Sources: [scan API instructions](https://isitagentready.com/llms.txt) and `POST https://isitagentready.com/api/scan` observed 2026-09-21.
+
+## Source inventory
+
+- [isitagentready.com llms.txt](https://isitagentready.com/llms.txt)
+- [Agent Skills discovery index](https://isitagentready.com/.well-known/agent-skills/index.json) and all 24 linked skill documents, fetched 2026-09-21
+- [llmstxt.org](https://llmstxt.org/)
+- [RFC 8288: Web Linking](https://www.rfc-editor.org/rfc/rfc8288)
+- [RFC 9727: API Catalog](https://www.rfc-editor.org/rfc/rfc9727)
+- [RFC 9728: OAuth Protected Resource Metadata](https://www.rfc-editor.org/rfc/rfc9728)
+- [SEP-1649: MCP Server Cards](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2127)
+- [Agent Skills Discovery RFC v0.2.0](https://github.com/cloudflare/agent-skills-discovery-rfc)
+- [A2A Agent Card specification](https://a2a-protocol.org/latest/specification/)
+- [DNS-AID draft](https://datatracker.ietf.org/doc/draft-mozleywilliams-dnsop-dnsaid/)
+- [Content Signals](https://contentsignals.org/)

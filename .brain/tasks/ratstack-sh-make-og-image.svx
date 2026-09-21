@@ -1,0 +1,28 @@
+---
+title: "Worker task: make-og-image"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: make-og-image
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you).
+Your step: `.brain/projects/ratstack-sh/make-og-image.svx` (already claimed for you).
+Source mark: `assets/ratstack-logo.svg` (84 by 57 viewBox, cream `#FAF5E9` on charcoal `#262829`, one lime layer). ImageMagick `magick` is on PATH; check for `rsvg-convert` too.
+
+## What to do
+
+Render `assets/ratstack-logo.svg` into a 1200 by 630 PNG for Open Graph (charcoal `#262829` background, mark centered with room around it, "ratstack.sh" set small under it in the cream `#FAF5E9`), plus a 512 and a 32 pixel favicon, into `apps/mischief/public/`. Use ImageMagick or resvg locally; keep the SVG as the source and record the exact command so it can be re-run. Then specify the HTML shell the Worker returns when `Accept` prefers `text/html`: a single template with `<title>`, `og:title`, `og:description`, `og:image` (absolute URL), `og:url`, `twitter:card` `summary_large_image`, and the plain-text body inside `<pre>`. Check the result with a local unfurl preview (`curl -H 'Accept: text/html'` and an OG debugger once deployed).
+
+Resolved when the PNGs exist under `apps/mischief/public/`, the render command is recorded here, and the template is written down for the prototype step to use.
+
+## Deliverables (file edits only)
+
+1. PNGs under `apps/mischief/public/`: `og.png` (1200 by 630), `icon-512.png`, `favicon-32.png`. Create the directory. Look at each output (read the image) before calling it done; the mark must be crisp, centered, with breathing room, and "ratstack.sh" legible under it on the OG image.
+2. Write the asset `.brain/projects/ratstack-sh/make-og-image-asset.svx` with frontmatter `title`, `type: "asset"`, `parent: "./make-og-image.svx"`, `created_at: "2026-09-21"`, `privacy: "public"`: the exact render commands (re-runnable from the repo root), and the HTML shell template as a fenced block with every meta tag named in the step.
+3. In `.brain/projects/ratstack-sh/make-og-image.svx`: add `## Result (2026-09-21)` with the gist and a link to the asset; set `status: "closed"` and `closed_at: "2026-09-21"`.
+4. Do not edit the brief. Do not touch files outside `apps/mischief/public/`, `.brain/`, and `/tmp`. Do not commit.
+
+Work autonomously, do not commit, print a DONE summary with the file paths.

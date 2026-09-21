@@ -3,11 +3,12 @@ title: "Research the 22 isitagentready checks and their exact fix recipes"
 type: "step"
 kind: "research"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane w9M:p4, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
+closed_at: "2026-09-21"
 ---
 
 # Research the 22 isitagentready checks and their exact fix recipes
@@ -17,3 +18,9 @@ created_at: "2026-09-21"
 Produce an asset listing every isitagentready.com check with: the URL or header it probes, the exact format it expects (with a minimal passing example), the level it gates, and whether it applies to a docs-plus-MCP site with no auth and no commerce. Sources: `https://isitagentready.com/llms.txt`, `https://isitagentready.com/.well-known/agent-skills/index.json` and each skill it links, `POST https://isitagentready.com/api/scan` with `{"url": "...", "format": "agent"}` run against a known Level 5 site to capture the prompt shape, and the linked specs (llmstxt.org, RFC 8288 Link headers, RFC 9727 API catalog, RFC 9728, MCP server card SEP-1649, Cloudflare agent-skills discovery RFC, A2A agent card, DNS-AID, Content Signals). Note which checks need DNS records rather than HTTP responses, since those go in the Stack.
 
 Resolved when the asset `research-agent-ready-checks-asset.svx` exists with one row per check, and a short "what a Worker must serve" list grouped by path and header.
+
+## Result (2026-09-21)
+
+Researched all 22 live scanner keys, their probes and minimal fixtures, level gates, and applicability to the no-auth/no-commerce docs-plus-MCP site. The current scanner does not include `llms.txt` or `llms-full.txt` among its 22 JSON check keys despite publishing skills for both. DNS-AID is the only applicable check that requires Stack/zone records rather than a Worker response. The requested Level 5 example site returned HTTP 525 during the live probe, so the asset records that failure and captures the agent-format prompt from a currently Level 5 fallback.
+
+Asset: [research-agent-ready-checks-asset.svx](./research-agent-ready-checks-asset.svx)

@@ -12,7 +12,7 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 
 ## Finish line
 
-- `https://ratstack.sh/` returns plain text written for an agent: what rat-stack is, where the law lives, how to add a capability, how to connect the MCP. No HTML on day one.
+- `https://ratstack.sh/` returns plain text written for an agent: what rat-stack is, where the law lives, how to add a capability, how to connect the MCP. A client that asks for `text/html` (a browser, a link unfurler) gets a minimal page carrying the same text in a `<pre>` plus Open Graph tags, so a pasted link shows the Rat Stack mark. That page is the only HTML on the site.
 - `https://ratstack.sh/mcp` is an Effect `McpServer` over streamable HTTP with tools, resources, and prompts. Every resource body is a file in this repo (`AGENTS.md`, `VISION.md`, `README.md`, the pins, chosen `.brain/resources`). Every prompt is a skill file in this repo, also served as plain text at `/skills/<name>`.
 - `isitagentready.com` scans `ratstack.sh` at Level 5 with every applicable check passing; checks that do not apply (commerce, auth) are listed with the reason in the site's own `llms.txt`.
 - The Worker is `apps/mischief`, declared in the single Stack in `apps/infra`, runs locally with `alchemy dev` in workerd, and ships with `pnpm infra:deploy` from a machine with the Alchemy profile. CI proves the fetch handler with tests; a smoke script proves the deploy and prints the scan level.
@@ -25,7 +25,7 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - **resource** — an MCP resource whose body is one file from this repo, never authored separately.
 - **skill** — a `skills/<name>/SKILL.md` file in this repo, served as an MCP prompt and at `/skills/<name>`, installable by any harness that reads a skills directory.
 - **projection** — as in `packages/capability`: the same capability appearing as an MCP tool, an HTTP route with OpenAPI, or a CLI command.
-- **Level 5** — isitagentready.com's top level, "agent-native"; the scanner's 22 checks are the checklist.
+- **Level 5** — isitagentready.com's top level, "agent-native": Level 4 (robots, sitemap, Link headers, AI rules, Content Signals, markdown negotiation, one integration) plus two of three groups: Web Bot Auth; all four integrations (MCP server card, A2A agent card, agent skills index, API catalog); auth metadata (OAuth discovery or `auth.md`). The 22 checks are the checklist; `llms.txt` is required by this brief, not by the scanner.
 - **Stack** — the one `Alchemy.Stack` in `apps/infra/alchemy.run.ts`; every cloud resource is declared there.
 
 ## Notes
@@ -35,8 +35,11 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - Standing calls (Joel, 2026-09-21): EXTREME plain text for the root page and every resource body. Skills are authored as files and served two ways. One Stack, no second `alchemy.run.ts`. App name `mischief`. The site is what the template serves; the earlier `greet` hello-world capability is dropped in favor of the site's own capabilities (pending the capabilities step).
 - Execution authorization (Joel, 2026-09-21): research steps run AFK. The `alchemy dev` prototype and the fetch-handler tests may be built without further approval. The first deploy to `ratstack.sh` and any change under `apps/infra` are confirmed with Joel before running, per `AGENTS.md` Boundaries; after that first confirmation, redeploys inside this effort are authorized.
 - Workers do not commit and do not edit this brief; the steering session writes ledger lines at harvest.
+- Logo (Joel, 2026-09-21): `assets/ratstack-logo.svg`, a rat on a three-layer stack, cream `#FAF5E9` on charcoal `#262829` with one lime layer. The root page stays plain text for agents; browsers and unfurlers get the HTML shell with `og:image` (Joel, 2026-09-21: "be sure site has a nice og image"). The mark is also the README header and the favicon.
 
 ## Decision ledger
+
+- [Research the 22 isitagentready checks and their exact fix recipes](./research-agent-ready-checks.svx) — all 22 keys with probes, minimal fixtures, level gates, applicability, and sources in the [asset](./research-agent-ready-checks-asset.svx). Applicable and Worker-served: robots with AI rules and Content Signals, sitemap, Link headers, markdown negotiation at `/`, API catalog, MCP server card, agent-skills index (v0.2.0 with sha256 digests), ARD `ai-catalog.json`. DNS-AID is the one check the Stack owns (SVCB records, DNSSEC). Not honest for this site: OAuth, protected resource, `auth.md` with invented endpoints, an A2A card without an `/a2a` service, WebMCP without an HTML page, Web Bot Auth without outbound signing, every commerce check. Consequence: honest Level 5 needs a decision (see the not-applicable step). Scanner drift noted: `llms.txt` is not among the 22 keys.
 
 ## Latent
 

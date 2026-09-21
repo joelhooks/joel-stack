@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/ratstack-logo.svg" alt="Rat Stack: a rat sitting on a three-layer stack" width="420"></p>
+
 # rat-stack 🐀
 
 [![CI](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml)
