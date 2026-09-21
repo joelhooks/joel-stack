@@ -1,0 +1,394 @@
+---
+title: "Research asset: Worker-side code-mode sandbox"
+type: "asset"
+parent: "./research-worker-sandbox.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker-side code-mode sandbox
+
+## Verdict
+
+Use **Cloudflare Dynamic Workers through a Worker Loader binding**.
+
+It is the only candidate that matches this job directly: accept JavaScript at request time, compile it as a Worker module, run it in a fresh isolate, block network access with `globalOutbound: null`, and let `tools.<name>(input)` call a narrow host capability over Workers RPC. Cloudflare documents Dynamic Workers specifically for untrusted code and code mode, and Alchemy exposes `Cloudflare.WorkerLoader` as a first-class binding. ([Dynamic Workers](https://developers.cloudflare.com/dynamic-workers/), [Code Mode example](https://developers.cloudflare.com/dynamic-workers/examples/codemode/), `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Workers/WorkerLoader.ts`)
+
+Do not use Containers for this one small `execute` tool. They work, but add Linux, image lifecycle, Durable Objects, cold starts, and process cleanup to a problem V8 isolates already solve. Do not use Workers for Platforms: it is a multi-tenant deployment and routing product, not a per-request code loader. Keep QuickJS/Wasm as the fallback if Dynamic Workers leave beta or pricing becomes hostile. ([Sandbox SDK](https://developers.cloudflare.com/sandbox/), [Workers for Platforms architecture](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/), [`@cf-wasm/quickjs`](https://www.npmjs.com/package/@cf-wasm/quickjs))
+
+## Contract readback
+
+The existing service contract is:
+
+```ts
+Sandbox.run(code, invoke): Effect<SandboxRun, SandboxError>
+```
+
+`SandboxRun` contains `result` and captured `logs`. `Invoke` maps `(name, input)` to `{ ok: true, value } | { ok: false, error }`. The four failure reasons are `exited`, `protocol`, `threw`, and `timeout`. (`packages/capability/src/sandbox.ts`, `packages/capability/src/sandbox-error.ts`)
+
+One terminology correction matters:
+
+- The outer model-facing `search` handler runs `searchCatalog` in the host Worker. It never enters the sandbox.
+- The outer model-facing `execute` handler calls `Sandbox.run(code, invoke)`.
+- Inside that Dynamic Worker, each `tools.<capability>(input)` call crosses back to the host through `invoke`.
+
+So the callback bridge is for capability calls made during `execute`, not for the outer `search` and `execute` tools themselves. (`packages/capability/src/to-code-mode.ts`)
+
+## Candidate comparison
+
+| Candidate | Availability and price on 2026-09-21 | Alchemy 2.0.0-beta.79 | Host callback for capability calls | Timeout story | Fit |
+| --- | --- | --- | --- | --- | --- |
+| **Dynamic Workers / Worker Loader** | Open beta on Workers Paid. Workers Paid has a $5 monthly minimum. Dynamic Workers include 1,000 unique workers per month, then cost $0.002 per unique worker per day, plus standard request and CPU charges. `load()` counts once per invocation; `get(stableId, ...)` can reuse one billable identity. ([open-beta changelog](https://developers.cloudflare.com/changelog/post/2026-03-24-dynamic-workers-open-beta/), [pricing](https://developers.cloudflare.com/dynamic-workers/pricing/)) | **Direct support.** `Cloudflare.WorkerLoader(name)` emits a `worker_loader` binding and wraps `load`/`get`, `globalOutbound`, `env`, tails, and resource limits. The installed beta.79 exports it; the local source mirror is one patch stale at beta.78 but contains the same resource. (`apps/infra/package.json`, `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/package.json`, `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Workers/WorkerLoader.ts`) | Pass an `RpcTarget` dispatcher into the Dynamic Worker's RPC entrypoint, as Cloudflare's `@cloudflare/codemode` does, or pass a `WorkerEntrypoint` stub in `WorkerCode.env`. Set `globalOutbound: null`, so this RPC capability is the only way out. ([bindings](https://developers.cloudflare.com/dynamic-workers/usage/bindings/), [API](https://developers.cloudflare.com/dynamic-workers/api-reference/), `/tmp/worker-sandbox-research/npm/package/dist/index.js`) | Use all three: a guest `Promise.race` wall timer for awaited work, `limits.cpuMs` for synchronous busy loops, and an Effect timeout as a transport backstop. Dynamic Worker limits throw immediately when CPU or subrequest budgets are hit. `Promise.race` alone cannot interrupt a tight loop. ([custom limits](https://developers.cloudflare.com/dynamic-workers/usage/limits/), `packages/capability/src/sandbox.ts`) | **Best.** Exact primitive, least machinery, fastest startup, strongest capability seam. |
+| **Sandbox SDK / Containers** | Containers and Sandbox are generally available on Workers Paid. Sandbox billing includes Container vCPU, memory, disk, and egress plus the Worker and Durable Object. Included Container usage is 25 GiB-hours, 375 vCPU-minutes, and 200 GB-hours monthly on the $5 Workers Paid plan. ([GA changelog](https://developers.cloudflare.com/changelog/post/2026-04-13-containers-sandbox-ga/), [Sandbox pricing](https://developers.cloudflare.com/sandbox/platform/pricing/), [Container pricing](https://developers.cloudflare.com/containers/pricing/)) | **Container support is direct.** Alchemy can bind an async Worker's exported `@cloudflare/sandbox` class through `Cloudflare.Container`, or use Effect-native `Cloudflare.Container` plus `Cloudflare.Containers.layer`. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Containers/Container.ts`, `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Containers/StartContainer.ts`) | Run Node in the container and call a host-only virtual hostname. `Sandbox.outboundByHost` intercepts that HTTP request outside the container, where Worker code can run `invoke`. Keep `enableInternet = false`. There is no direct callback channel on stable `exec()`. ([outbound traffic](https://developers.cloudflare.com/sandbox/guides/outbound-traffic/)) | Stable SDK command timeouts close the caller connection but **do not kill the process**; delete the session or destroy the sandbox. The 1.0 preview changes `exec` to a remote process-lifetime deadline that may stop the process. ([stable execute timeout](https://developers.cloudflare.com/sandbox/guides/execute-commands/#timeouts), [1.0 process execution](https://developers.cloudflare.com/sandbox/1-0-preview/processes/)) | Safe but too heavy. Keep for full Linux, package installs, files, or long-lived workspaces. |
+| **Workers for Platforms dispatch namespace** | Paid add-on at $25 monthly. Includes 20 million requests, 60 million CPU-ms, and 1,000 scripts; overage is $0.30/million requests, $0.02/million CPU-ms, and $0.02/script. ([pricing](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/pricing/)) | **Direct support.** Alchemy has `DispatchNamespace`, deploys a `Cloudflare.Worker` into `namespace.name`, and provides Effect-native `Get`/`GetBinding`. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/WorkersForPlatforms/DispatchNamespace.ts`, `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/WorkersForPlatforms/Get.ts`) | The dispatcher can pass a per-request RPC capability through `props`; user code calls it, while credentials stay in the dispatcher. An Outbound Worker can also intercept `fetch`. The RPC stub is request-scoped. ([dynamic dispatch](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/), [outbound Workers](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/)) | `dispatcher.get(..., { limits: { cpuMs, subRequests } })` applies lower CPU and subrequest limits. Add a host wall timeout separately. Maximum normal CPU is 30 seconds per invocation. ([custom limits](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/), [pricing](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/pricing/)) | Wrong lifecycle. Alchemy uploads user Workers during deployment; per-execution code would need the Cloudflare control-plane upload API before dispatch. That is slower, costlier, and operationally larger than Worker Loader. |
+| **QuickJS compiled to Wasm** | Open-source npm package; no Cloudflare product fee beyond the enclosing Worker's plan. `@cf-wasm/quickjs` 0.3.0 explicitly targets workerd but warns that it is in development and may make breaking changes outside semver. The release Wasm is about 503 KB. ([package](https://www.npmjs.com/package/@cf-wasm/quickjs), `/tmp/worker-sandbox-research/quickjs/package/README.md`, `/tmp/worker-sandbox-research/quickjs/package/dist/lib/RELEASE_SYNC.wasm`) | **No dedicated resource is needed or present.** It would be a normal bundled Worker dependency. Alchemy's Worker bundler can include the JS/Wasm module, but rat-stack would need an exact new dependency pin and owner sign-off. (`AGENTS.md`, `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Workers/Worker.ts`, `/tmp/worker-sandbox-research/alchemy-support.txt`) | Expose a QuickJS host function with `context.newFunction`. For asynchronous Effect callbacks, return `context.newPromise()`, settle it from the host, call `runtime.executePendingJobs()`, and carefully dispose every handle. ([quickjs-emscripten README](https://github.com/justjake/quickjs-emscripten#promises), [runtime jobs](https://github.com/justjake/quickjs-emscripten/blob/main/doc/quickjs-emscripten/classes/QuickJSRuntime.md)) | Set a QuickJS interrupt handler with a deadline plus memory and stack limits; also retain the enclosing Worker's CPU limit. Async host promises require an explicit pending-job pump, so timeout and cleanup code is ours. ([package example](https://www.npmjs.com/package/@cf-wasm/quickjs), [Wasm limitations](https://developers.cloudflare.com/workers/runtime-apis/webassembly/)) | Viable fallback. More custom runtime code, manual memory ownership, and a weaker operational story than the platform's own isolate loader. |
+
+## Recommended design
+
+Use one fresh Dynamic Worker per `execute` call via `loader.load()`.
+
+1. Insert the model's async-function body into a generated ES module. Do not call `eval` or `new Function`.
+2. Export one `WorkerEntrypoint` with `run(dispatcher)`.
+3. Build `tools` as a Proxy. Each method calls the host `InvokeDispatcher`, an `RpcTarget` holding the current `Invoke` closure.
+4. Set `globalOutbound: null` and pass no environment bindings.
+5. Set low `cpuMs` and `subRequests` limits in the `WorkerCode` object.
+6. Capture console output in the guest and force the result through JSON serialization before returning it.
+7. Map malformed responses to `protocol`, guest exceptions to `threw`, guest/CPU/host deadlines to `timeout`, and loader/RPC failures to `exited`.
+8. Dispose the entrypoint and Worker stubs eagerly.
+
+This is the same callback shape Cloudflare's current `@cloudflare/codemode` package uses: it passes one `RpcTarget` dispatcher per namespace into the Dynamic Worker's `evaluate()` RPC method. Its package docs say 30 seconds, while package 0.5.2 currently defaults to 60 seconds; rat-stack should set its own explicit timeout and rely on neither default. ([Code Mode example](https://developers.cloudflare.com/dynamic-workers/examples/codemode/), `/tmp/worker-sandbox-research/npm/package/dist/executor-DkMGH_7-.d.ts`, `/tmp/worker-sandbox-research/npm/package/dist/index.js`)
+
+### Required package seam before integration
+
+Do not make `mischief` import the capability root barrel or the current `sandbox.ts`. The earlier bundle research proved that this retains the Node subprocess runner. Split the code first:
+
+- `sandbox-service.ts`: `Sandbox`, `SandboxError`, `Invoke`, `InvokeOutcome`, `SandboxRun`; Worker-safe.
+- `sandbox-subprocess.ts`: `layerSubprocess` and Node process code.
+- package export `@rat-stack/capability/sandbox`: service contract only.
+- `apps/mischief/src/sandbox-worker-loader.ts`: the Worker-specific layer below.
+
+This keeps the dependency direction `apps/mischief -> packages/capability` and prevents the Worker bundle from resolving the Node runner. (`.brain/projects/ratstack-sh/research-alchemy-effect-worker-asset.svx`, `packages/capability/src/sandbox.ts`, `packages/capability/package.json`)
+
+## Copy-ready Effect layer sketch
+
+The checked scratch copy is `/tmp/worker-sandbox-research/worker-loader-sandbox.ts`. It typechecked against Effect 4.0.0-rc.116 and `@cloudflare/workers-types` 5.20260917.1 with:
+
+```sh
+node_modules/.bin/tsc -p /tmp/worker-sandbox-research/tsconfig.json
+```
+
+Place the implementation in `apps/mischief/src/sandbox-worker-loader.ts` after adding the Worker-safe `@rat-stack/capability/sandbox` subpath. The only import change from the checked scratch file is the service import.
+
+```ts
+/// <reference types="@cloudflare/workers-types" />
+
+import { RpcTarget } from "cloudflare:workers";
+import { Duration, Effect, Layer } from "effect";
+
+import {
+  Sandbox,
+  SandboxError,
+  type Invoke,
+  type InvokeOutcome,
+  type SandboxRun,
+} from "@rat-stack/capability/sandbox";
+
+export interface WorkerLoaderSandboxOptions {
+  readonly timeout?: Duration.Input | undefined;
+  readonly cpuMs?: number | undefined;
+  readonly subRequests?: number | undefined;
+  readonly compatibilityDate?: string | undefined;
+}
+
+type GuestOutcome =
+  | { readonly ok: true; readonly result: unknown; readonly logs: string[] }
+  | {
+      readonly ok: false;
+      readonly message: string;
+      readonly logs: string[];
+      readonly timeout: boolean;
+    };
+
+interface GuestEntrypoint {
+  run(dispatcher: InvokeDispatcher): Promise<GuestOutcome>;
+}
+
+const timeoutMessage = "__RATSTACK_SANDBOX_TIMEOUT__";
+const messageOf = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
+
+const disposeQuietly = (value: unknown): Effect.Effect<void> =>
+  Effect.sync(() => {
+    if (typeof value !== "object" || value === null) return;
+    const disposable = value as { [Symbol.dispose]?: () => void };
+    try {
+      disposable[Symbol.dispose]?.();
+    } catch {
+      // Cleanup must not mask the sandbox result.
+    }
+  });
+
+class InvokeDispatcher extends RpcTarget {
+  constructor(private readonly invoke: Invoke) {
+    super();
+  }
+
+  async call(name: string, input: unknown): Promise<InvokeOutcome> {
+    try {
+      return await Effect.runPromise(this.invoke(name, input));
+    } catch (cause) {
+      return {
+        ok: false,
+        error: { _tag: "HostDefect", message: messageOf(cause) },
+      };
+    }
+  }
+}
+
+const moduleSource = (code: string, timeoutMs: number): string => `
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export default class CodeExecutor extends WorkerEntrypoint {
+    async run(dispatcher) {
+      const logs = [];
+      const render = (part) => {
+        if (typeof part === "string") return part;
+        try { return JSON.stringify(part); } catch { return String(part); }
+      };
+      const capture = (level) => (...parts) =>
+        logs.push(level + ": " + parts.map(render).join(" "));
+      const console = {
+        debug: capture("debug"), error: capture("error"),
+        info: capture("info"), log: capture("log"), warn: capture("warn")
+      };
+      const tools = new Proxy({}, {
+        get: (_target, name) => async (input = {}) => {
+          const outcome = await dispatcher.call(String(name), input);
+          if (outcome.ok) return outcome.value;
+          const error = new Error(outcome.error?.message ?? "capability failed");
+          Object.assign(error, outcome.error);
+          throw error;
+        }
+      });
+
+      try {
+        const value = await Promise.race([
+          (async (tools, console) => { ${code} })(tools, console),
+          new Promise((_, reject) => setTimeout(
+            () => reject(new Error("${timeoutMessage}")), ${timeoutMs}
+          ))
+        ]);
+        const result = JSON.parse(JSON.stringify(value === undefined ? null : value));
+        return { ok: true, result, logs };
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        return { ok: false, message, logs, timeout: message === "${timeoutMessage}" };
+      }
+    }
+  }
+`;
+
+const isGuestOutcome = (value: unknown): value is GuestOutcome => {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.ok === "boolean" &&
+    Array.isArray(record.logs) &&
+    record.logs.every((entry) => typeof entry === "string") &&
+    (record.ok ||
+      (typeof record.message === "string" && typeof record.timeout === "boolean"))
+  );
+};
+
+export const layerWorkerLoader = (
+  loader: WorkerLoader,
+  options: WorkerLoaderSandboxOptions = {},
+): Layer.Layer<Sandbox> => {
+  const timeout = Duration.fromInputUnsafe(options.timeout ?? "10 seconds");
+  const timeoutMs = Duration.toMillis(timeout);
+  const compatibilityDate = options.compatibilityDate ?? "2026-09-21";
+
+  const run = (code: string, invoke: Invoke) => {
+    const execute = Effect.acquireUseRelease(
+      Effect.try({
+        try: () =>
+          loader.load({
+            compatibilityDate,
+            mainModule: "executor.js",
+            modules: { "executor.js": moduleSource(code, timeoutMs) },
+            globalOutbound: null,
+            limits: {
+              cpuMs: options.cpuMs ?? Math.max(10, Math.ceil(timeoutMs / 4)),
+              subRequests: options.subRequests ?? 5,
+            },
+          }),
+        catch: (cause) =>
+          new SandboxError({ logs: [], message: messageOf(cause), reason: "exited" }),
+      }),
+      (worker) =>
+        Effect.acquireUseRelease(
+          Effect.try({
+            try: () => worker.getEntrypoint() as unknown as GuestEntrypoint,
+            catch: (cause) =>
+              new SandboxError({ logs: [], message: messageOf(cause), reason: "exited" }),
+          }),
+          (entrypoint) =>
+            Effect.tryPromise({
+              try: () => entrypoint.run(new InvokeDispatcher(invoke)),
+              catch: (cause) => {
+                const message = messageOf(cause);
+                return new SandboxError({
+                  logs: [],
+                  message,
+                  reason: /CPU time limit|timed out/i.test(message)
+                    ? "timeout"
+                    : "exited",
+                });
+              },
+            }).pipe(
+              Effect.flatMap((outcome) => {
+                if (!isGuestOutcome(outcome)) {
+                  return Effect.fail(
+                    new SandboxError({
+                      logs: [],
+                      message: "Unreadable Dynamic Worker response",
+                      reason: "protocol",
+                    }),
+                  );
+                }
+                if (outcome.ok) {
+                  return Effect.succeed({
+                    logs: outcome.logs,
+                    result: outcome.result,
+                  } satisfies SandboxRun);
+                }
+                return Effect.fail(
+                  new SandboxError({
+                    logs: outcome.logs,
+                    message: outcome.timeout
+                      ? `The program did not finish within ${Duration.format(timeout)}`
+                      : outcome.message,
+                    reason: outcome.timeout ? "timeout" : "threw",
+                  }),
+                );
+              }),
+            ),
+          disposeQuietly,
+        ),
+      disposeQuietly,
+    );
+
+    return execute.pipe(
+      Effect.timeoutOrElse({
+        duration: Duration.millis(timeoutMs + 1_000),
+        orElse: () =>
+          Effect.fail(
+            new SandboxError({
+              logs: [],
+              message: `The program did not finish within ${Duration.format(timeout)}`,
+              reason: "timeout",
+            }),
+          ),
+      }),
+    );
+  };
+
+  return Layer.succeed(Sandbox, { run });
+};
+```
+
+The full scratch file is the compile receipt if the excerpt drifts: `/tmp/worker-sandbox-research/worker-loader-sandbox.ts`.
+
+## Alchemy declaration
+
+`Cloudflare.WorkerLoader("CODE_SANDBOX")` both declares the binding and resolves its Effect-native wrapper. The layer sketch uses the native loader because `RpcTarget` is a native Workers RPC object. Read it from `WorkerEnvironment` inside the request handler after declaring the binding during Worker initialization.
+
+```ts
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Effect from "effect/Effect";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
+
+import { layerWorkerLoader } from "./sandbox-worker-loader.js";
+
+export default class Mischief extends Cloudflare.Worker<Mischief>()(
+  "Mischief",
+  { main: import.meta.url },
+  Effect.gen(function* () {
+    // Adds [[worker_loaders]] binding CODE_SANDBOX.
+    yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
+    const handler = HttpRouter.toHttpEffect(routes);
+
+    return {
+      fetch: Effect.gen(function* () {
+        const env = yield* Cloudflare.WorkerEnvironment;
+        return yield* handler.pipe(
+          Effect.provide(
+            layerWorkerLoader(env.CODE_SANDBOX as WorkerLoader, {
+              timeout: "10 seconds",
+              cpuMs: 100,
+              subRequests: 5,
+            }),
+          ),
+        );
+      }),
+    };
+  }),
+) {}
+```
+
+Alchemy beta.79's installed exports were also inspected at runtime: `WorkerLoader` is a function, `Containers` includes `Container` and `layer`, and `WorkersForPlatforms` includes `DispatchNamespace`, `Get`, and `GetBinding`. (`/tmp/worker-sandbox-research/alchemy-support.txt`, `apps/infra/package.json`)
+
+## Local spike verdict
+
+**Passed without Cloudflare authentication or deployment.**
+
+Scratch project: `/tmp/worker-sandbox-research/spike/`
+
+Command:
+
+```sh
+cd /tmp/worker-sandbox-research/spike
+wrangler dev --local --port 8799
+```
+
+Wrangler 4.94.0 recognized `env.LOADER` in local mode. Its bundled workerd only supported compatibility dates through 2026-05-28, so the first boot with 2026-09-21 failed honestly; pinning both parent and Dynamic Worker to 2026-05-28 made the local spike boot. (`/tmp/worker-sandbox-research/spike/wrangler.log`)
+
+The spike exercised four paths:
+
+```json
+{"mode":"success","outcome":{"ok":true,"result":{"answer":42,"found":"sum"},"logs":["log: found sum"]}}
+{"mode":"throw","outcome":{"ok":false,"message":"guest boom","logs":[]}}
+{"mode":"timeout","outcome":{"ok":false,"message":"__RATSTACK_TIMEOUT__","logs":[]}}
+{"mode":"egress","outcome":{"ok":false,"message":"This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.","logs":[]}}
+```
+
+Receipts:
+
+- `/tmp/worker-sandbox-research/spike/success.json`
+- `/tmp/worker-sandbox-research/spike/throw.json`
+- `/tmp/worker-sandbox-research/spike/timeout.json`
+- `/tmp/worker-sandbox-research/spike/egress.json`
+- `/tmp/worker-sandbox-research/spike/src/index.mjs`
+- `/tmp/worker-sandbox-research/spike/README.md`
+
+The test proves local Worker Loader support, per-run RPC callbacks, result/log capture, cooperative wall timeout, and runtime-enforced network denial. The server was stopped and port 8799 was verified closed. (`/tmp/worker-sandbox-research/spike/lsof-after.txt`)
+
+## What remains unverified
+
+- A production Dynamic Worker invocation on the rat-stack Cloudflare account. No login or deploy was attempted.
+- The exact production error text for `limits.cpuMs`; the layer maps known CPU-limit wording, but a production test must lock this into a regression test.
+- Whether interruption of the outer Effect timeout cancels an already-running Dynamic Worker RPC. The guest timer and workerd CPU limit are the primary controls; the Effect timeout is only a backstop.
+- The final Alchemy Effect-native wiring with `WorkerEnvironment` and the future Worker-safe `Sandbox` package subpath. The binding resource itself is source-verified in beta.79, but this repo composition was not edited or booted.
+- Tail Worker log capture. The proposed layer returns explicitly captured console logs and does not yet attach `tails`.
+- Production billing telemetry. Pricing above is Cloudflare's published contract, not an observed invoice.
+
+## Implementation acceptance checks
+
+When this moves from research to code:
+
+1. Split the Worker-safe Sandbox contract from the Node subprocess runtime.
+2. Add the Worker Loader layer and declare `CODE_SANDBOX` through Alchemy.
+3. Test success, capability failure, unknown capability, non-JSON result, guest throw, never-settling promise, synchronous busy loop, blocked `fetch`, and malformed protocol.
+4. Run `alchemy dev` with a compatibility date supported by its bundled workerd.
+5. Obtain owner approval before the first infra edit/deploy, as required by `AGENTS.md`.
+6. After approval, deploy once and verify a real `execute` call plus CPU-limit behavior.
