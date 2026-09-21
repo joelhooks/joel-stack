@@ -3,7 +3,8 @@ title: "Research Effect McpServer over streamable HTTP with resources and prompt
 type: "step"
 kind: "research"
 interaction: "AFK"
-status: "open"
+status: "closed"
+closed_at: "2026-09-21"
 assignee: "pi (flagg, herdr pane w9M:p6, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
@@ -17,3 +18,9 @@ created_at: "2026-09-21"
 From `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts`, `McpProtocol.ts`, `McpSchema.ts`, and their tests: record `McpServer.layerHttp` options and the `HttpRouter` it needs, the protocol adapters to pass, whether sessions are stateless enough for a Worker (no shared memory between requests), how `McpServer.resource` (static and templated) and `McpServer.prompt` are declared and listed, how `instructions` and `websiteUrl` surface, how the existing `packages/capability/test/mcp-harness.ts` drives a server in memory, and what an MCP server card (`/.well-known/mcp/server-card.json`) must say for this server. Also record how a `skills/<name>/SKILL.md` file becomes a prompt (frontmatter to prompt name and description; body to one user message) and how the same file is served at `/skills/<name>` as text.
 
 Resolved when `research-effect-mcp-over-http-asset.svx` exists with a working in-memory example (resource, prompt, tool, listed and read through the harness) and the server card JSON.
+
+## Result (2026-09-21)
+
+Use `McpProtocol.v2026_07_28` alone for a request-stateless Worker; older adapters keep server-managed sessions in process. The asset records `layerHttp`, resources, prompts, skill mapping, the scanner-compatible server card, and a passing in-memory HTTP harness example.
+
+[Research asset](./research-effect-mcp-over-http-asset.svx)

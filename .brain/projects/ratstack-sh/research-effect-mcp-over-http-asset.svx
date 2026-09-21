@@ -1,0 +1,365 @@
+---
+title: "Effect MCP over streamable HTTP research asset"
+type: "asset"
+parent: "./research-effect-mcp-over-http.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Effect MCP over streamable HTTP
+
+## Recommendation
+
+Run the Worker with **only** `McpProtocol.v2026_07_28`:
+
+```ts
+McpServer.layerHttp({
+  name: "sh.ratstack/rat-stack",
+  version: "0.1.0",
+  description: "Learn and use the rat-stack agentic TypeScript scaffold",
+  websiteUrl: "https://ratstack.sh/",
+  instructions:
+    "Read the repository resources first. Use prompts for guided rat-stack tasks and tools for capability projections.",
+  path: "/mcp",
+  protocols: [McpProtocol.v2026_07_28],
+  allowedOrigins: ["https://ratstack.sh"],
+})
+```
+
+That adapter is request-scoped and stateless. The older adapters require server-managed sessions. They are not safe across unrelated Cloudflare Worker isolates without shared or sticky session state. The source classifies only `2026-07-28` as stateless and all earlier supported versions as stateful: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpProtocol.ts`. The modern conformance test proves requests work without initialization or an MCP session ID: `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/v2026_07_28.test.ts`.
+
+The brief asked for `McpRuntime.ts` beside the public MCP modules. That public path does not exist in this mirror. The implementation is internal at `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpRuntime.ts`.
+
+## `McpServer.layerHttp`
+
+`layerHttp` accepts:
+
+- `name` and `version`
+- optional `instructions`, `description`, `websiteUrl`, `icons`, and `extensions`
+- `path: HttpRouter.PathInput`
+- a non-empty `protocols` array
+- optional `allowedOrigins`
+
+It returns a layer that provides `McpServer | McpServerClient`, can fail with `Cause.IllegalArgumentError`, and requires `HttpRouter.HttpRouter`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`layerHttp`).
+
+The application does not need to construct the router manually when it ends at `HttpRouter.toWebHandler(appLayer)`: that function supplies `HttpRouter.layer` while building the app layer. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpRouter.ts` (`toWebHandler`). The existing test harness uses this exact shape in `packages/capability/test/mcp-harness.ts`.
+
+The HTTP endpoint behavior is strict:
+
+- `POST` is the only supported method. `GET`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS` return `405`.
+- Requests need `Content-Type: application/json`.
+- `Accept` must include both `application/json` and `text/event-stream`.
+- Browser requests with an `Origin` header are rejected unless the exact origin is in `allowedOrigins`; origin-less MCP clients remain valid.
+- The surrounding server owns interface binding and authentication.
+
+Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`layerHttp`, `layerMcpProtocolHttp`, and `isAllowedMcpOrigin`).
+
+## Protocol adapters and Worker state
+
+The pin provides these adapters:
+
+- `McpProtocol.v2024_11_05`
+- `McpProtocol.v2025_03_26`
+- `McpProtocol.v2025_06_18`
+- `McpProtocol.v2025_11_25`
+- `McpProtocol.v2026_07_28`
+
+Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpProtocol.ts`.
+
+The lifecycle split is explicit:
+
+- `2024-11-05` through `2025-11-25` use `StatefulRuntimeDescriptor`. Initialization creates a UUID session and stores it in the in-process stateful runtime. Later requests resolve `Mcp-Session-Id` against that state.
+- `2026-07-28` uses `StatelessRuntimeDescriptor`. Every request carries protocol version, client capabilities, optional client identity, and request metadata. It neither creates nor requires a session.
+
+Sources: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpProtocol.ts`, `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpRuntime.ts`, and `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/v2026_07_28.test.ts`.
+
+For `2026-07-28` over HTTP, requests also need `MCP-Protocol-Version`, `Mcp-Method`, and, for `tools/call`, `prompts/get`, or `resources/read`, a matching `Mcp-Name`. Required metadata includes `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpRuntime.ts` and the transport tests in `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/v2026_07_28.test.ts`.
+
+**Worker conclusion:** the Effect server is stateless enough for ordinary isolate-to-isolate Worker requests only when configured with `McpProtocol.v2026_07_28`. Adding a legacy adapter reintroduces in-memory sessions for clients that negotiate it. Do not advertise those legacy versions unless the deployment also owns a durable session strategy.
+
+## Resources
+
+### Static resource
+
+```ts
+const agentLaw = McpServer.resource({
+  uri: "ratstack://repo/AGENTS.md",
+  name: "agent-law",
+  description: "The repository law",
+  mimeType: "text/markdown",
+  content: Effect.succeed(agentLawText),
+})
+```
+
+A static resource requires `uri`, `name`, and `content`. It can also declare `description`, `mimeType`, `audience`, and `priority`. `resources/list` returns its descriptor and `resources/read` runs its content Effect. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`registerResource` and `resource`) and `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/McpConformance/ResourcesTest.ts`.
+
+### URI-template resource
+
+```ts
+const skillName = McpSchema.param("name", Schema.String)
+
+const skillResource = McpServer.resource`ratstack://skills/${skillName}`({
+  name: "skill",
+  description: "A bundled rat-stack skill",
+  mimeType: "text/markdown",
+  content: (_uri, name) => Effect.succeed(skillsByName.get(name)!.raw),
+})
+```
+
+Interpolated schemas become URI-template fields. `McpSchema.param("name", schema)` gives the interpolation a stable public name; unnamed interpolations become `param0`, `param1`, and so on. Templates appear under `resources/templates/list`, then a concrete URI is read through `resources/read`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`compileUriTemplate`, `registerResource`, and `resource`) and `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/McpConformance/ResourcesTest.ts`.
+
+A useful gotcha: returning a plain `string` creates `{ uri, text }`; it does **not** copy the descriptor's `mimeType` into the returned content. Return an explicit `McpSchema.ReadResourceResult` when the read result itself must carry `mimeType`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`resolveResourceContent`).
+
+## Prompts
+
+```ts
+const skillPrompt = McpServer.prompt({
+  name: skill.name,
+  description: skill.description,
+  content: () => Effect.succeed(skill.body),
+})
+```
+
+A prompt accepts `name`, optional `title` and `description`, optional schema-backed `parameters`, optional completion handlers, and a `content` function. `prompts/list` returns the descriptor. `prompts/get` validates the arguments and runs the content handler. A string result is automatically wrapped as one user text message:
+
+```json
+{
+  "role": "user",
+  "content": { "type": "text", "text": "...body..." }
+}
+```
+
+Sources: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`registerPrompt` and `prompt`), `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpSchema.ts` (`Prompt`, `PromptMessage`, `ListPrompts`, and `GetPrompt`), and `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/McpConformance/PromptsTest.ts`.
+
+## Skills become both prompts and text routes
+
+The Agent Skills format requires `name` and `description` in YAML frontmatter, followed by an unrestricted Markdown body. The `name` must match the parent directory. Source: [Agent Skills specification](https://agentskills.io/specification).
+
+At bundle time, load every `skills/<name>/SKILL.md` into one record:
+
+```ts
+interface BundledSkill {
+  readonly name: string
+  readonly description: string
+  readonly body: string
+  readonly raw: string
+}
+```
+
+Use the same record in both surfaces:
+
+1. Validate frontmatter `name` against the directory name.
+2. Use frontmatter `name` as `McpServer.prompt.name`.
+3. Use frontmatter `description` as `McpServer.prompt.description`.
+4. Return the Markdown **body only** from the prompt content. `McpServer.prompt` turns it into one user text message.
+5. Serve the original `raw` file, including frontmatter, at `GET /skills/<name>` with `Content-Type: text/markdown; charset=utf-8`.
+
+The HTTP route can use `HttpRouter.add("GET", "/skills/:name", ...)`, read the captured name from `HttpRouter.params`, and return `HttpServerResponse.text(skill.raw, { contentType: "text/markdown; charset=utf-8" })`. Source for the route and response APIs: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpRouter.ts` (`add`, `RouteContext`, and `params`) and `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpServerResponse.ts` (`text`).
+
+No `skills/*/SKILL.md` exists in the repository yet. The parser implementation and bundle import mechanism remain unverified and belong to the implementation step. The mapping above is verified against the Agent Skills format and `McpServer.prompt` behavior.
+
+## Toolkit projection and the in-memory harness
+
+`toToolkit` converts each capability into an Effect `Tool` with the same name, description, input schema, output schema, declared failure, approval flag, and annotations. Its handler layer captures the capability requirements once. Source: `packages/capability/src/to-toolkit.ts`.
+
+`packages/capability/test/mcp-harness.ts` does this in process:
+
+1. Builds `McpServer.layerHttp` at `/mcp` with `McpProtocol.v2025_06_18`.
+2. Converts the app layer to a Fetch-compatible handler with `HttpRouter.toWebHandler`.
+3. Replaces Fetch with a shim that calls that handler directly.
+4. Captures and replays `Mcp-Session-Id` and `Mcp-Protocol-Version`.
+5. Builds an HTTP `RpcClient` and sends `initialize`.
+
+This harness verifies the current stateful adapter. It does not prove isolate-safe Worker behavior; the `v2026_07_28` source and conformance tests provide that evidence.
+
+Harness gotcha: the helper's `RpcClient` uses JSON-RPC decoding and does not decode a multi-message SSE response. A server that registers several primitives can emit queued `list_changed` notifications beside a tool result, which makes Effect correctly switch that response to SSE. The working example below therefore lists and reads all primitives through the combined server, then invokes the tool through a second tool-only in-memory server. The production `v2026_07_28` transport has its own explicit subscription protocol. Source for the SSE switch: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`layerMcpProtocolHttp` and `toServerSentEvents`).
+
+## Working in-memory example
+
+This exact file was written to `packages/capability/test/__scratch-mcp-http.test.ts`, run, and deleted.
+
+```ts
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, Layer, Schema } from "effect";
+import { McpSchema, McpServer } from "effect/unstable/ai";
+
+import { toToolkit } from "../src/index.js";
+import { echo } from "./fixtures.js";
+import { makeMcpClient, serverLayer } from "./mcp-harness.js";
+
+const skill = {
+  body: "# Rat Stack Guide\n\nBuild behavior as a capability, then project it.",
+  description: "Teach an agent how to extend rat-stack",
+  name: "rat-stack-guide",
+} as const;
+
+const projection = toToolkit([echo]);
+const skillName = McpSchema.param("name", Schema.String);
+
+const toolOnlyLayer = McpServer.toolkit(projection.toolkit).pipe(
+  Layer.provideMerge(projection.layer),
+  Layer.provide(serverLayer)
+);
+
+const appLayer = Layer.mergeAll(
+  McpServer.toolkit(projection.toolkit).pipe(
+    Layer.provideMerge(projection.layer)
+  ),
+  McpServer.resource({
+    uri: "ratstack://repo/AGENTS.md",
+    name: "agent-law",
+    description: "The repository law",
+    mimeType: "text/markdown",
+    content: Effect.succeed("# Agent law\n\nCapabilities are the contract."),
+  }),
+  McpServer.resource`ratstack://skills/${skillName}`({
+    name: "skill",
+    description: "A bundled rat-stack skill",
+    mimeType: "text/markdown",
+    content: (_uri, name) =>
+      Effect.succeed(name === skill.name ? skill.body : `Unknown skill: ${name}`),
+  }),
+  McpServer.prompt({
+    name: skill.name,
+    description: skill.description,
+    content: () => Effect.succeed(skill.body),
+  })
+).pipe(Layer.provide(serverLayer));
+
+describe("Effect MCP over in-memory HTTP", () => {
+  it.effect("lists and reads a tool, resource, template, and prompt", () =>
+    Effect.gen(function* () {
+      const client = yield* makeMcpClient(appLayer);
+
+      const listedTools = yield* client["tools/list"]({});
+      expect(listedTools.tools.map(({ name }) => name)).toEqual(["echo"]);
+
+      const listedResources = yield* client["resources/list"]({});
+      expect(listedResources.resources).toEqual([
+        expect.objectContaining({
+          uri: "ratstack://repo/AGENTS.md",
+          name: "agent-law",
+          mimeType: "text/markdown",
+        }),
+      ]);
+      const readStatic = yield* client["resources/read"]({
+        uri: "ratstack://repo/AGENTS.md",
+      });
+      expect(readStatic.contents).toEqual([
+        {
+          uri: "ratstack://repo/AGENTS.md",
+          text: "# Agent law\n\nCapabilities are the contract.",
+        },
+      ]);
+
+      const listedTemplates = yield* client["resources/templates/list"]({});
+      expect(listedTemplates.resourceTemplates).toEqual([
+        expect.objectContaining({
+          uriTemplate: "ratstack://skills/{name}",
+          name: "skill",
+          mimeType: "text/markdown",
+        }),
+      ]);
+      const readSkill = yield* client["resources/read"]({
+        uri: `ratstack://skills/${skill.name}`,
+      });
+      expect(readSkill.contents).toEqual([
+        {
+          uri: `ratstack://skills/${skill.name}`,
+          text: skill.body,
+        },
+      ]);
+
+      const listedPrompts = yield* client["prompts/list"]({});
+      expect(listedPrompts.prompts).toEqual([
+        expect.objectContaining({
+          name: skill.name,
+          description: skill.description,
+        }),
+      ]);
+      const prompt = yield* client["prompts/get"]({
+        name: skill.name,
+        arguments: {},
+      });
+      expect(prompt.messages).toEqual([
+        {
+          role: "user",
+          content: { type: "text", text: skill.body },
+        },
+      ]);
+
+      const toolClient = yield* makeMcpClient(toolOnlyLayer);
+      const called = yield* toolClient["tools/call"]({
+        name: "echo",
+        arguments: { text: "rat", times: 2 },
+      });
+      expect(called.structuredContent).toEqual({ text: "ratrat" });
+    })
+  );
+});
+```
+
+Command, run from `packages/capability`:
+
+```text
+$ pnpm exec vitest run test/__scratch-mcp-http.test.ts
+
+ RUN  v5.0.1 /Users/joel/Code/joelhooks/rat-stack
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  12:45:05
+   Duration  346ms (import 71%, transform 17%, tests 12%, worker 1%)
+```
+
+## `instructions` and `websiteUrl`
+
+`instructions` and `websiteUrl` are both `layerHttp` options. For legacy protocols, `instructions` appears at the top level of the initialize result and `websiteUrl` belongs to `serverInfo`. The public schemas are `McpSchema.InitializeResult` and `McpSchema.Implementation`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts`, `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpSchema.ts`, and `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpRuntime.ts`.
+
+Protocol projection matters. The adapter test proves `2025-11-25` includes description, `websiteUrl`, and icons in `serverInfo`, while `2025-06-18` projects only name and version. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/ProtocolAdapters.test.ts` (`should expose implementation metadata and descriptor icons when supported by the protocol`).
+
+For `2026-07-28`, `server/discover` returns `instructions`; server identity is attached under result metadata as `io.modelcontextprotocol/serverInfo`. Source: `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/internal/mcpProtocol/v2026_07_28.ts` and `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/v2026_07_28.test.ts`.
+
+## Server card for `ratstack.sh`
+
+The effort's scanner contract asks for `/.well-known/mcp/server-card.json`. The scanner's own implementation guide requires HTTP 200, `serverInfo.name`, `serverInfo.version`, a transport endpoint, and declared tools/resources/prompts capabilities: [isitagentready MCP server-card skill](https://isitagentready.com/.well-known/agent-skills/mcp-server-card/SKILL.md).
+
+Serve this JSON at that exact path:
+
+```json
+{
+  "version": "1.0",
+  "protocolVersion": "2026-07-28",
+  "serverInfo": {
+    "name": "sh.ratstack/rat-stack",
+    "title": "rat-stack",
+    "version": "0.1.0",
+    "description": "Learn and use the rat-stack agentic TypeScript scaffold",
+    "websiteUrl": "https://ratstack.sh/"
+  },
+  "description": "Repository-backed tools, resources, and prompts for rat-stack",
+  "documentationUrl": "https://ratstack.sh/",
+  "transport": {
+    "type": "streamable-http",
+    "endpoint": "https://ratstack.sh/mcp"
+  },
+  "capabilities": {
+    "tools": {},
+    "resources": {},
+    "prompts": {}
+  },
+  "authentication": {
+    "required": false,
+    "schemes": []
+  },
+  "instructions": "Read repository resources first. Use prompts for guided rat-stack tasks and tools for capability projections.",
+  "tools": "dynamic",
+  "resources": "dynamic",
+  "prompts": "dynamic"
+}
+```
+
+Return `Content-Type: application/json`, allow `GET`, and include `Access-Control-Allow-Origin: *` for discovery. The older SEP shape and this path are documented in [SEP-1649](https://github.com/modelcontextprotocol/modelcontextprotocol/issues/1649); the current scanner requirement is the guide linked above.
+
+**Specification drift:** server-card discovery is still moving. A later SEP-2127 draft uses a top-level reverse-DNS `name`, `version`, `description`, and `remotes[]`, and has moved the recommended path more than once. That draft is not the acceptance target named in this effort. Treat the JSON above as the verified `isitagentready.com` compatibility card, not a claim that `/.well-known/mcp/server-card.json` is final MCP core law. Draft source: [SEP-2127 snapshot](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/aa59517442d323a33ed915fc408f1584c4a23dfa/seps/2127-mcp-server-cards.md).

@@ -1,0 +1,19 @@
+---
+title: "Research which MCP clients speak protocol 2026-07-28, and the Durable Object fallback"
+type: "step"
+kind: "research"
+interaction: "AFK"
+status: "open"
+assignee: "pi (flagg, herdr pane w9M:p6, 2026-09-21)"
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-21"
+---
+
+# Research which MCP clients speak protocol 2026-07-28, and the Durable Object fallback
+
+## Step
+
+The MCP research showed only `McpProtocol.v2026_07_28` is stateless in Effect rc.116; older versions keep sessions in Worker memory. Find out, with evidence, which clients an agent is likely to use against `ratstack.sh` and the newest protocol version each negotiates today: Claude Code, Claude Desktop, Pi (`@earendil-works/pi-coding-agent` 0.86.1, read its MCP client source in `node_modules`), Codex CLI, Cursor, the MCP Inspector, and the `@modelcontextprotocol/sdk` npm client (read the spec changelog for 2026-07-28 and the SDK's supported versions). Then record the fallback: how a Cloudflare Durable Object could hold the Effect stateful runtime's session (one DO per `Mcp-Session-Id`, or a single DO), what Alchemy beta.79 offers for that (`Cloudflare.DurableObject` in the mirror's docs and `examples/cloudflare-worker-async`), and the cost in code. Give a recommendation: serve `2026_07_28` only, serve all versions behind a DO, or both with a sunset note.
+
+Resolved when `research-mcp-client-protocol-support-asset.svx` exists with one row per client (version negotiated, evidence link or file path, date), the DO sketch, and the recommendation.

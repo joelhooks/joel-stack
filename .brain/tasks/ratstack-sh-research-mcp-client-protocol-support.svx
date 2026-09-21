@@ -1,0 +1,26 @@
+---
+title: "Worker task: research-mcp-client-protocol-support"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: research-mcp-client-protocol-support
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you). Prior asset to build on: `.brain/projects/ratstack-sh/research-effect-mcp-over-http-asset.svx`.
+Your step: `.brain/projects/ratstack-sh/research-mcp-client-protocol-support.svx` (already claimed for you).
+
+## What to do
+
+The MCP research showed only `McpProtocol.v2026_07_28` is stateless in Effect rc.116; older versions keep sessions in Worker memory. Find out, with evidence, which clients an agent is likely to use against `ratstack.sh` and the newest protocol version each negotiates today: Claude Code, Claude Desktop, Pi (`@earendil-works/pi-coding-agent` 0.86.1, read its MCP client source in `node_modules`), Codex CLI, Cursor, the MCP Inspector, and the `@modelcontextprotocol/sdk` npm client (read the spec changelog for 2026-07-28 and the SDK's supported versions). Then record the fallback: how a Cloudflare Durable Object could hold the Effect stateful runtime's session (one DO per `Mcp-Session-Id`, or a single DO), what Alchemy beta.79 offers for that (`Cloudflare.DurableObject` in the mirror's docs and `examples/cloudflare-worker-async`), and the cost in code. Give a recommendation: serve `2026_07_28` only, serve all versions behind a DO, or both with a sunset note.
+
+Resolved when `research-mcp-client-protocol-support-asset.svx` exists with one row per client (version negotiated, evidence link or file path, date), the DO sketch, and the recommendation.
+
+## Deliverables (file edits only)
+
+1. Write `.brain/projects/ratstack-sh/research-mcp-client-protocol-support-asset.svx` with frontmatter `title`, `type: "asset"`, `parent: "./research-mcp-client-protocol-support.svx"`, `created_at: "2026-09-21"`, `privacy: "public"`, then plain Markdown. Cite a URL or a file path for every claim; mark anything unverified as such. Web fetches are fine; do not install packages into the repo (scratch installs under /tmp are fine).
+2. In the step file: add `## Result (2026-09-21)` with the gist and a link to the asset; set `status: "closed"` and `closed_at: "2026-09-21"`.
+3. Do not edit the brief. Write only under `.brain/` and `/tmp`. Do not commit.
+
+Work autonomously, do not commit, print a DONE summary with the asset path.
