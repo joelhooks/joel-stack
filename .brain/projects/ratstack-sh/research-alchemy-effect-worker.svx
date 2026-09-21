@@ -3,7 +3,8 @@ title: "Research the Alchemy Effect Worker shape, custom domain, and local dev a
 type: "step"
 kind: "research"
 interaction: "AFK"
-status: "open"
+status: "closed"
+closed_at: "2026-09-21"
 assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
@@ -17,3 +18,9 @@ created_at: "2026-09-21"
 From the mirror at `.agent_sources/github.com/alchemy-run/alchemy` (docs under `website/src/content/docs/cloudflare/`, examples under `examples/cloudflare-*`), record: the Effect-native `Cloudflare.Worker<T>()(name, {main}, Effect.gen(...))` class shape and how `fetch` returns an `HttpServerResponse`; how to mount an Effect `HttpRouter` or `HttpApiBuilder` layer and `McpServer.layerHttp` inside that `fetch` (or the plain `main: "./src/worker.ts"` form with `HttpRouter.toWebHandler`, whichever the source supports on workerd); the `domain` prop and zone adoption for a domain already in the account (`ratstack.sh`, registered through Cloudflare Registrar, so the zone exists); what `alchemy dev` runs and on which port; how Worker bundling treats `effect`, `effect/unstable/process`, and `@xstate/effect` (does importing the `@rat-stack/capability` barrel pull `sandbox.ts` into the bundle, and does workerd accept it, or does the site need a subpath import); how a DNS record (for DNS-AID) is declared; and the smallest test shape for a Worker fetch handler under `@effect/vitest`.
 
 Resolved when `research-alchemy-effect-worker-asset.svx` exists with copy-ready snippets for the Stack declaration, the Worker entry, the dev command, and the bundling verdict with evidence (file paths in the mirror, or a scratch build under `/tmp`).
+
+## Result (2026-09-21)
+
+Research closed with a copy-ready Effect Worker/router/MCP shape, explicit existing-zone adoption and custom-domain ownership, local workerd behavior, DNS declaration boundaries, an `@effect/vitest` fetch test, and scratch bundle receipts. The critical implementation finding is that `mischief` should use new worker-safe `@rat-stack/capability/define` and `/toolkit` subpaths: the current root barrel retains Node sandbox residue and nearly doubles the projection bundle.
+
+Asset: [Alchemy beta.79 + Effect Worker implementation asset](./research-alchemy-effect-worker-asset.svx).

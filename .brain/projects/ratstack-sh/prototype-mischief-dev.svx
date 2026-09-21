@@ -4,7 +4,7 @@ type: "step"
 kind: "prototype"
 interaction: "HITL"
 status: "open"
-assignee: ""
+assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./research-alchemy-effect-worker.svx", "./research-effect-mcp-over-http.svx"]
 created_at: "2026-09-21"

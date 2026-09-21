@@ -1,0 +1,133 @@
+---
+title: "ratstack.sh Open Graph image, favicons, and HTML shell"
+type: "asset"
+parent: "./make-og-image.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# ratstack.sh Open Graph image, favicons, and HTML shell
+
+`assets/ratstack-logo.svg` remains the source. The Open Graph image keeps the full wordmark. The square icons crop the pictorial rat-and-stack mark from the same SVG so it remains recognizable at 32 pixels.
+
+## Re-render from the repository root
+
+Prerequisites: ImageMagick 7 as `magick` and the macOS SF Rounded font at `/System/Library/Fonts/SFNSRounded.ttf`.
+
+```bash
+set -euo pipefail
+mkdir -p apps/mischief/public
+
+magick -background '#262829' -density 768 assets/ratstack-logo.svg \
+  -resize 480x /tmp/ratstack-logo-og.png
+
+magick -size 1200x630 xc:'#262829' \
+  /tmp/ratstack-logo-og.png -gravity center -geometry +0-70 -composite \
+  -font /System/Library/Fonts/SFNSRounded.ttf \
+  -fill '#FAF5E9' -pointsize 34 -kerning 1.5 \
+  -gravity center -annotate +0+190 'ratstack.sh' \
+  -strip -define png:color-type=2 apps/mischief/public/og.png
+
+magick -background '#262829' -density 1200 assets/ratstack-logo.svg \
+  -resize 1200x /tmp/ratstack-logo-hi.png
+
+magick /tmp/ratstack-logo-hi.png \
+  -gravity west -crop '45%x100%+0+0' +repage \
+  -resize 360x360 -gravity center -background '#262829' -extent 512x512 \
+  -strip -define png:color-type=2 apps/mischief/public/icon-512.png
+
+magick apps/mischief/public/icon-512.png \
+  -filter Lanczos -resize 32x32 \
+  -strip -define png:color-type=2 apps/mischief/public/favicon-32.png
+
+magick identify \
+  apps/mischief/public/og.png \
+  apps/mischief/public/icon-512.png \
+  apps/mischief/public/favicon-32.png
+```
+
+Expected dimensions:
+
+- `og.png`: 1200 × 630
+- `icon-512.png`: 512 × 512
+- `favicon-32.png`: 32 × 32
+
+## HTML shell template
+
+The Worker should use this shell only when content negotiation prefers `text/html`. `{{PLAIN_TEXT_BODY_HTML_ESCAPED}}` must be the same agent-first body returned by the plain-text representation after escaping `&`, `<`, and `>` for HTML. Do not maintain a second prose version.
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rat-stack — one capability, every surface</title>
+    <meta
+      name="description"
+      content="An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="rat-stack — one capability, every surface" />
+    <meta
+      property="og:description"
+      content="An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode."
+    />
+    <meta property="og:image" content="https://ratstack.sh/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://ratstack.sh/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="rat-stack — one capability, every surface" />
+    <meta
+      name="twitter:description"
+      content="An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode."
+    />
+    <meta name="twitter:image" content="https://ratstack.sh/og.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #262829;
+        color: #faf5e9;
+        font: 16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      body {
+        box-sizing: border-box;
+        max-width: 78ch;
+        margin: 0 auto;
+        padding: 3rem 1.25rem;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <pre>{{PLAIN_TEXT_BODY_HTML_ESCAPED}}</pre>
+  </body>
+</html>
+```
+
+## Verification
+
+ImageMagick reported the expected dimensions. Each final PNG was opened and inspected:
+
+- `og.png`: full mark is crisp and centered with generous charcoal space; `ratstack.sh` is legible below it.
+- `icon-512.png`: pictorial rat-and-stack mark is centered and crisp.
+- `favicon-32.png`: the silhouette and lime stack layer remain recognizable at native size.
+
+The template was exercised through a temporary local HTTP server on 2026-09-21. A real `curl -H 'Accept: text/html'` response contained all seven required tokens: `<title>`, `og:title`, `og:description`, absolute `og:image`, `og:url`, `twitter:card=summary_large_image`, and the plain-text body inside `<pre>`.
+
+Repeat against the prototype once it serves the shell:
+
+```bash
+curl -fsS -H 'Accept: text/html' http://localhost:PORT/ > /tmp/ratstack-shell.html
+rg '<title>|og:title|og:description|og:image|og:url|twitter:card|<pre>' /tmp/ratstack-shell.html
+```
+
+After deployment, run the production URL through an Open Graph debugger and confirm that it fetches `https://ratstack.sh/og.png` as a 1200 × 630 image. That deployed check cannot run before the Worker exists.

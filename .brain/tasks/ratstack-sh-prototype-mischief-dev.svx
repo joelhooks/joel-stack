@@ -1,0 +1,27 @@
+---
+title: "Worker task: prototype-mischief-dev"
+type: "task"
+status: "active"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Worker task: prototype-mischief-dev
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; its Vocabulary binds you).
+Your step: `.brain/projects/ratstack-sh/prototype-mischief-dev.svx` (already claimed for you). This is the build half of a prototype step; Joel does the touching half afterwards.
+Assets to build from, in this order: `research-alchemy-effect-worker-asset.svx` (Worker shape, Stack declaration, dev, bundling verdict, subpath seam, fetch test), `research-effect-mcp-over-http-asset.svx` (layerHttp with `McpProtocol.v2026_07_28` only, resource, prompt, server card), `research-agent-ready-checks-asset.svx` (the "what the Worker must serve" section; only `/`, `/llms.txt`, `/robots.txt`, and `/mcp` are in scope for this prototype).
+
+## What to build
+
+1. The package seam first: add the worker-safe subpaths `@rat-stack/capability/define` and `@rat-stack/capability/toolkit` to `packages/capability` exactly as the Alchemy asset's "Required package seam" section specifies (new entry files, `exports` map, build output). Keep the root barrel for Node consumers. `pnpm turbo run check test build` must stay green.
+2. `apps/mischief`: a workspace app (`@rat-stack/mischief`, private, same tsconfig and vitest shape as the other apps) with `src/worker.ts` as the Effect Worker entry. Routes: `GET /` returns the agent-first page as `text/markdown` (content negotiation: `Accept: text/html` gets a minimal HTML shell with the same text in a `<pre>`; use placeholder Open Graph tags, the OG image step supplies the real ones); `GET /llms.txt`; `GET /robots.txt`; `/mcp` via `McpServer.layerHttp` with `McpProtocol.v2026_07_28` only, one resource (`AGENTS.md`, read at bundle time as a string import or a build step, never at request time from disk), and one prompt from a stub `skills/learn-rat-stack/SKILL.md` you create at the repo root. Page voice: plain, short, written for an agent. Do not add `search`, `read`, an A2A route, or any well-known document yet; those are later steps.
+3. Wire it into `apps/infra/alchemy.run.ts` for local dev only: the `Mischief` Worker declaration per the asset, without `domain` (no deploy; the deploy step adds the domain after Joel confirms). Keep the R2 bucket line for now.
+4. Tests: the `@effect/vitest` fetch test from the asset, covering `/`, `Accept: text/html`, `/llms.txt`, and an MCP `initialize` plus `resources/read` over `HttpRouter.toWebHandler`.
+5. Run `pnpm --filter @rat-stack/infra dev` (that is `alchemy dev`) long enough to curl `/` and `/llms.txt` on the local port, record the exact output in the step's Result, then stop it. If `alchemy dev` needs a Cloudflare login even for local resources, record that and stop; do not authenticate.
+
+## Deliverables
+
+- Code under `packages/capability`, `apps/mischief`, `skills/learn-rat-stack`, and the one Worker block in `apps/infra/alchemy.run.ts`. `pnpm turbo run check test build` green (this is the gate; run `pnpm fix` first when formatting complains).
+- In the step file: `## Result (2026-09-21)` with what runs, the local URL, the curl outputs, and what felt wrong or forced; leave `status: "open"` (Joel closes it after touching it).
+- Do not edit the brief. Do not deploy. Do not commit. Print a DONE summary with the file list and the gate result.

@@ -3,11 +3,12 @@ title: "Make the Open Graph image and the HTML shell that carries it"
 type: "step"
 kind: "task"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane w9M:p4, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
+closed_at: "2026-09-21"
 ---
 
 # Make the Open Graph image and the HTML shell that carries it
@@ -17,3 +18,9 @@ created_at: "2026-09-21"
 Render `assets/ratstack-logo.svg` into a 1200 by 630 PNG for Open Graph (charcoal `#262829` background, mark centered with room around it, "ratstack.sh" set small under it in the cream `#FAF5E9`), plus a 512 and a 32 pixel favicon, into `apps/mischief/public/`. Use ImageMagick or resvg locally; keep the SVG as the source and record the exact command so it can be re-run. Then specify the HTML shell the Worker returns when `Accept` prefers `text/html`: a single template with `<title>`, `og:title`, `og:description`, `og:image` (absolute URL), `og:url`, `twitter:card` `summary_large_image`, and the plain-text body inside `<pre>`. Check the result with a local unfurl preview (`curl -H 'Accept: text/html'` and an OG debugger once deployed).
 
 Resolved when the PNGs exist under `apps/mischief/public/`, the render command is recorded here, and the template is written down for the prototype step to use.
+
+## Result (2026-09-21)
+
+Rendered the 1200 × 630 Open Graph image and the 512 × 512 and 32 × 32 favicon PNGs from `assets/ratstack-logo.svg`. Opened and visually checked all three outputs. The asset records the exact ImageMagick commands, expected dimensions, the single negotiated HTML shell, and local/deployed unfurl verification steps.
+
+Asset: [make-og-image-asset.svx](./make-og-image-asset.svx)

@@ -1,0 +1,396 @@
+---
+title: "Alchemy beta.79 + Effect Worker implementation asset for ratstack.sh"
+type: "asset"
+parent: "./research-alchemy-effect-worker.svx"
+created_at: "2026-09-21"
+privacy: "public"
+---
+
+# Alchemy beta.79 + Effect Worker implementation asset
+
+## Decision
+
+Build `apps/mischief` as one Effect-native `Cloudflare.Worker` whose construction phase builds one `HttpRouter` handler. Register the root routes and `McpServer.layerHttp({ path: "/mcp" })` in that router, then call `HttpRouter.toHttpEffect` once when the isolate boots.
+
+Adopt the existing `ratstack.sh` zone explicitly. Put the apex on the Worker's `domain.name` and `www.ratstack.sh` in `domain.redirects`. Do not also declare apex or `www` DNS records: Alchemy's custom-domain support manages their DNS and certificates. Keep MCP at `https://ratstack.sh/mcp`; that path needs no DNS record.
+
+Add worker-safe package subpaths before importing `@rat-stack/capability` in `mischief`. The current root barrel retains part of the Node subprocess sandbox and roughly doubles the projection bundle even when only `toToolkit` is selected.
+
+## Evidence boundary
+
+This asset uses only local source:
+
+- Alchemy mirror docs and examples under `.agent_sources/github.com/alchemy-run/alchemy/`.
+- The installed `alchemy@2.0.0-beta.79` package under `node_modules/.pnpm/alchemy@2.0.0-beta.79_*/node_modules/alchemy/`.
+- Effect rc.116 source under `.agent_sources/github.com/Effect-TS/effect/`.
+- Current rat-stack source and built packages.
+- Scratch bundles under `/tmp/ratstack-bundle-research-20260921-worker/`.
+
+No cloud plan, deploy, or live workerd process was run.
+
+## Copy-ready Worker shape
+
+This uses the class form exercised by Alchemy's Effect Worker example. `fetch` is an Effect requiring the request service and returning an `HttpServerResponse`; the Alchemy bridge adapts it to the Cloudflare Worker surface.
+
+```ts
+// apps/mischief/src/worker.ts
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import { McpProtocol, McpServer } from "effect/unstable/ai";
+import { HttpRouter, HttpServerResponse } from "effect/unstable/http";
+import { toToolkit } from "@rat-stack/capability/toolkit";
+
+import { capabilities } from "./capabilities.js";
+
+const tools = toToolkit(capabilities);
+
+const mcpTransport = McpServer.layerHttp({
+  name: "rat-stack",
+  version: "0.1.0",
+  description: "Learn and use the rat-stack template",
+  websiteUrl: "https://ratstack.sh/",
+  path: "/mcp",
+  protocols: [
+    McpProtocol.v2025_06_18,
+    McpProtocol.v2025_03_26,
+    McpProtocol.v2024_11_05,
+  ],
+  allowedOrigins: ["https://ratstack.sh", "http://localhost:1337"],
+});
+
+const mcp = McpServer.toolkit(tools.toolkit).pipe(
+  Layer.provideMerge(tools.layer),
+  Layer.provide(mcpTransport),
+);
+
+export const routes = Layer.mergeAll(
+  HttpRouter.add(
+    "GET",
+    "/",
+    HttpServerResponse.text("rat-stack\n", {
+      contentType: "text/plain; charset=utf-8",
+    }),
+  ),
+  mcp,
+);
+
+export default class Mischief extends Cloudflare.Worker<Mischief>()(
+  "Mischief",
+  {
+    main: import.meta.url,
+    dev: { port: 1337 },
+    domain: {
+      name: "ratstack.sh",
+      redirects: ["www.ratstack.sh"],
+      zoneName: "ratstack.sh",
+    },
+    workersDev: false,
+  },
+  Effect.gen(function* makeMischief() {
+    return {
+      fetch: yield* HttpRouter.toHttpEffect(routes),
+    };
+  }),
+) {}
+```
+
+`McpServer.layerHttp` registers GET/PUT/PATCH/DELETE/OPTIONS and POST behavior at one streamable-HTTP path. It requires an `HttpRouter`; `HttpRouter.toHttpEffect` creates that router, builds the layer stack once, and returns the per-request HTTP Effect. Origin-less MCP clients remain valid; requests with an `Origin` header must exactly match `allowedOrigins`.
+
+The root response above is only the smallest wiring example. The implementation step can replace it with content negotiation and merge in resource/prompt registration layers without changing the Worker bridge.
+
+**Sources**
+
+- `.agent_sources/github.com/alchemy-run/alchemy/examples/cloudflare-dev/src/EffectWorker.ts`
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/compute/workers.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/apis/effect-http-api.mdx`
+- `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpRouter.ts` (`toHttpEffect`, `add`, `layer`)
+- `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/ai/McpServer.ts` (`layerHttp`)
+- `packages/capability/test/mcp-harness.ts`
+
+### When `HttpApiBuilder` is added
+
+Plain `HttpRouter` plus MCP does not need filesystem or `HttpPlatform` services. An `HttpApiBuilder.layer(...)` does. On workerd, provide `Etag.layer`, `Path.layer`, and a stub `HttpPlatform` whose file methods die, because the Worker has no filesystem:
+
+```ts
+const HttpPlatformStub = Layer.succeed(HttpPlatform.HttpPlatform, {
+  fileResponse: () => Effect.die("HttpPlatform.fileResponse not supported"),
+  fileWebResponse: () =>
+    Effect.die("HttpPlatform.fileWebResponse not supported"),
+});
+
+const apiRoutes = HttpApiBuilder.layer(Api).pipe(
+  Layer.provide(apiHandlers),
+  Layer.provide([Etag.layer, HttpPlatformStub, Path.layer]),
+);
+
+const routes = Layer.mergeAll(rootRoutes, apiRoutes, mcp);
+```
+
+Source: `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/apis/effect-http-api.mdx`.
+
+## Copy-ready single-Stack declaration
+
+`ratstack.sh` already exists as a Cloudflare zone, so adoption must be explicit. Zones retain by default on stack removal. Do not add `destroy()`.
+
+```ts
+// apps/infra/alchemy.run.ts
+import * as Alchemy from "alchemy";
+import { adopt } from "alchemy/AdoptPolicy";
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Effect from "effect/Effect";
+import Mischief from "../mischief/src/worker.js";
+
+export default Alchemy.Stack(
+  "RatStack",
+  {
+    providers: Cloudflare.providers(),
+    state: Cloudflare.state(),
+  },
+  Effect.gen(function* stack() {
+    const dev = yield* Alchemy.ALCHEMY_DEV;
+
+    if (!dev) {
+      const zone = yield* Cloudflare.Zone.Zone("RatstackZone", {
+        name: "ratstack.sh",
+      }).pipe(adopt(true));
+
+      // Put the DNS-AID Record here once its separate research step has fixed
+      // the standard's exact name, type, and content. See the declaration
+      // shape below.
+      void zone;
+    }
+
+    const mischief = yield* Mischief;
+    return { mischiefUrl: mischief.url };
+  }),
+);
+```
+
+The `ALCHEMY_DEV` branch matters if local development must make no Cloudflare control-plane calls. Alchemy documents DNS records as resources with no local implementation; unguarded declarations run against real cloud state in a personal dev stage. The Worker itself does have a local provider. Its beta.79 local provider returns localhost/LAN URLs and sets `domain: undefined`; deployed custom domains are not served by the local session.
+
+Sources:
+
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/networking/custom-domains.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/networking/domains.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/local-development.mdx`
+- installed beta.79 `src/Phase.ts` (`ALCHEMY_DEV`)
+- installed beta.79 `src/Cloudflare/Workers/LocalWorkerProvider.ts` (local `urls`, no deployed `domain`)
+- installed beta.79 `src/Cloudflare/Zone/Zone.ts` (adoption and retain default)
+
+### Domain and DNS ownership
+
+Use exactly one ownership mechanism for each hostname:
+
+| Hostname | Declaration | Separate `DNS.Record`? |
+| --- | --- | --- |
+| `ratstack.sh` | `domain.name` | No. Custom domain manages DNS and TLS. |
+| `www.ratstack.sh` | `domain.redirects` | No. Alchemy attaches DNS/TLS and installs a 301 preserving path/query. |
+| `ratstack.sh/mcp` | HTTP route | No. DNS does not see paths. |
+| Optional `mcp.ratstack.sh` | Add to `domain.aliases` | No. Use only if the product later wants a second hostname. |
+| DNS-AID record | `Cloudflare.DNS.Record` | Yes. It is a protocol DNS record, not a Worker hostname. |
+
+If a separate MCP hostname is later chosen:
+
+```ts
+domain: {
+  name: "ratstack.sh",
+  aliases: ["mcp.ratstack.sh"],
+  redirects: ["www.ratstack.sh"],
+  zoneName: "ratstack.sh",
+}
+```
+
+Do not pair custom domains with placeholder A/AAAA/CNAME records. The placeholder `AAAA 100::` record in Alchemy's docs belongs to the alternative `WorkerRoute` pattern, not `Worker.domain`.
+
+### Exact Alchemy DNS record declaration shape
+
+The local Alchemy and Effect sources establish the declaration API, but they do not establish the DNS-AID protocol's exact owner name/type/content. Keep those three values blocked on the agent-readiness research asset rather than guessing them here.
+
+```ts
+const DNS_AID = {
+  name: "<owner name from DNS-AID research>",
+  type: "<record type from DNS-AID research>",
+  content: "<record content from DNS-AID research>",
+} as const;
+
+yield* Cloudflare.DNS.Record("DnsAid", {
+  zoneId: zone.zoneId,
+  name: DNS_AID.name,
+  type: DNS_AID.type,
+  content: DNS_AID.content,
+});
+```
+
+If that exact `(name, type)` record already exists outside Alchemy, append `.pipe(adopt(true))`. Do not adopt a newly created record. Alchemy treats `(name, type)` as identity; content is mutable.
+
+Sources: installed beta.79 `src/Cloudflare/DNS/Record.ts` and `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/networking/domains.mdx`.
+
+## Local development
+
+Run:
+
+```sh
+pnpm infra:dev
+```
+
+With the Worker snippet above, the URL is:
+
+```txt
+http://localhost:1337
+```
+
+Without `dev.port`, beta.79's documented default is also `1337`. `alchemy dev` bundles the Worker, runs it in workerd, hot reloads code changes, and uses local simulators for supported bindings. The custom production domain is not served locally.
+
+Caution: DNS resources have no local provider. Guard them with `ALCHEMY_DEV` as above when a dev run must stay offline from Cloudflare.
+
+Sources:
+
+- root `package.json` and `apps/infra/package.json` (`infra:dev` -> `alchemy dev`)
+- `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/local-development.mdx`
+- `.agent_sources/github.com/alchemy-run/alchemy/examples/cloudflare-dev/alchemy.run.ts`
+
+## Bundling verdict
+
+### What beta.79 does
+
+Alchemy beta.79 bundles Worker `main` with Rolldown. Its pure plugin annotates and marks these packages side-effect-free by default:
+
+```txt
+effect
+@effect/*
+alchemy
+@alchemy.run/*
+@distilled.cloud/*
+```
+
+`@rat-stack/*` is not in that list. A Worker can extend the list with `build.pure.packages`, but that does not fully solve this package shape.
+
+Installed beta.79 also enables Cloudflare `nodejs_compat` for JavaScript Workers by default when the compatibility date requires it. That is not permission to ship the subprocess sandbox: workerd cannot spawn the Node child process used by `layerSubprocess`.
+
+Sources:
+
+- installed beta.79 `src/Bundle/Bundle.ts`
+- installed beta.79 `src/Bundle/PurePlugin.ts`
+- installed beta.79 `src/Cloudflare/Workers/Sources/Rolldown.ts`
+- installed beta.79 `src/Cloudflare/Workers/Compatibility.ts`
+
+### Scratch evidence
+
+Scratch entrypoints and outputs are under `/tmp/ratstack-bundle-research-20260921-worker/`.
+
+| Entrypoint | Bundler | Output | Node sandbox residue |
+| --- | --- | ---: | --- |
+| `toToolkit` through `packages/capability/dist/index.js` | esbuild, browser | 816,165 bytes | `sandbox.js` retained 2,674 output bytes; `RUNNER_SOURCE` retained |
+| direct `packages/capability/dist/to-toolkit.js` | esbuild, browser | 429,460 bytes | none |
+| capability root barrel | Rolldown 1.2.5 + beta.79 default pure plugin | 823,548 bytes | embedded `node:readline` runner string retained |
+| capability root barrel + `pure.packages: ["@rat-stack/*"]` | same | 820,702 bytes | runner string still retained |
+| direct `to-toolkit.js` | same | 621,473 bytes | none |
+| `packages/core/dist/index.js` exporting `capabilities` | esbuild, browser | 1,234,755 bytes | XState + `@xstate/effect` bundled; same sandbox residue retained |
+
+The barrel bundle's actual `effect/unstable/process` modules contributed zero output bytes, and the Rolldown output contained neither `process.execPath` nor `ChildProcessSpawner`; the surviving `node:readline` text is inside the child-runner string. The browser-target bundles completed successfully. This shows that the current tree-shaker removes the executable subprocess path, but it does not remove the whole Node-only module.
+
+A live beta.79 workerd boot was not run, so “the current barrel definitely boots in workerd” remains unverified. More importantly, the result is fragile: a harmless change in `sandbox.ts` or tree-shaking can retain an unsupported runtime reference.
+
+### Required package seam
+
+Add supported subpaths and use them from `mischief`:
+
+```json
+{
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./define": {
+      "types": "./src/capability.ts",
+      "import": "./dist/capability.js",
+      "default": "./dist/capability.js"
+    },
+    "./toolkit": {
+      "types": "./src/to-toolkit.ts",
+      "import": "./dist/to-toolkit.js",
+      "default": "./dist/to-toolkit.js"
+    }
+  }
+}
+```
+
+Then import:
+
+```ts
+import { defineCapability } from "@rat-stack/capability/define";
+import { toToolkit } from "@rat-stack/capability/toolkit";
+```
+
+This is sharper than relying on `build.pure.packages`: it prevents Worker resolution from reaching `sandbox.ts` at all. Keep the root barrel for Node CLI consumers.
+
+`@xstate/effect` itself bundled successfully in the browser-target scratch build. It adds substantial code but no observed Node builtin failure. That does not make every capability Worker-safe: each capability's services still need Worker implementations. In particular, the existing file-inspection capability requires `FileInspector`, and workerd has no filesystem. `mischief` should expose its own repo-content capabilities as the brief already requires.
+
+Evidence:
+
+- `packages/capability/src/index.ts`
+- `packages/capability/src/sandbox.ts`
+- `packages/capability/package.json` (only `"."` is exported today)
+- `packages/core/src/inspect-file.ts`
+- `packages/core/src/file-inspector.ts`
+- `/tmp/ratstack-bundle-research-20260921-worker/*-meta.json`
+- `/tmp/ratstack-bundle-research-20260921-worker/rolldown-*.js`
+
+## Smallest `@effect/vitest` fetch test
+
+Export the route layer from `worker.ts` and test the same Web `Request -> Response` adapter in process. No `Effect.run*`, Node HTTP server, Cloudflare account, or Alchemy deploy is needed.
+
+```ts
+import { expect, it } from "@effect/vitest";
+import * as Effect from "effect/Effect";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
+
+import { routes } from "../src/worker.js";
+
+it.effect("serves the agent-first root", () =>
+  Effect.acquireUseRelease(
+    Effect.sync(() =>
+      HttpRouter.toWebHandler(routes, { disableLogger: true }),
+    ),
+    ({ handler }) =>
+      Effect.gen(function* testRoot() {
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request("http://localhost/", {
+              headers: { accept: "text/plain" },
+            }),
+          ),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/plain");
+        expect(yield* Effect.promise(() => response.text())).toContain(
+          "rat-stack",
+        );
+      }),
+    ({ dispose }) => Effect.promise(dispose),
+  ),
+);
+```
+
+This proves route construction, Effect requirements, and fetch semantics. It does not prove workerd compatibility. Keep one separate `alchemy dev` smoke check for that boundary.
+
+Sources:
+
+- `packages/capability/test/mcp-harness.ts`
+- `.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpRouter.ts` (`toWebHandler`)
+- `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/TestUtils/McpHttpHarness.ts`
+- `.agent_sources/github.com/Effect-TS/effect/packages/effect/test/unstable/ai/McpServer/TestUtils/McpServerLayer.ts`
+
+## Implementation checklist
+
+1. Add `@rat-stack/capability/define` and `/toolkit` exports.
+2. Define `mischief` capabilities without importing the capability root barrel.
+3. Build one route layer for root/site routes plus MCP.
+4. Convert it once with `HttpRouter.toHttpEffect` in the Worker construction phase.
+5. Adopt the zone only outside local dev.
+6. Use Worker custom domains for apex and `www`; declare only the separate DNS-AID protocol record.
+7. Unit-test the exported route layer with `toWebHandler`.
+8. Prove the final bundle in workerd with `pnpm infra:dev` before requesting the first deploy approval.
