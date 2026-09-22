@@ -52,6 +52,14 @@ Cache lesson from the same day: the edge cache key is `staticContentVersion`, an
 
 These additions live only in the HTML representation. The Markdown representation stays the exact checked-in source so digests and agent reads do not change.
 
+## Preview images and Shiki (2026-09-22, `abce570`)
+
+Every page gets a 1200x630 PNG at build time: satori lays out the rat mark, the page title, and the description in JetBrains Mono (OFL, `assets/fonts/`), resvg rasterises it, and the base64 rides in the generated module (30 to 42 KB per image, 15 images). The Worker decodes them once at module load and serves `/og/<route>.png` (`/` becomes `/og/home.png`) from the versioned edge cache. The shell emits `og:image`, `og:site_name`, `twitter:card` `summary_large_image`, and `twitter:image` with the canonical origin and `?v=<content version>`. The version is computed from rendered bodies before the shell wrap so the URL can carry it without a cycle.
+
+Fenced code is highlighted at build time by Shiki with Catppuccin Latte as inline styles; `text` blocks (diagrams) stay `<pre><code>` with no colours. The old "no background" test guard now checks only `html` and `body` rules, since code boxes carry the Latte box colour.
+
+Why this shipped in a hurry: opengraph.xyz reported "Failed to fetch URL" and then "Image is missing" on the live site. The first was content negotiation (a validator sends a browser user agent with `Accept: */*`; fixed in `b24e5bc`, which serves HTML to any client that claims to be a browser without asking for Markdown, while named AI crawlers keep Markdown). The second was this slice.
+
 ## Compatibility rules
 
 - Preserve the previous heading slug algorithm so existing anchors do not move.
