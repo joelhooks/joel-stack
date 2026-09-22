@@ -53,13 +53,17 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - [Deploy the mischief Worker to ratstack.sh](./deploy-ratstack-sh.svx) — v0 live 2026-09-21: the prototype at `https://ratstack.sh` (root, HTML shell with OG image, `llms.txt`, `robots.txt`, `www` redirect, MCP on `2026-07-28` with the law resource and one prompt). Zone adopted, R2 placeholder removed, stage `prod`, deployed from a clean rift of `main`. Step stays open for the smoke script; tools and catalogue ship as v0.1.
 - v0.1 live 2026-09-22: `search`, `read`, `execute` (Dynamic Worker, network blocked, verified in production), catalogue root, skills, every well-known document. Live scan 4/5 Agent-Integrated. Workers Paid confirmed by Joel. Level 5 waits on the two open decisions.
 
+- [Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28](./decide-legacy-mcp-sessions.svx) — `2026-07-28` only; a plain version note at `/mcp` and in `llms.txt`; the Durable Object hybrid stays on the shelf until a scan or a user shows an agent failing.
+- [Decide the not-applicable checks](./decide-not-applicable-checks.svx) — Level 5 through a real minimal A2A endpoint (group b) plus an honest anonymous `auth.md` if the scanner counts it (group c), else a Web Bot Auth key directory with a real key (group a); never fake OAuth. DNS-AID and ARD are applicable and still owed. WebMCP and commerce stay out.
+- Rate limiting (2026-09-22, Joel: "we likely want rate limiting protection"): each `execute` is one billable Dynamic Worker (`load()` counts per invocation; 1,000 free per month, then USD 0.002 per worker per day) with a 100 ms CPU cap, so the exposure is call volume, not per-call cost. Protection in [protect-and-polish](./protect-and-polish.svx) via Alchemy's `RateLimit` Worker binding.
+
 ## Latent
 
 - Deploy from CI with a scoped Cloudflare token, so a merge to `main` redeploys the site; today deploy is manual from a machine with the profile.
 - Content freshness: the site reads repo files at bundle time, so every doc change needs a redeploy until CI deploys.
 - A human-facing website (`Cloudflare.Website.*`) beside the Worker, later.
 - `capnp-es` under alchemy wants TypeScript 5 or 6; harmless so far.
-- Workers Paid: `execute` via Dynamic Workers needs the paid plan; confirm with Joel at the deploy step, since the rest of the site fits the free tier.
+- Spend ceiling for `execute`: the rate limits below cap it at roughly 300 programs a minute per colo in the worst case; Joel to name a monthly number if he wants a hard budget alarm (Cloudflare notifications can do it).
 - Legacy-protocol sunset: when the hybrid exists, the evidence to drop the Durable Object is a client matrix where every likely client defaults to `2026-07-28`.
 - Whether `apps/mischief` also gets a CLI projection (`pnpm mischief search ...`) for local use of the same capabilities.
 

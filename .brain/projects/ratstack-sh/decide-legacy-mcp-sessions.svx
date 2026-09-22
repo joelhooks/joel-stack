@@ -3,11 +3,12 @@ title: "Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28"
 type: "step"
 kind: "grilling"
 interaction: "HITL"
-status: "open"
-assignee: ""
+status: "closed"
+assignee: "pi (flagg, 2026-09-22), Joel: answer yourself where possible"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
+closed_at: "2026-09-22"
 ---
 
 # Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28
@@ -21,3 +22,7 @@ The [client matrix](./research-mcp-client-protocol-support-asset.svx) shows a sp
 3. Legacy best-effort in the Worker. Serve every version from the isolate's memory and accept that a session can vanish between isolates. Cheapest and least honest.
 
 Recommendation: 1 for the prototype and the first deploy, 2 as the next step only if the scan or real use shows agents failing; never 3. The site's promise is "point an agent at it," and today the agent most likely to be pointed is Claude Code. Record the choice in the brief's Notes and in `llms.txt` under the MCP heading.
+
+## Result (2026-09-22)
+
+Joel delegated the call. Decision: `2026-07-28` only, which is what v0.1 already serves. Reasons: the client most likely to be pointed at this site (Claude Code) speaks it today; Pi and MCP Inspector reach it by config; the hybrid costs a Durable Object, a router split, and a durability caveat for clients whose vendors are mid-migration. Follow-ups folded into [protect-and-polish](./protect-and-polish.svx): a plain answer at `/mcp` for GET and for legacy `initialize` naming the version requirement, and the same sentence under the MCP heading in `llms.txt`. Revisit only if a scan or a real user shows an agent failing; the [research asset](./research-mcp-client-protocol-support-asset.svx) has the hybrid ready.

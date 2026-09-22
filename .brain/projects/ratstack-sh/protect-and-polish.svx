@@ -1,0 +1,21 @@
+---
+title: "Rate-limit execute and the MCP surface; polish what v0.1 taught"
+type: "step"
+kind: "build"
+interaction: "AFK"
+status: "open"
+assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-22)"
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-22"
+---
+
+# Rate-limit execute and the MCP surface; polish what v0.1 taught
+
+## Step
+
+Every `execute` call bills one Dynamic Worker, so abuse is a cost problem before it is a stability one. Add Cloudflare Workers rate limiting through Alchemy's first-class binding (`Cloudflare.Workers.RateLimit` and `RateLimitBinding`; read `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/compute/rate-limiting.mdx` and the installed `alchemy/src/Cloudflare/Workers/RateLimit.ts` first; periods are 10 or 60 seconds; limits are approximate and per-colo). Three limiters, keyed as stated: `EXECUTE_PER_IP` 6 per 60 s keyed by client IP (`CF-Connecting-IP`); `EXECUTE_GLOBAL` 300 per 60 s keyed by the constant `"global"` as the spend cap; `API_PER_IP` 120 per 60 s keyed by client IP for every `/mcp` and `/api` request. Over the limit: HTTP 429 for `/api`, and for MCP a tool error whose text says which limit and when to retry, plus a `Retry-After` header where the transport allows it. Skip the limiters under `alchemy dev` if the local provider has no rate-limit implementation, and say so in the Result.
+
+Polish, from the v0.1 receipts: the `execute` tool description names its argument `code` and shows a two-line example; `GET /mcp` and a legacy `initialize` without the version header get a plain answer that names `2026-07-28` and points at `llms.txt`; `llms.txt` says the same under its MCP heading and states the rate limits in one line; `apps/infra/.alchemy/version-check.json` leaves git (`git rm --cached`, ignore pattern) since every Alchemy run rewrites it; add `pnpm mischief:smoke` (curl the routes, one MCP `tools/list`, then `POST https://isitagentready.com/api/scan` and print the level). Tests: the limiter path with a fake binding over `toWebHandler` (allowed, then denied), and the polish routes.
+
+Resolved when `pnpm turbo run check test build` is green, the limits are declared on the Worker, the tests prove allow and deny, and `pnpm mischief:smoke` runs against the live site and prints a level.

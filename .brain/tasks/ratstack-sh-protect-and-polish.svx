@@ -1,0 +1,30 @@
+---
+title: "Worker task: protect-and-polish"
+type: "task"
+status: "active"
+created_at: "2026-09-22"
+privacy: "public"
+---
+
+# Worker task: protect-and-polish
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; Vocabulary and Decision ledger bind you). The site is live at https://ratstack.sh (v0.1, deployed from `main`); read `deploy-ratstack-sh.svx` for what was verified and how.
+Your step: `.brain/projects/ratstack-sh/protect-and-polish.svx` (already claimed for you).
+
+## What to do
+
+Every `execute` call bills one Dynamic Worker, so abuse is a cost problem before it is a stability one. Add Cloudflare Workers rate limiting through Alchemy's first-class binding (`Cloudflare.Workers.RateLimit` and `RateLimitBinding`; read `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/compute/rate-limiting.mdx` and the installed `alchemy/src/Cloudflare/Workers/RateLimit.ts` first; periods are 10 or 60 seconds; limits are approximate and per-colo). Three limiters, keyed as stated: `EXECUTE_PER_IP` 6 per 60 s keyed by client IP (`CF-Connecting-IP`); `EXECUTE_GLOBAL` 300 per 60 s keyed by the constant `"global"` as the spend cap; `API_PER_IP` 120 per 60 s keyed by client IP for every `/mcp` and `/api` request. Over the limit: HTTP 429 for `/api`, and for MCP a tool error whose text says which limit and when to retry, plus a `Retry-After` header where the transport allows it. Skip the limiters under `alchemy dev` if the local provider has no rate-limit implementation, and say so in the Result.
+
+Polish, from the v0.1 receipts: the `execute` tool description names its argument `code` and shows a two-line example; `GET /mcp` and a legacy `initialize` without the version header get a plain answer that names `2026-07-28` and points at `llms.txt`; `llms.txt` says the same under its MCP heading and states the rate limits in one line; `apps/infra/.alchemy/version-check.json` leaves git (`git rm --cached`, ignore pattern) since every Alchemy run rewrites it; add `pnpm mischief:smoke` (curl the routes, one MCP `tools/list`, then `POST https://isitagentready.com/api/scan` and print the level). Tests: the limiter path with a fake binding over `toWebHandler` (allowed, then denied), and the polish routes.
+
+Resolved when `pnpm turbo run check test build` is green, the limits are declared on the Worker, the tests prove allow and deny, and `pnpm mischief:smoke` runs against the live site and prints a level.
+
+## Write scope
+
+`apps/mischief` (not `public/`), `apps/infra` (`alchemy.run.ts` only if the binding must be declared there; `.alchemy/version-check.json` removal and `.gitignore`), root `package.json` for the `mischief:smoke` script, `.brain/`. No new dependency versions. Do not deploy; the smoke script may read the live site. Do not commit. Do not edit the brief.
+
+## Deliverables
+
+- The work, gate green (run `pnpm fix` first when formatting complains; never loosen the fence).
+- In the step file: `## Result (2026-09-22)` with what exists, how it was verified, the exact limiter declaration, whether `alchemy dev` honors the limiters, and what felt forced; set `status: "closed"` and `closed_at: "2026-09-22"` when the resolved-when line holds.
+- Print a DONE summary with the file list and the gate result.
