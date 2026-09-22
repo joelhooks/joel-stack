@@ -37,13 +37,14 @@ Prior art: `@alchemy.run/better-auth`, which takes its database as a swappable L
   - **Self-contained.** It declares its own resources and bindings, so no loose parts spill into other bins.
 
   This replaces the "one sanctioned widening" line in [vision steer](./ratstack-sh/vision-steer-from-alchemy-research.svx), which was a proposal, not Joel's rule.
-- **The database is a vendor choice, shown as one.** The same database service tag gets a Cloudflare-native Layer (D1) and a Hyperdrive Layer. Hyperdrive in front of PlanetScale is where Joel leans for production. Being able to use more than one provider is part of the point.
+- **The database is a vendor choice, shown as one.** The same database service tag gets a Cloudflare-native Layer (D1) and a Hyperdrive Layer in front of PlanetScale Postgres. Billing decided the dialect: PlanetScale has no free tier, and its cheapest database is single-node Postgres at $5 a month (planetscale.com/docs/planetscale-plans, checked 2026-09-22). D1 is the free bin. Being able to use more than one provider is part of the point.
+- **VISION frames it as pieces, trust, floor, and range.** Layers are the pieces. Lauren Tan's correction ladder and her Dune framework ("the easy path is the right path for agents") are the trust. Theo Browne's "raise the floor" is the floor, applied here to the environment instead of models. His "think wider" is the range. See [VISION.md](../../VISION.md) for the cited quotes. The home page on ratstack.sh follows this framing.
 - **An email automation engine is the flagship case study.** It is a working prototype (XState journeys, one Durable Object per contact journey, a pure `decide(snapshot, event)` fold) that is shown as a general-purpose email automation SaaS behind a service tag. Its details live in the content research project, not here.
 
 ## Build order
 
 1. **Purity + binding proof.** Importing `apps/infra/alchemy.run.ts` deploys nothing, and removing a binding is a type error. Adds a vitest devDependency to `apps/infra`.
-2. **Database service tag, two vendor Layers:** D1 and Hyperdrive (PlanetScale), with Drizzle on top.
+2. **Database service tag, two vendor Layers:** D1 and Hyperdrive (PlanetScale Postgres). The tag sits above Drizzle as a small repository-shaped API, and each vendor Layer owns its own Drizzle schema and queries.
    - Keep the Drizzle schema tiny and real: whatever ratstack.sh actually needs, not a demo table.
    - Swapping vendors must be a one-line `Layer.provide` change. That diff is the episode.
    - Record any PlanetScale profile or secret setup step. It becomes the episode beat on Alchemy profiles.
@@ -52,5 +53,6 @@ Prior art: `@alchemy.run/better-auth`, which takes its database as a swappable L
 ## Todo
 
 - [ ] **Mischief becomes an external, composed Layer.** Joel's call: latent and understood, not yet scheduled. The generic "agent front door" (REST, MCP, A2A, code-mode sandbox, rate limits, Web Bot Auth) becomes an `AgentFrontDoor({ id, capabilities })` Layer that rat-stack's Worker provides instead of inheriting. DNS-AID records move to a Stack-scope function over the zone. Keep existing logical ids or use `Alchemy.renamedFrom`, or the plan replaces the DNS records. Build it on the `Approval`-aware `defineCapability` shape.
+- [ ] **Rewrite the ratstack.sh home page from VISION.md.** Lead with the reference and the series, show pieces, trust, floor, and range, add a cartridge shelf and a series status list tied to repo proof.
 - [ ] **Decide where ratstack.sh and its LLM wiki live.** This repo, or a separate site repo that consumes rat-stack. The content research wiki stays private either way. A public wiki would be a separate layer, derived from it and redacted.
 - [ ] **Add the second lifecycle pattern to AGENTS.md.** Durable machines fold (pure transition, persisted snapshot, emitted intents, alarm timers). Live machines run (`createEffectActor`, `fromEffect` side effects).
