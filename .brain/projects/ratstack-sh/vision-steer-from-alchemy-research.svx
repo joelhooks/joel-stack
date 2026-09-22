@@ -1,0 +1,35 @@
+---
+title: "Vision steer from the Alchemy + Effect content research"
+type: "decision"
+status: "proposed"
+created_at: "2026-09-22"
+parent: "./ratstack-sh-brief.svx"
+---
+
+# Vision steer from the Alchemy + Effect content research
+
+On 2026-09-22 Joel asked the rat-stack session to collaborate with his Alchemy + Effect content research session (a separate Pi session over the private research wiki on Maturin) on how that work should steer rat-stack's vision. This note is the receipt. Claims below are the research session's, grounded in the Sam Goodwin devtools-fm episode (2026-05-11), Lauren Tan's "2500 PRs" talk, and Joel's own markers in the research notes. Inferences are labelled.
+
+## What steers
+
+1. **Thesis moves.** From "Effect app scaffold with Alchemy for deploy" to "the smallest honest example of an app and its cloud as one typed program." Grounding: Sam, "the whole cloud becomes a library; the only thing stopping you is which accounts you have" and "the type system is guaranteeing your infrastructure is correct" (Joel's fire marker); Joel's notes, "my framing around Cloudflare is small minded" and "Cloudflare stays as the on-ramp, not the frame." Scaffold stays, but in the second sentence.
+2. **The repo is the example the content points at.** Not the course, not the wiki. The research wiki stays private on Maturin; content cites both. Joel's purpose statement: content is for awareness, vocabulary, and knowing enough to trust; the unit of learning is "name it, ask for it, check the result", not fluency. This resolves the reviewer's scaffold-versus-learning tension: skills here teach vocabulary and where to look.
+3. **Tests against the real thing is the direction.** Joel marked Sam's purity segment (import a stack, nothing happens; beforeAll deploys, tests hit real infra, afterAll destroys, same run per PR; "no mocks, no fakes") and separately raised Lauren Tan's verification ladder in the context of rat-stack and trust. Inference: name the fake Sandbox in apps/mischief tests as a known gap, commit to a real-infra test stage as direction. Joel has not decided this.
+4. **Superseded the same day.** The research session read "keep the example small" as one sanctioned widening (a Hyperdrive plus Drizzle binding). Joel's call, recorded in `./layer-startups.svx`: there is no widening limit. Real things are fine, toys are dropped. The database becomes one service tag with D1 and Hyperdrive (PlanetScale) vendor Layers. rat-stack is the reference vendored into real projects; ratstack.sh is the teaching surface and may not live in this repo.
+5. **Questions the repo can answer in code** (from the wiki's essential questions):
+   - Infrastructure correctness: remove a binding and typecheck fails. Proof is the compile error.
+   - Purity: importing `apps/infra/alchemy.run.ts` deploys nothing. A test that imports the Stack and asserts no side effect.
+   - Where a correction to an agent lives: codebase first, then lint and CI, then rules and skills, style guide last. The fence already is this; make it legible.
+
+Verified directly in the wiki's purpose page: the success metric is that people request Effect-shaped and Alchemy-shaped solutions from their agents and catch it when the agent gets it wrong; the tension to hold is advocacy versus judgment, so teach the judgment and let Alchemy win on merit. Both were sent to the VISION lane as an addendum.
+
+## What changed because of it
+
+- The VISION.md rewrite lane was steered with the five points above (2026-09-22).
+- Candidate next steps needing Joel's sign-off: a purity test in `apps/infra` (needs a vitest devDependency there, a dependency change); a binding-removal typecheck assertion in CI. The database Layers are planned in `./layer-startups.svx`.
+
+## Sources
+
+- Joel's private Alchemy + Effect research wiki (index, essential questions, purpose, and the trust-ladder, purity, bindings, and layer-constructor-pattern concept pages) and his raw notes. Not in this repo.
+- devtools-fm, Sam Goodwin on Alchemy, https://youtu.be/MtKHzAH6uXM (15:45, 18:45, 29:35, 29:50, 30:50, 35:45, 47:40)
+- Lauren Tan, "2,500 PRs" talk, https://x.com/poteto/status/2102050467505430555
