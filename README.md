@@ -1,5 +1,3 @@
-<p align="center"><img src="assets/emoji/1f400.svg" alt="🐀" width="160"></p>
-
 # rat-stack 🐀
 
 [![CI](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml)
