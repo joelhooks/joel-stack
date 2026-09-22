@@ -58,17 +58,48 @@ const json = (body: unknown, contentType = "application/json") =>
 const originOf = (request: HttpServerRequest.HttpServerRequest) =>
   new URL(request.url, "https://ratstack.sh").origin;
 
+// Markdown is the default representation for agents. HTML is for people and
+// for the tools that render previews to people. Three signals pick HTML:
+// an Accept header that wants text/html (browsers), a known link-preview
+// crawler, or a client that claims to be a browser ("Mozilla/") without saying
+// what it accepts, which is what Open Graph validators and most unfurl
+// services send. Named AI crawlers keep Markdown even when they borrow a
+// browser user agent, and bare CLI clients (curl, fetch) keep Markdown.
 const previewCrawler =
   /(?:Twitterbot|facebookexternalhit|Facebot|Slackbot|Discordbot|LinkedInBot|WhatsApp|TelegramBot|Bluesky|Mastodon|Pinterestbot|redditbot|Applebot)/iu;
+const agentCrawler =
+  /(?:GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|CCBot|Bytespider|Amazonbot|cohere-ai|Meta-ExternalAgent|MistralAI-User|DuckAssistBot|Applebot-Extended)/iu;
 
-const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) =>
-  request.headers.accept?.split(",").some((entry) => {
-    const [mediaType, ...parameters] = entry.trim().toLowerCase().split(";");
-    const quality = parameters
-      .map((parameter) => parameter.trim())
-      .find((parameter) => parameter.startsWith("q="));
-    return mediaType === "text/html" && quality !== "q=0";
-  }) === true || previewCrawler.test(request.headers["user-agent"] ?? "");
+const acceptedMediaTypes = (accept: string | undefined) =>
+  (accept ?? "")
+    .split(",")
+    .map((entry) => {
+      const [mediaType, ...parameters] = entry.trim().toLowerCase().split(";");
+      const quality = parameters
+        .map((parameter) => parameter.trim())
+        .find((parameter) => parameter.startsWith("q="));
+      return { mediaType: mediaType ?? "", rejected: quality === "q=0" };
+    })
+    .filter((entry) => entry.mediaType !== "" && !entry.rejected)
+    .map((entry) => entry.mediaType);
+
+const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) => {
+  const accepted = acceptedMediaTypes(request.headers.accept);
+  if (accepted.includes("text/html")) {
+    return true;
+  }
+  if (accepted.includes("text/markdown")) {
+    return false;
+  }
+  const userAgent = request.headers["user-agent"] ?? "";
+  if (previewCrawler.test(userAgent)) {
+    return true;
+  }
+  if (agentCrawler.test(userAgent)) {
+    return false;
+  }
+  return userAgent.startsWith("Mozilla/");
+};
 
 export interface StaticResponseCache {
   readonly match: (request: Request) => Promise<Response | undefined>;

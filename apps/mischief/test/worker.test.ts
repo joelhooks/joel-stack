@@ -639,9 +639,51 @@ it.effect(
           )
         );
 
+        // Open Graph validators and unfurl services borrow a browser user
+        // agent and send Accept: */*. Named AI crawlers do the same but are
+        // agents, so they keep Markdown. Explicit text/markdown always wins.
+        const request = (headers: Record<string, string>) =>
+          Effect.promise(
+            handler.bind(
+              undefined,
+              new Request("http://localhost/", { headers })
+            )
+          );
+        const validator = yield* request({
+          accept: "*/*",
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        });
+        const gptBot = yield* request({
+          accept: "*/*",
+          "user-agent":
+            "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+        });
+        const claudeBot = yield* request({
+          "user-agent":
+            "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
+        });
+        const curl = yield* request({
+          accept: "*/*",
+          "user-agent": "curl/8.7.1",
+        });
+        const browserWantsMarkdown = yield* request({
+          accept: "text/markdown",
+          "user-agent": "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0",
+        });
+
         expect(crawler.headers.get("content-type")).toContain("text/html");
         expect(plain.headers.get("content-type")).toContain("text/markdown");
         expect(browser.headers.get("content-type")).toContain("text/html");
+        expect(validator.headers.get("content-type")).toContain("text/html");
+        expect(gptBot.headers.get("content-type")).toContain("text/markdown");
+        expect(claudeBot.headers.get("content-type")).toContain(
+          "text/markdown"
+        );
+        expect(curl.headers.get("content-type")).toContain("text/markdown");
+        expect(browserWantsMarkdown.headers.get("content-type")).toContain(
+          "text/markdown"
+        );
       })
     )
 );
