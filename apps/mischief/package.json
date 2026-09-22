@@ -17,10 +17,14 @@
     "effect": "4.0.0-rc.116"
   },
   "devDependencies": {
+    "@effect/platform-node": "4.0.0-rc.116",
     "@effect/vitest": "4.0.0-rc.116",
     "@types/node": "24.13.6",
-    "marked": "18.0.13",
+    "mdsvex": "0.12.8",
+    "remark-gfm": "4.0.1",
+    "svelte": "5.57.1",
     "typescript": "7.0.2",
+    "unified": "11.0.5",
     "vitest": "5.0.1"
   }
 }

@@ -18,7 +18,7 @@ import {
   apiCatalog,
   ardManifest,
   authMarkdown,
-  homeHtml,
+  homeDocumentHtml,
   lawResources,
   linkHeader,
   llmsFullText,
@@ -30,11 +30,11 @@ import {
   robotsText,
   sitemapXml,
   skillIndex,
-  skillIndexHtml,
+  skillIndexDocumentHtml,
   skills,
   staticContentVersion,
 } from "./content.js";
-import { renderHomePage, renderSkillPage, renderSkillsPage } from "./html.js";
+import { renderStaticDocument } from "./html.js";
 import type { RateLimitName, RateLimits } from "./rate-limits.js";
 import { decodeEd25519PrivateJwk, publicKeyDirectory } from "./web-bot-auth.js";
 
@@ -75,6 +75,7 @@ const staticPaths = new Set<string>(publicPaths);
 const negotiatedHtmlPaths = new Set<string>([
   "/",
   "/skills",
+  ...lawResources.map((resource) => resource.routePath),
   ...skills.map((skill) => skill.routePath),
 ]);
 const staticCacheControl =
@@ -222,7 +223,7 @@ const contentRoutes = Layer.mergeAll(
     const origin = originOf(request);
     return Effect.succeed(
       acceptsHtml(request)
-        ? html(renderHomePage(origin, homeHtml))
+        ? html(renderStaticDocument(origin, homeDocumentHtml))
         : markdown(markdownDocument(origin))
     );
   }),
@@ -236,7 +237,7 @@ const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/skills", (request) =>
     Effect.succeed(
       acceptsHtml(request)
-        ? html(renderSkillsPage(originOf(request), skillIndexHtml))
+        ? html(renderStaticDocument(originOf(request), skillIndexDocumentHtml))
         : markdown(skillIndex())
     )
   ),
@@ -288,13 +289,19 @@ const contentRoutes = Layer.mergeAll(
     Effect.succeed(json(mcpServerCard(originOf(request))))
   ),
   ...lawResources.map((resource) =>
-    HttpRouter.add("GET", resource.routePath, markdown(resource.text))
+    HttpRouter.add("GET", resource.routePath, (request) =>
+      Effect.succeed(
+        acceptsHtml(request)
+          ? html(renderStaticDocument(originOf(request), resource.documentHtml))
+          : markdown(resource.text)
+      )
+    )
   ),
   ...skills.flatMap((skill) => [
     HttpRouter.add("GET", skill.routePath, (request) =>
       Effect.succeed(
         acceptsHtml(request)
-          ? html(renderSkillPage(originOf(request), skill))
+          ? html(renderStaticDocument(originOf(request), skill.documentHtml))
           : markdown(skill.text)
       )
     ),

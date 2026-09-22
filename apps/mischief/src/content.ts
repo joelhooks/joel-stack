@@ -1,13 +1,14 @@
 import {
   homeMarkdownTemplate,
   lawSources,
+  originToken,
   skillIndexMarkdown,
   skillSources,
 } from "./bundled-content.generated.js";
 
 export {
-  homeHtml,
-  skillIndexHtml,
+  homeDocumentHtml,
+  skillIndexDocumentHtml,
   staticContentVersion,
 } from "./bundled-content.generated.js";
 
@@ -16,7 +17,7 @@ export type ContentKind = "law" | "skill";
 export interface ContentResource {
   readonly description: string;
   readonly digest: string;
-  readonly html: string;
+  readonly documentHtml: string;
   readonly id: string;
   readonly kind: ContentKind;
   readonly name: string;
@@ -62,7 +63,7 @@ const entryList = (resources: readonly ContentResource[]) =>
     .join("\n");
 
 export const markdownDocument = (origin: string) =>
-  homeMarkdownTemplate.replaceAll("{{ORIGIN}}", origin);
+  homeMarkdownTemplate.replaceAll(originToken, origin);
 
 export const mcpVersionText = (origin: string) =>
   `ratstack.sh MCP supports protocol 2026-07-28 only.\nSee ${origin}/llms.txt for connection details.\n`;

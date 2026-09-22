@@ -358,6 +358,27 @@ it.effect(
             })
           )
         );
+        const resource = lawResources.find(
+          (candidate) =>
+            candidate.routePath === "/resources/effect-4-reference-projects.svx"
+        );
+        if (resource === undefined) {
+          throw new Error("Missing Effect 4 reference resource");
+        }
+        const resourceMarkdownResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request(`http://localhost${resource.routePath}`)
+          )
+        );
+        const resourceHtmlResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request(`http://localhost${resource.routePath}`, {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
         const markdown = yield* Effect.promise(
           markdownResponse.text.bind(markdownResponse)
         );
@@ -369,6 +390,12 @@ it.effect(
         );
         const skillHtml = yield* Effect.promise(
           skillHtmlResponse.text.bind(skillHtmlResponse)
+        );
+        const resourceMarkdown = yield* Effect.promise(
+          resourceMarkdownResponse.text.bind(resourceMarkdownResponse)
+        );
+        const resourceHtml = yield* Effect.promise(
+          resourceHtmlResponse.text.bind(resourceHtmlResponse)
         );
 
         expect(markdownResponse.status).toBe(200);
@@ -394,11 +421,11 @@ it.effect(
         );
         expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
         expect(html).toContain('<code class="language-text">Call it');
-        expect(html).toContain("<style>");
-        expect(html).toContain("max-width: 52rem");
-        expect(html).toContain("pre { max-width: 100%; overflow-x: auto; }");
+        expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
+        expect(html).toContain("max-width:52rem");
+        expect(html).toContain("pre {max-width:100%;overflow-x:auto;}");
         expect(html).toContain(
-          "table { display: block; max-width: 100%; overflow-x: auto; }"
+          "table {display:block;max-width:100%;overflow-x:auto;}"
         );
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");
@@ -414,9 +441,25 @@ it.effect(
         expect(skillHtmlResponse.headers.get("content-type")).toContain(
           "text/html"
         );
-        expect(skillHtml).toContain('<nav aria-label="Breadcrumb">');
+        expect(skillHtml).toContain('<nav aria-label="Breadcrumb"');
         expect(skillHtml).toContain('<h1 id="learn-the-stack">');
         expect(skillHtml).toContain("Trace one action");
+        expect(skillHtml).not.toContain("description:");
+        expect(resourceMarkdownResponse.headers.get("content-type")).toContain(
+          "text/markdown"
+        );
+        expect(resourceMarkdown).toBe(resource.text);
+        expect(resourceHtmlResponse.headers.get("content-type")).toContain(
+          "text/html"
+        );
+        expect(resourceHtml).toContain(
+          "<title>Effect 4 examples | rat-stack</title>"
+        );
+        expect(resourceHtml).toContain(
+          '<h1 id="effect-4-reference-projects-studied-2026-09-18">'
+        );
+        expect(resourceHtml).toContain("<table>");
+        expect(resourceHtml).not.toContain("<script");
       })
     )
 );

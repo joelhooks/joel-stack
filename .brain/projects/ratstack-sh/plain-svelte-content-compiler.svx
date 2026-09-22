@@ -1,0 +1,44 @@
+---
+title: "Compile ratstack.sh documents with plain Svelte"
+type: "decision"
+status: "accepted"
+created_at: "2026-09-22"
+parent: "./ratstack-sh-brief.svx"
+supersedes: "./research-sveltekit-shell.svx"
+---
+
+# Compile ratstack.sh documents with plain Svelte
+
+## Decision
+
+Use Svelte as a build-time document compiler, not as the Worker runtime.
+
+`apps/mischief/scripts/generate-content.ts` reads checked-in Markdown and MDSvX through Effect `FileSystem`, compiles the content through mdsvex's unified pipeline, renders it with Svelte's server renderer, and atomically writes the generated TypeScript module. `apps/mischief/src/document.svelte` is the shared semantic document shell.
+
+The Cloudflare Worker still owns routing, content negotiation, caching, MCP, HTTP capabilities, rate limits, and the sandbox. There is no SvelteKit adapter, router, hydration step, browser bundle, or client-side application code.
+
+## Representations
+
+- The default response remains the exact checked-in Markdown or MDSvX source with `text/markdown`.
+- Requests that accept `text/html` receive the generated Svelte document.
+- HTML and source use separate static cache representations and ETags.
+- The build fails if a generated application document contains a `<script>` element. Cloudflare may still add its analytics beacon after the Worker response.
+
+## Effect boundary
+
+Effect owns build I/O, typed `ContentBuildError` failures, concurrent source reads and compilation, package JSON decoding, and the final atomic write. Pure hashing, slugging, AST traversal, and string assembly remain ordinary functions.
+
+## Compatibility rules
+
+- Preserve the previous heading slug algorithm so existing anchors do not move.
+- Keep the responsive shell minimal: mobile gutters, wrapping navigation, and contained `pre` and table overflow.
+- Treat checked-in documents as trusted compiler input. Revisit sanitization if the source boundary widens.
+- Use unique temporary files because Turborepo may run `generate`, `typecheck`, and `build` concurrently.
+
+## Evidence
+
+- `pnpm turbo run check test build --force`: 20/20 tasks passed.
+- Mischief tests: 14/14 passed, including exact source, negotiated HTML, frontmatter removal, tables, stable headings, caching, and no application scripts.
+- `pnpm mischief:smoke`: production remained 5/5 Agent-Native.
+- Production returned formatted HTML for both public `.svx` resources and exact source for default requests.
+- A 390px browser check reported a 390px document width and a 358px contained table.
