@@ -655,7 +655,7 @@ it.effect("sets security headers on every response", () =>
       const openapi: unknown = yield* Effect.promise(
         openapiResponse.json.bind(openapiResponse)
       );
-      const executeResponses = Schema.decodeUnknownSync(
+      const executeResponses = (yield* Schema.decodeUnknownEffect(
         Schema.Struct({
           paths: Schema.Record(
             Schema.String,
@@ -666,7 +666,7 @@ it.effect("sets security headers on every response", () =>
             })
           ),
         })
-      )(openapi).paths["/api/execute"]?.post.responses;
+      )(openapi)).paths["/api/execute"]?.post.responses;
       expect(Object.keys(executeResponses ?? {})).toContain("429");
 
       // Images are meant to be embedded on other origins (preview cards,
