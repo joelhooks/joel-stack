@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "acceptance:cold-clone": "bash scripts/acceptance-cold-clone.sh",
     "alchemy": "pnpm --filter @rat-stack/infra exec alchemy",
     "build": "turbo run build",
     "check": "varlock load && turbo run typecheck && ultracite check && oxfmt --check .",
