@@ -101,8 +101,17 @@ export const mcpToolsListExample = (origin: string) =>
     `  --data '${mcpToolsListBody}'`,
   ].join("\n");
 
+/** Every MCP revision the endpoint answers, newest first. */
+export const mcpProtocolVersions = [
+  "2026-07-28",
+  "2025-11-25",
+  "2025-06-18",
+  "2025-03-26",
+  "2024-11-05",
+] as const;
+
 export const mcpVersionText = (origin: string) =>
-  `ratstack.sh MCP supports protocol 2026-07-28 only.\nThe 2026-07-28 stateless protocol has no initialize handshake; send the version header, Mcp-Method header, and params._meta shown in the worked tools/list request.\nOlder clients receive MCP-Protocol-Version header is required or Unsupported protocol version; upgrade before connecting.\nSee ${origin}/llms.txt for the complete curl example.\n`;
+  `ratstack.sh MCP answers every client at ${origin}/mcp.\nProtocol 2026-07-28 is stateless and has no initialize handshake; send the version header, Mcp-Method header, and params._meta shown in the worked tools/list request.\nOlder clients (2025-11-25 back to 2024-11-05) send initialize as usual and get a session of their own.\nSee ${origin}/llms.txt for the complete curl example.\n`;
 
 export const llmsText = (origin: string) => `# ratstack.sh
 
@@ -117,13 +126,13 @@ The reference for building an app and its cloud as one typed program: Effect, Al
 
 ## Connect with MCP
 
-Use protocol 2026-07-28. This stateless revision has no \`initialize\` handshake: every request sends \`MCP-Protocol-Version\`, \`Mcp-Method\`, and the \`params._meta\` block shown here.
+Point any MCP client at \`${origin}/mcp\`. Protocol 2026-07-28 is stateless and has no \`initialize\` handshake: every request sends \`MCP-Protocol-Version\`, \`Mcp-Method\`, and the \`params._meta\` block shown here.
 
 \`\`\`sh
 ${mcpToolsListExample(origin)}
 \`\`\`
 
-Older clients receive \`MCP-Protocol-Version header is required\` or \`Unsupported protocol version\`; upgrade before connecting.
+Older clients (2025-11-25 back to 2024-11-05) send \`initialize\` as usual. Each one gets its own session, held by a Durable Object so it survives between requests.
 
 Each IP may make 120 API or MCP requests per 60 seconds. \`execute\` also allows 6 calls per IP and 300 total calls per 60 seconds. Cloudflare counts these limits separately in each location.
 
@@ -254,6 +263,7 @@ export const mcpServerCard = (origin: string) => ({
     tools: {},
   },
   protocolVersion: "2026-07-28",
+  protocolVersions: mcpProtocolVersions,
   serverInfo: { name: "sh.ratstack/rat-stack", version: "0.2.0" },
   transport: { endpoint: `${origin}/mcp`, type: "streamable-http" },
   "x-ratstack-example": mcpToolsListExample(origin),

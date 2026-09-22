@@ -3,7 +3,7 @@ title: "Decide how ratstack.sh serves MCP clients that do not speak 2026-07-28"
 type: "step"
 kind: "grilling"
 interaction: "HITL"
-status: "closed"
+status: "superseded"
 assignee: "pi (flagg, 2026-09-22), Joel: answer yourself where possible"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
@@ -26,3 +26,23 @@ Recommendation: 1 for the prototype and the first deploy, 2 as the next step onl
 ## Result (2026-09-22)
 
 Joel delegated the call. Decision: `2026-07-28` only, which is what v0.1 already serves. Reasons: the client most likely to be pointed at this site (Claude Code) speaks it today; Pi and MCP Inspector reach it by config; the hybrid costs a Durable Object, a router split, and a durability caveat for clients whose vendors are mid-migration. Follow-ups folded into [protect-and-polish](./protect-and-polish.svx): a plain answer at `/mcp` for GET and for legacy `initialize` naming the version requirement, and the same sentence under the MCP heading in `llms.txt`. Revisit only if a scan or a real user shows an agent failing; the [research asset](./research-mcp-client-protocol-support-asset.svx) has the hybrid ready.
+
+## Superseded (2026-09-22)
+
+Joel: "the mcp only working with claude is fucking insane." Serving only 2026-07-28 shut out Cursor, Codex, the reference SDK, and MCP Inspector, which is most of the people this site asks to point an agent at it. Joel's call: support the bleeding edge with a legacy fallback, and use as many Durable Objects as it takes.
+
+What shipped is shape 2, with one object per session instead of one shared object:
+
+- `MCP-Protocol-Version: 2026-07-28` requests stay stateless in the Worker.
+- A legacy `initialize` gets a fresh session id (a UUID) and its own `LegacyMcp` Durable Object. Later requests route by that id; a malformed id is a 404 without creating an object.
+- The object runs Effect's own stateful runtime for 2025-11-25, 2025-06-18, 2025-03-26, and 2024-11-05. It stores the client's `initialize` request, so after Cloudflare evicts it the object replays `initialize` into a fresh runtime and keeps the client's session id.
+- Rate limits stay in the Worker, and legacy `tools/call execute` gets the execute limits too (the tool name is in the body, not a header).
+- It is a cartridge: `apps/mischief/src/legacy-mcp/`, the `LegacyMcp` line in `worker.ts`, and the `legacyMcp` route option. Delete those when every client speaks 2026-07-28.
+
+Two gotchas, both now covered by tests that build the runtime the way the object does (`legacyMcpRuntime`):
+
+1. Effect sets `Mcp-Session-Id` in a pre-response handler, which only a server wrapper runs. Calling the router's raw HTTP app drops the header, and the client's second request fails. `HttpEffect.toWebHandler` is the wrapper.
+2. `HttpRouter.toHttpEffect` builds through the caller's layer memo map. Built inside another router's request, it reuses that router and fails with "Method 'POST' already declared for route '/mcp'". The legacy runtime builds with its own memo map.
+
+Verified locally with `alchemy dev` against MCP Inspector's CLI (reference SDK: tools, a `search` call, an `execute` call returning 42, 5 prompts, 8 resources) and Claude Code on 2026-07-28.
+

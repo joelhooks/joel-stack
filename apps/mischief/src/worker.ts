@@ -5,11 +5,15 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
+import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 
 import { makeRoutes } from "./app.js";
+import LegacyMcp from "./legacy-mcp/durable-object.js";
+import { LEGACY_SESSION_HEADER } from "./legacy-mcp/session.js";
 import { makeRateLimits, rateLimitDeclarations } from "./rate-limits.js";
 import type { RateLimitBindings } from "./rate-limits.js";
-import { layerWorkerLoader } from "./sandbox-worker-loader.js";
+import { layerWorkerLoader, sandboxLimits } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
 
 const cloudflareStaticCache = {
@@ -60,7 +64,22 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL,
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
     });
+    // Pre-2026-07-28 MCP clients get one object per session.
+    const legacyMcp = yield* LegacyMcp;
     const workerRoutes = makeRoutes({
+      legacyMcp: {
+        forward: (session, request) => {
+          const headers = new Headers(request.headers);
+          headers.set(LEGACY_SESSION_HEADER, session);
+          return legacyMcp
+            .getByName(session)
+            .fetch(HttpServerRequest.fromWeb(new Request(request, { headers })))
+            .pipe(
+              Effect.map((response) => HttpServerResponse.toWeb(response)),
+              Effect.orDie
+            );
+        },
+      },
       rateLimits,
       staticCache: cloudflareStaticCache,
       webBotAuth: {
@@ -69,16 +88,7 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
           ? { privateJwk: Redacted.value(webBotAuthPrivateJwk.value) }
           : {}),
       },
-    }).pipe(
-      Layer.provide(
-        layerWorkerLoader(loader, {
-          compatibilityDate: "2026-05-28",
-          cpuMs: 100,
-          subRequests: 5,
-          timeout: "10 seconds",
-        })
-      )
-    );
+    }).pipe(Layer.provide(layerWorkerLoader(loader, sandboxLimits)));
 
     return {
       fetch: yield* HttpRouter.toHttpEffect(workerRoutes).pipe(Effect.orDie),

@@ -169,6 +169,14 @@ export default class CodeExecutor extends WorkerEntrypoint {
 `;
 
 /** A fresh, network-denied Dynamic Worker for every program run. */
+/** The limits every code-mode program runs under, from any surface. */
+export const sandboxLimits: WorkerLoaderSandboxOptions = {
+  compatibilityDate: "2026-05-28",
+  cpuMs: 100,
+  subRequests: 5,
+  timeout: "10 seconds",
+};
+
 export const layerWorkerLoader = (
   loader: WorkerLoaderBinding,
   options: WorkerLoaderSandboxOptions = {}

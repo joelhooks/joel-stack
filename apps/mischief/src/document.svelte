@@ -131,6 +131,15 @@
   }
 
   @media (max-width: 40rem) {
+    /* Text diagrams are 65 columns; shrink them to fit instead of scrolling. */
+    :global(figure) {
+      margin: 1rem 0;
+    }
+
+    :global(figure pre) {
+      font-size: clamp(7px, 2.2vw, 1em);
+    }
+
     :global(thead) {
       display: none;
     }

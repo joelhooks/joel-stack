@@ -490,6 +490,8 @@ it.effect(
         expect(html).toContain("max-width:80ch");
         expect(html).toContain("ui-monospace");
         expect(html).toMatch(/pre \{[^}]*overflow-x:auto;[^}]*\}/u);
+        // Phones shrink the 65-column diagrams rather than scroll them.
+        expect(html).toMatch(/figure pre[^{]*\{[^}]*font-size:clamp\(/u);
         expect(html).toMatch(
           /table \{[^}]*display:block;[^}]*overflow-x:auto;[^}]*\}/u
         );
@@ -976,7 +978,7 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       const llmsBody = yield* Effect.promise(llms.text.bind(llms));
       expect(llmsBody).toBe(llmsText("https://ratstack.sh"));
       expect(llmsBody).toContain("## Connect with MCP");
-      expect(llmsBody).toContain("Use protocol 2026-07-28");
+      expect(llmsBody).toContain("Protocol 2026-07-28 is stateless");
       expect(llmsBody).toContain("no `initialize` handshake");
       expect(llmsBody).toContain("Mcp-Method: tools/list");
       expect(llmsBody).toContain("params._meta");
@@ -1375,7 +1377,7 @@ it.effect("explains the required MCP version in plain text", () =>
       const expected = mcpVersionText("https://ratstack.sh");
 
       expect(expected).toContain("no initialize handshake");
-      expect(expected).toContain("MCP-Protocol-Version header is required");
+      expect(expected).toContain("get a session of their own");
       expect(expected).toContain("https://ratstack.sh/llms.txt");
       expect(getResponse.status).toBe(200);
       expect(getResponse.headers.get("content-type")).toContain("text/plain");

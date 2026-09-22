@@ -1267,10 +1267,20 @@ one. Search its rules and skills before you write code, follow
 its patterns, and tell me when my code breaks them.
 \`\`\`
 
-Claude Code can also connect to the MCP server:
+Or connect the MCP server directly:
 
 \`\`\`sh
+# Claude Code
 claude mcp add --transport http rat-stack ${originToken}/mcp
+
+# Codex
+codex mcp add rat-stack --url ${originToken}/mcp
+\`\`\`
+
+Cursor reads \`~/.cursor/mcp.json\`:
+
+\`\`\`json
+{ "mcpServers": { "rat-stack": { "url": "${originToken}/mcp" } } }
 \`\`\`
 
 Install the skills into any agent that reads a skills folder:
@@ -1279,7 +1289,7 @@ Install the skills into any agent that reads a skills folder:
 npx skills add joelhooks/rat-stack
 \`\`\`
 
-The MCP server speaks protocol 2026-07-28. Claude Code supports it today. Cursor and Codex still use older versions, so use the prompt above; everything the server knows is also plain Markdown over HTTP.
+Every MCP client works. Clients on protocol 2026-07-28 are served without sessions; older clients get a session of their own, held by a Durable Object.
 
 - [MCP connection details](${originToken}/.well-known/mcp.json)
 - [HTTP API docs](${originToken}/openapi.json)

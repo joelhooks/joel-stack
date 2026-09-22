@@ -41,6 +41,7 @@ import {
   staticContentVersion,
 } from "./content.js";
 import { renderStaticDocument } from "./html.js";
+import { legacySessionNotFound } from "./legacy-mcp/session.js";
 import type { RateLimitName, RateLimits } from "./rate-limits.js";
 import { decodeEd25519PrivateJwk, publicKeyDirectory } from "./web-bot-auth.js";
 
@@ -254,39 +255,63 @@ const apiRoutes = HttpApiBuilder.layer(apiProjection.api, {
   Layer.provide(AlchemyHttp.Platform)
 );
 
-const mcpTransport = McpServer.layerHttp({
-  allowedOrigins: ["https://ratstack.sh", "http://localhost:1337"],
-  description: "Search, read, and execute against the rat-stack source corpus",
-  instructions:
-    "Use search to find a file. Use read to get its exact text. Use execute only when one short program can replace several tool calls.",
-  name: "sh.ratstack/rat-stack",
-  path: "/mcp",
-  protocols: [McpProtocol.v2026_07_28],
-  version: "0.2.0",
-  websiteUrl: "https://ratstack.sh/",
-});
+/** The 2026-07-28 revision is stateless, so the Worker serves it directly. */
+export const modernMcpProtocols = [McpProtocol.v2026_07_28] as const;
 
-const mcp = Layer.mergeAll(
-  McpServer.toolkit(toolkitProjection.toolkit).pipe(
-    Layer.provide(toolkitProjection.layer)
-  ),
-  ...lawResources.map((resource) =>
-    McpServer.resource({
-      content: Effect.succeed(resource.text),
-      description: resource.description,
-      mimeType: "text/markdown",
-      name: resource.name,
-      uri: resource.id,
-    })
-  ),
-  ...skills.map((skill) =>
-    McpServer.prompt({
-      content: () => Effect.succeed(skill.text),
-      description: skill.description,
-      name: skill.name,
-    })
-  )
-).pipe(Layer.provide(mcpTransport));
+/**
+ * Older revisions need a session. They run in the LegacyMcp Durable Object,
+ * one object per session, so the session outlives any single isolate.
+ */
+export const legacyMcpProtocols = [
+  McpProtocol.v2025_11_25,
+  McpProtocol.v2025_06_18,
+  McpProtocol.v2025_03_26,
+  McpProtocol.v2024_11_05,
+] as const;
+
+const mcpTransport = (
+  protocols: typeof modernMcpProtocols | typeof legacyMcpProtocols
+) =>
+  McpServer.layerHttp({
+    allowedOrigins: ["https://ratstack.sh", "http://localhost:1337"],
+    description:
+      "Search, read, and execute against the rat-stack source corpus",
+    instructions:
+      "Use search to find a file. Use read to get its exact text. Use execute only when one short program can replace several tool calls.",
+    name: "sh.ratstack/rat-stack",
+    path: "/mcp",
+    protocols,
+    version: "0.2.0",
+    websiteUrl: "https://ratstack.sh/",
+  });
+
+/** One set of tools, resources, and prompts, served on either protocol era. */
+export const mcpLayer = (
+  protocols: typeof modernMcpProtocols | typeof legacyMcpProtocols
+) =>
+  Layer.mergeAll(
+    McpServer.toolkit(toolkitProjection.toolkit).pipe(
+      Layer.provide(toolkitProjection.layer)
+    ),
+    ...lawResources.map((resource) =>
+      McpServer.resource({
+        content: Effect.succeed(resource.text),
+        description: resource.description,
+        mimeType: "text/markdown",
+        name: resource.name,
+        uri: resource.id,
+      })
+    ),
+    ...skills.map((skill) =>
+      McpServer.prompt({
+        content: () => Effect.succeed(skill.text),
+        description: skill.description,
+        name: skill.name,
+      })
+    )
+  ).pipe(Layer.provide(mcpTransport(protocols)));
+
+const mcp = mcpLayer(modernMcpProtocols);
 
 const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/", (request) => {
@@ -427,6 +452,9 @@ const JsonRpcEnvelope = Schema.Struct({
     Schema.Union([Schema.String, Schema.Finite, Schema.Null])
   ),
   method: Schema.optional(Schema.String),
+  params: Schema.optional(
+    Schema.Struct({ name: Schema.optional(Schema.Unknown) })
+  ),
 });
 
 const inspectMcpRequest = (request: HttpServerRequest.HttpServerRequest) =>
@@ -484,57 +512,167 @@ const rateLimitResponse = (
   );
 };
 
-const requestProtection = (rateLimits: RateLimits) =>
+/** Sends one legacy MCP request to the object that owns its session. */
+export interface LegacyMcpRouter {
+  readonly forward: (
+    session: string,
+    request: Request
+  ) => Effect.Effect<Response>;
+}
+
+const MODERN_MCP_VERSION = "2026-07-28";
+const sessionIdPattern =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
+
+interface McpRequestShape {
+  readonly envelope: typeof JsonRpcEnvelope.Type | null;
+  readonly isApi: boolean;
+  readonly isExecute: boolean;
+  readonly isMcp: boolean;
+  readonly mcpToolCall: boolean;
+  readonly modernMcp: boolean;
+}
+
+// Modern MCP clients name the method and tool in headers. Legacy clients name
+// them only in the JSON body, so rate limits read both.
+const shapeOf = (request: HttpServerRequest.HttpServerRequest) =>
+  Effect.gen(function* shapeRequest() {
+    const path = new URL(request.url, "https://ratstack.sh").pathname;
+    const isMcp = path === "/mcp";
+    const modernMcp =
+      request.headers["mcp-protocol-version"] === MODERN_MCP_VERSION;
+    const envelope =
+      isMcp && !modernMcp && request.method === "POST"
+        ? yield* inspectMcpRequest(request)
+        : null;
+    const mcpMethod = request.headers["mcp-method"] ?? envelope?.method;
+    const mcpToolName = request.headers["mcp-name"] ?? envelope?.params?.name;
+    const mcpToolCall = isMcp && mcpMethod === "tools/call";
+    return {
+      envelope,
+      isApi: path === "/api" || path.startsWith("/api/"),
+      isExecute:
+        path === "/api/execute" || (mcpToolCall && mcpToolName === "execute"),
+      isMcp,
+      mcpToolCall,
+      modernMcp,
+    } satisfies McpRequestShape;
+  });
+
+const firstExceededLimit = (
+  rateLimits: RateLimits,
+  request: HttpServerRequest.HttpServerRequest,
+  shape: McpRequestShape
+) =>
+  Effect.gen(function* checkLimits() {
+    const clientIp = request.headers["cf-connecting-ip"] ?? "unknown";
+    const checks: readonly (readonly [RateLimitName, string])[] = [
+      ["API_PER_IP", clientIp],
+      ...(shape.isExecute
+        ? ([
+            ["EXECUTE_PER_IP", clientIp],
+            ["EXECUTE_GLOBAL", "global"],
+          ] as const)
+        : []),
+    ];
+    for (const [name, key] of checks) {
+      if (!(yield* rateLimits.limit(name, key))) {
+        return name;
+      }
+    }
+    return null;
+  });
+
+// The session a legacy request belongs to: the client's, or a new one for
+// `initialize`. Modern and session-less requests stay in the Worker.
+const legacySessionOf = (
+  request: HttpServerRequest.HttpServerRequest,
+  shape: McpRequestShape
+) => {
+  if (!shape.isMcp || shape.modernMcp) {
+    return null;
+  }
+  const existing = request.headers["mcp-session-id"];
+  if (existing !== undefined) {
+    return existing;
+  }
+  if (shape.envelope?.method !== "initialize") {
+    return null;
+  }
+  // @effect-diagnostics-next-line cryptoRandomUUID:off -- Workers ship Web Crypto and Effect has no Web Crypto layer; a random session id needs no injectable service.
+  return crypto.randomUUID();
+};
+
+const routeLegacyMcp = (
+  router: LegacyMcpRouter,
+  request: HttpServerRequest.HttpServerRequest,
+  session: string,
+  shape: McpRequestShape
+) =>
+  Effect.gen(function* routeLegacy() {
+    if (!sessionIdPattern.test(session)) {
+      return HttpServerResponse.fromWeb(
+        legacySessionNotFound(shape.envelope?.id)
+      );
+    }
+    const web = yield* HttpServerRequest.toWeb(request).pipe(Effect.orDie);
+    return HttpServerResponse.fromWeb(yield* router.forward(session, web));
+  });
+
+// Without a legacy router (tests), explain the version instead of failing.
+const needsVersionHelp = (
+  request: HttpServerRequest.HttpServerRequest,
+  shape: McpRequestShape
+) =>
+  shape.isMcp &&
+  (request.method === "GET" ||
+    (request.method === "POST" &&
+      request.headers["mcp-protocol-version"] === undefined &&
+      shape.envelope?.method === "initialize"));
+
+const requestProtection = (options: {
+  readonly legacyMcp?: LegacyMcpRouter;
+  readonly rateLimits?: RateLimits;
+}) =>
   HttpRouter.middleware(
     (httpEffect) =>
       Effect.gen(function* protectRequest() {
         const request = yield* HttpServerRequest.HttpServerRequest;
-        const path = new URL(request.url, "https://ratstack.sh").pathname;
-        const isMcp = path === "/mcp";
-        const isApi = path === "/api" || path.startsWith("/api/");
-        const mcpToolCall =
-          isMcp && request.headers["mcp-method"] === "tools/call";
-        const isExecute =
-          path === "/api/execute" ||
-          (mcpToolCall && request.headers["mcp-name"] === "execute");
+        const shape = yield* shapeOf(request);
 
-        if (isMcp || isApi) {
-          const clientIp = request.headers["cf-connecting-ip"] ?? "unknown";
-          const checks: readonly (readonly [RateLimitName, string])[] = [
-            ["API_PER_IP", clientIp],
-            ...(isExecute
-              ? ([
-                  ["EXECUTE_PER_IP", clientIp],
-                  ["EXECUTE_GLOBAL", "global"],
-                ] as const)
-              : []),
-          ];
-
-          for (const [name, key] of checks) {
-            if (!(yield* rateLimits.limit(name, key))) {
-              return yield* rateLimitResponse(request, name, mcpToolCall);
-            }
+        if ((shape.isMcp || shape.isApi) && options.rateLimits !== undefined) {
+          const exceeded = yield* firstExceededLimit(
+            options.rateLimits,
+            request,
+            shape
+          );
+          if (exceeded !== null) {
+            return yield* rateLimitResponse(
+              request,
+              exceeded,
+              shape.mcpToolCall
+            );
           }
         }
 
-        if (isMcp && request.method === "GET") {
+        const session =
+          options.legacyMcp === undefined
+            ? null
+            : legacySessionOf(request, shape);
+        if (session !== null && options.legacyMcp !== undefined) {
+          return yield* routeLegacyMcp(
+            options.legacyMcp,
+            request,
+            session,
+            shape
+          );
+        }
+
+        if (needsVersionHelp(request, shape)) {
           return HttpServerResponse.text(mcpVersionText(originOf(request)), {
             contentType: "text/plain; charset=utf-8",
+            ...(request.method === "POST" ? { status: 400 } : {}),
           });
-        }
-
-        if (
-          isMcp &&
-          request.method === "POST" &&
-          request.headers["mcp-protocol-version"] === undefined
-        ) {
-          const envelope = yield* inspectMcpRequest(request);
-          if (envelope?.method === "initialize") {
-            return HttpServerResponse.text(mcpVersionText(originOf(request)), {
-              contentType: "text/plain; charset=utf-8",
-              status: 400,
-            });
-          }
         }
 
         return yield* httpEffect;
@@ -590,6 +728,7 @@ export interface WebBotAuthOptions {
 }
 
 export interface MischiefRouteOptions {
+  readonly legacyMcp?: LegacyMcpRouter;
   readonly rateLimits?: RateLimits;
   readonly staticCache?: StaticResponseCache;
   readonly webBotAuth?: WebBotAuthOptions;
@@ -633,9 +772,9 @@ export const makeRoutes = (options: MischiefRouteOptions = {}) =>
     mcp,
     securityHeadersMiddleware,
     // Tests without bindings and the default `routes` skip protection.
-    options.rateLimits === undefined
+    options.rateLimits === undefined && options.legacyMcp === undefined
       ? Layer.empty
-      : requestProtection(options.rateLimits),
+      : requestProtection(options),
     linkHeaders,
     options.staticCache === undefined
       ? Layer.empty
