@@ -5,13 +5,18 @@ import { Effect, FileSystem, Path } from "effect";
 import {
   deriveAgentMarkdown,
   deriveHtmlMarkdown,
+  encodeIco,
 } from "../scripts/content-lib.ts";
 import {
+  appleTouchIconPngBase64,
+  faviconIcoBase64,
   homeDocumentHtml,
   lawSources,
   ogImages,
   skillSources,
 } from "../src/bundled-content.generated.js";
+
+const fakePng = (size: number) => new Uint8Array(size).fill(size);
 
 const root = (path: Path.Path) => path.resolve(import.meta.dirname, "../../..");
 
@@ -72,6 +77,40 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       expect(homeDocumentHtml).not.toMatch(
         /<figure role="img"[^>]*>\s*<pre[^>]*style=/u
       );
+    })
+  );
+
+  test.effect("packs PNG images into an ICO directory", () =>
+    Effect.sync(() => {
+      const ico = encodeIco([
+        { bytes: fakePng(3), size: 16 },
+        { bytes: fakePng(5), size: 256 },
+      ]);
+      const view = new DataView(ico.buffer);
+
+      expect([...ico.subarray(0, 6)]).toEqual([0, 0, 1, 0, 2, 0]);
+      // Entry 1: 16px, 32 bits, 3 bytes at offset 6 + 2 * 16.
+      expect(ico[6]).toBe(16);
+      expect(view.getUint16(6 + 6, true)).toBe(32);
+      expect(view.getUint32(6 + 8, true)).toBe(3);
+      expect(view.getUint32(6 + 12, true)).toBe(38);
+      // 256px is written as 0; its bytes follow the first image.
+      expect(ico[22]).toBe(0);
+      expect(view.getUint32(22 + 12, true)).toBe(41);
+      expect(ico.length).toBe(38 + 3 + 5);
+    })
+  );
+
+  test.effect("renders the rat as a favicon and a touch icon", () =>
+    Effect.sync(() => {
+      const ico = Buffer.from(faviconIcoBase64, "base64");
+      expect([...ico.subarray(0, 6)]).toEqual([0, 0, 1, 0, 3, 0]);
+      expect([ico[6], ico[22], ico[38]]).toEqual([16, 32, 48]);
+
+      const touch = Buffer.from(appleTouchIconPngBase64, "base64");
+      expect([...touch.subarray(1, 4)]).toEqual([0x50, 0x4e, 0x47]);
+      expect(touch.readUInt32BE(16)).toBe(180);
+      expect(touch.readUInt32BE(20)).toBe(180);
     })
   );
 

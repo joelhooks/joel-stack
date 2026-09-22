@@ -30,11 +30,11 @@ Effect owns build I/O, typed `ContentBuildError` failures, concurrent source rea
 
 ## Document shell (2026-09-22)
 
-`apps/mischief/src/document.svelte` is a man page, not a marketing site. Monospace everywhere so box-drawing diagrams line up, an 80ch measure, light only (Joel rejected dark mode: no `prefers-color-scheme`, no `background`, no colour variables), default link colours, and `<hr>` rules above and below the nav. There is no logo in the header; `🐀 Rat Stack` is the single h1 on the home page and a small link back home elsewhere. `assets/ratstack-logo.svg` is still read at build time only to serve `/favicon.svg`; nothing else is fetched.
+`apps/mischief/src/document.svelte` is a man page, not a marketing site. Monospace everywhere so box-drawing diagrams line up, an 80ch measure, light only (Joel rejected dark mode: no `prefers-color-scheme`, no `background`, no colour variables), default link colours, and `<hr>` rules above and below the nav. There is no logo in the header; `🐀 Rat Stack` is the single h1 on the home page and a small link back home elsewhere. The logo is the 🐀 emoji: `assets/emoji/1f400.svg` is served as `/favicon.svg` and rendered at build time into `/favicon.ico` (16, 32, 48) and a 180px `/apple-touch-icon.png`; nothing else is fetched.
 
 Tables stack on phones. A build-time rehype plugin writes each cell's column header into `data-label`, and under 40rem the CSS hides `thead`, turns rows and cells into blocks, and prints the label before each value.
 
-Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. Quiver (Arrow) drew the logo; since `67986a2` it is read only for `/favicon.svg` and no longer appears on preview cards.
+Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. The rat-on-a-stack logo Quiver drew was deleted on 2026-09-22; the emoji replaced it everywhere.
 
 Table cells reset `overflow-wrap` to `normal`; the page-level `anywhere` setting shredded words into single characters on phones.
 

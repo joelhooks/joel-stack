@@ -17,20 +17,22 @@ import {
   agentSkillPath,
   agentSkillsIndex,
   apiCatalog,
+  appleTouchIconPngBase64,
   ardManifest,
   authMarkdown,
+  faviconIcoBase64,
   homeDocumentHtml,
   lawResources,
   linkHeader,
   llmsFullText,
   llmsText,
-  logoSvg,
   markdownDocument,
   mcpServerCard,
   mcpVersionText,
   ogImagePath,
   ogImages,
   publicPaths,
+  ratSvg,
   robotsText,
   sitemapXml,
   skillIndex,
@@ -109,21 +111,24 @@ export interface StaticResponseCache {
   readonly put: (request: Request, response: Response) => Promise<void>;
 }
 
-// The favicon is cached like every other static file but stays out of the
-// sitemap and agent catalogue, so it is not a public content path.
+// The rat icons are cached like every other static file but stay out of the
+// sitemap and agent catalogue, so they are not public content paths.
 // Preview images are pure functions of the content version, so they ride the
 // same versioned edge cache as every other static file. Decoded once at
 // module load; the Worker never touches the base64 again.
+const decodeBase64 = (base64: string) =>
+  Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
 const ogImageBytes = ogImages.map((image) => ({
-  bytes: Uint8Array.from(
-    atob(image.pngBase64),
-    (character) => character.codePointAt(0) ?? 0
-  ),
+  bytes: decodeBase64(image.pngBase64),
   path: ogImagePath(image.routePath),
 }));
+const faviconIcoBytes = decodeBase64(faviconIcoBase64);
+const appleTouchIconBytes = decodeBase64(appleTouchIconPngBase64);
 const staticPaths = new Set<string>([
   ...publicPaths,
   "/favicon.svg",
+  "/favicon.ico",
+  "/apple-touch-icon.png",
   ...ogImageBytes.map((image) => image.path),
 ]);
 const negotiatedHtmlPaths = new Set<string>([
@@ -309,8 +314,22 @@ const contentRoutes = Layer.mergeAll(
   HttpRouter.add(
     "GET",
     "/favicon.svg",
-    HttpServerResponse.text(logoSvg, {
+    HttpServerResponse.text(ratSvg, {
       contentType: "image/svg+xml; charset=utf-8",
+    })
+  ),
+  HttpRouter.add(
+    "GET",
+    "/favicon.ico",
+    HttpServerResponse.uint8Array(faviconIcoBytes, {
+      contentType: "image/x-icon",
+    })
+  ),
+  HttpRouter.add(
+    "GET",
+    "/apple-touch-icon.png",
+    HttpServerResponse.uint8Array(appleTouchIconBytes, {
+      contentType: "image/png",
     })
   ),
   ...ogImageBytes.map((image) =>

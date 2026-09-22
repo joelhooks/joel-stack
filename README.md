@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/ratstack-logo.svg" alt="Rat Stack: a rat sitting on a three-layer stack" width="420"></p>
+<p align="center"><img src="assets/emoji/1f400.svg" alt="🐀" width="160"></p>
 
 # rat-stack 🐀
 
