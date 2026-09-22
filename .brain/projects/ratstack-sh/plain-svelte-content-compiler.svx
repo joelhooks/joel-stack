@@ -34,7 +34,7 @@ Effect owns build I/O, typed `ContentBuildError` failures, concurrent source rea
 
 Tables stack on phones. A build-time rehype plugin writes each cell's column header into `data-label`, and under 40rem the CSS hides `thead`, turns rows and cells into blocks, and prints the label before each value.
 
-Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. Quiver (Arrow) drew the logo and stays available for marks and Open Graph art, not for diagrams, because an SVG would exist only in the HTML face.
+Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. Quiver (Arrow) drew the logo; since `67986a2` it is read only for `/favicon.svg` and no longer appears on preview cards.
 
 Table cells reset `overflow-wrap` to `normal`; the page-level `anywhere` setting shredded words into single characters on phones.
 
@@ -60,6 +60,16 @@ Fenced code is highlighted at build time by Shiki with Catppuccin Latte as inlin
 
 Why this shipped in a hurry: opengraph.xyz reported "Failed to fetch URL" and then "Image is missing" on the live site. The first was content negotiation (a validator sends a browser user agent with `Accept: */*`; fixed in `b24e5bc`, which serves HTML to any client that claims to be a browser without asking for Markdown, while named AI crawlers keep Markdown). The second was this slice.
 
+## Audience blocks and plain preview cards (2026-09-22, `67986a2`)
+
+Authored sources may carry three tags, handled in `apps/mischief/scripts/content-lib.ts` as string transforms before mdsvex runs: `<AgentOnly>`, `<HumanOnly>`, and `<Diagram alt="...">` around one fenced `text` block. `deriveAgentMarkdown` produces the Markdown representation (HumanOnly removed, AgentOnly unwrapped, the diagram kept as its plain fence followed by a `Diagram: <alt>` line). `deriveHtmlMarkdown` produces the compiler input (AgentOnly removed, HumanOnly unwrapped, the diagram as `<figure role="img" aria-label>` with a `figcaption`; newlines inside the figure are encoded as `&#10;` so Svelte does not reflow them). The entity linker skips `figure` like it skips `pre`. Tag-free sources pass through both functions unchanged, and `apps/mischief/test/content.test.ts` asserts byte identity for every root document and skill plus the round trip on a tagged fixture. The home page is the first tagged source: `homeMarkdownSource` is authored once, `homeMarkdownTemplate` is derived from it for agents, and the HTML compiles from the source.
+
+Preview cards are now white with black, left-justified JetBrains Mono: title, description, the page path in grey (`ratstack.sh/skills/learn-alchemy`), and the Twemoji rat (`assets/emoji/1f400.svg`, CC-BY 4.0, licence beside it) at 96px bottom-right. No logo, no colour field. Joel's steer: the styled cream card with the rat mark read as a brand; the plain card reads as a man page.
+
+The home page also gained "The pattern in code", which prints the real `apps/mischief/src/capabilities/search.ts` below the diagram (read at build time, so it cannot drift), one sentence defining a skill, `learn-alchemy` in the first skill group, and a pre-release caveat pointing at `pins.md`. The Layer Startups session (`.brain/projects/layer-startups.svx`) owns the next home rewrite around the `cc20223` vision: series section, cartridge shelf, pieces/trust/floor/range framing.
+
+Lane receipt: this shipped from a `deep-worker` subagent on `gpt-5.6-luna:max` that timed out at 90 minutes during its own final verification; the files were complete, and the clean-worktree gate, the visual check of the PNGs, the live byte comparison of `/og/home.png`, and smoke all passed before commit.
+
 ## Compatibility rules
 
 - Preserve the previous heading slug algorithm so existing anchors do not move.
@@ -70,7 +80,7 @@ Why this shipped in a hurry: opengraph.xyz reported "Failed to fetch URL" and th
 ## Evidence
 
 - `pnpm turbo run check test build --force`: 20/20 tasks passed.
-- Mischief tests: 14/14 passed, including exact source, negotiated HTML, frontmatter removal, tables, stable headings, caching, no application scripts, GitHub and in-site code-span links, backlinks, last-changed provenance, and `/log.md`.
+- Mischief tests: 20/20 passed as of `67986a2` (14 at the shell slice), including exact source, negotiated HTML, frontmatter removal, tables, stable headings, caching, no application scripts, GitHub and in-site code-span links, backlinks, last-changed provenance, and `/log.md`.
 - `pnpm mischief:smoke`: production remained 5/5 Agent-Native.
 - Production returned formatted HTML for both public `.svx` resources and exact source for default requests.
 - A 390px browser check reported a 390px document width and a 358px contained table.
