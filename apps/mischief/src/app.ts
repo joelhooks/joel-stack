@@ -9,11 +9,15 @@ import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
+import { a2aError, handleA2aRequest } from "./a2a.js";
 import { capabilities } from "./capabilities/index.js";
 import {
+  a2aAgentCard,
   agentSkillPath,
   agentSkillsIndex,
   apiCatalog,
+  ardManifest,
+  authMarkdown,
   htmlDocument,
   lawResources,
   linkHeader,
@@ -26,6 +30,7 @@ import {
   skillIndex,
   skills,
 } from "./content.js";
+import { decodeEd25519PrivateJwk, publicKeyDirectory } from "./web-bot-auth.js";
 
 const markdown = (body: string) =>
   HttpServerResponse.text(body, {
@@ -104,6 +109,7 @@ const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/llms-full.txt", (request) =>
     Effect.succeed(markdown(llmsFullText(originOf(request))))
   ),
+  HttpRouter.add("GET", "/auth.md", markdown(authMarkdown)),
   HttpRouter.add("GET", "/skills", markdown(skillIndex())),
   HttpRouter.add(
     "GET",
@@ -123,6 +129,26 @@ const contentRoutes = Layer.mergeAll(
     "GET",
     "/.well-known/agent-skills/index.json",
     json(agentSkillsIndex())
+  ),
+  HttpRouter.add("GET", "/.well-known/ai-catalog.json", (request) =>
+    Effect.succeed(json(ardManifest(originOf(request))))
+  ),
+  ...(["/.well-known/agent-card.json", "/.well-known/agent.json"] as const).map(
+    (path) =>
+      HttpRouter.add("GET", path, (request) =>
+        Effect.succeed(
+          json(a2aAgentCard(originOf(request)), "application/a2a+json")
+        )
+      )
+  ),
+  HttpRouter.add("POST", "/a2a", (request) =>
+    request.json.pipe(
+      Effect.flatMap(handleA2aRequest),
+      Effect.map((response) => json(response, "application/a2a+json")),
+      Effect.orElseSucceed(() =>
+        json(a2aError(-32_600, "Invalid Request"), "application/a2a+json")
+      )
+    )
   ),
   HttpRouter.add("GET", "/.well-known/api-catalog", (request) =>
     Effect.succeed(
@@ -149,9 +175,53 @@ const linkHeaders = HttpRouter.middleware(
   { global: true }
 );
 
-export const routes = Layer.mergeAll(
-  contentRoutes,
-  apiRoutes,
-  mcp,
-  linkHeaders
-);
+export interface WebBotAuthOptions {
+  readonly enabled: boolean;
+  readonly privateJwk?: string;
+}
+
+export interface MischiefRouteOptions {
+  readonly webBotAuth?: WebBotAuthOptions;
+}
+
+const webBotAuthResponse = (options: WebBotAuthOptions) => {
+  if (!options.enabled) {
+    return HttpServerResponse.text("Not found.\n", {
+      contentType: "text/plain; charset=utf-8",
+      status: 404,
+    });
+  }
+  if (options.privateJwk === undefined) {
+    return HttpServerResponse.text("Web Bot Auth key is not configured.\n", {
+      contentType: "text/plain; charset=utf-8",
+      status: 503,
+    });
+  }
+  return decodeEd25519PrivateJwk(options.privateJwk).pipe(
+    Effect.map((key) => json(publicKeyDirectory(key))),
+    Effect.orElseSucceed(() =>
+      HttpServerResponse.text("Web Bot Auth key is invalid.\n", {
+        contentType: "text/plain; charset=utf-8",
+        status: 503,
+      })
+    )
+  );
+};
+
+const webBotAuthRoutes = (options: WebBotAuthOptions) =>
+  HttpRouter.add(
+    "GET",
+    "/.well-known/http-message-signatures-directory",
+    webBotAuthResponse(options)
+  );
+
+export const makeRoutes = (options: MischiefRouteOptions = {}) =>
+  Layer.mergeAll(
+    contentRoutes,
+    apiRoutes,
+    mcp,
+    linkHeaders,
+    webBotAuthRoutes(options.webBotAuth ?? { enabled: false })
+  );
+
+export const routes = makeRoutes();

@@ -4,10 +4,13 @@ import { Effect, Layer, Schema } from "effect";
 import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { routes } from "../src/app.js";
+import { makeRoutes, routes } from "../src/app.js";
 import { ReadOutput, SearchOutput } from "../src/capabilities/schemas.js";
 import {
+  a2aAgentCard,
   agentSkillPath,
+  ardManifest,
+  authMarkdown,
   lawResources,
   linkHeader,
   llmsText,
@@ -158,6 +161,85 @@ const ReadResourceResponse = Schema.Struct({
   }),
 });
 
+const A2aCard = Schema.Struct({
+  name: Schema.String,
+  skills: Schema.Array(
+    Schema.Struct({
+      description: Schema.String,
+      id: Schema.String,
+      name: Schema.String,
+    })
+  ),
+  supportedInterfaces: Schema.Array(
+    Schema.Struct({
+      protocolBinding: Schema.String,
+      protocolVersion: Schema.String,
+      url: Schema.String,
+    })
+  ),
+  version: Schema.String,
+});
+
+const A2aResponse = Schema.Struct({
+  id: Schema.String,
+  jsonrpc: Schema.Literal("2.0"),
+  result: Schema.Struct({
+    kind: Schema.Literal("message"),
+    parts: Schema.Array(
+      Schema.Struct({ kind: Schema.Literal("text"), text: Schema.String })
+    ),
+    role: Schema.Literal("agent"),
+  }),
+});
+
+const ArdManifest = Schema.Struct({
+  entries: Schema.Array(
+    Schema.Struct({
+      displayName: Schema.String,
+      identifier: Schema.String,
+      representativeQueries: Schema.Array(Schema.String),
+      type: Schema.String,
+      url: Schema.String,
+    })
+  ),
+  host: Schema.Struct({
+    displayName: Schema.String,
+    identifier: Schema.String,
+  }),
+  specVersion: Schema.String,
+});
+
+const WebBotKeyDirectory = Schema.Struct({
+  keys: Schema.Array(
+    Schema.Struct({
+      alg: Schema.String,
+      crv: Schema.String,
+      kid: Schema.String,
+      kty: Schema.String,
+      use: Schema.String,
+      x: Schema.String,
+    })
+  ),
+});
+
+const makeTestPrivateJwk = Effect.promise(
+  // Web Crypto owns the Promise at this test boundary.
+  // oxlint-disable-next-line typescript/promise-function-async
+  () => crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"])
+).pipe(
+  Effect.flatMap((keyPair) => {
+    if (!("privateKey" in keyPair)) {
+      return Effect.die("Ed25519 key generation did not return a pair");
+    }
+    return Effect.promise(
+      // Web Crypto owns the Promise at this test boundary.
+      // oxlint-disable-next-line typescript/promise-function-async
+      () => crypto.subtle.exportKey("jwk", keyPair.privateKey)
+    );
+  }),
+  Effect.map(JSON.stringify)
+);
+
 it.effect(
   "serves the catalogue as Markdown by default and HTML on request",
   () =>
@@ -286,6 +368,175 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
         "/api/search",
       ]);
     })
+  )
+);
+
+it.effect(
+  "serves real A2A discovery and answers through search plus read",
+  () =>
+    withHandler((handler) =>
+      Effect.gen(function* testA2a() {
+        const canonicalCard = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/.well-known/agent-card.json")
+          )
+        );
+        const legacyCard = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/.well-known/agent.json")
+          )
+        );
+        const canonicalBody = yield* readJson(canonicalCard);
+        const legacyBody = yield* readJson(legacyCard);
+        const card = yield* Schema.decodeUnknownEffect(A2aCard)(canonicalBody);
+
+        expect(canonicalCard.headers.get("content-type")).toContain(
+          "application/a2a+json"
+        );
+        expect(canonicalBody).toEqual(a2aAgentCard("https://ratstack.sh"));
+        expect(legacyBody).toEqual(canonicalBody);
+        expect(card.supportedInterfaces).toEqual([
+          {
+            protocolBinding: "JSONRPC",
+            protocolVersion: "1.0",
+            url: "https://ratstack.sh/a2a",
+          },
+        ]);
+        expect(card.skills.map((skill) => skill.id)).toEqual([
+          "answer-rat-stack-question",
+        ]);
+
+        const response = yield* postJson(handler, "/a2a", {
+          id: "question-1",
+          jsonrpc: "2.0",
+          method: "message/send",
+          params: {
+            message: {
+              kind: "message",
+              messageId: "message-1",
+              parts: [{ kind: "text", text: "How do I add a capability?" }],
+              role: "user",
+            },
+          },
+        });
+        const answered = yield* Schema.decodeUnknownEffect(A2aResponse)(
+          yield* readJson(response)
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain(
+          "application/a2a+json"
+        );
+        expect(answered.id).toBe("question-1");
+        expect(answered.result.parts[0]?.text).toContain(
+          "Source-grounded rat-stack matches"
+        );
+        expect(answered.result.parts[0]?.text).toContain(
+          "Resource: ratstack://"
+        );
+        expect(answered.result.parts[0]?.text).toContain("Source:");
+      })
+    )
+);
+
+it.effect("serves the ARD manifest and honest anonymous auth.md", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testArdAndAuth() {
+      const ard = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/.well-known/ai-catalog.json")
+        )
+      );
+      const auth = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/auth.md"))
+      );
+      const manifest = yield* Schema.decodeUnknownEffect(ArdManifest)(
+        yield* readJson(ard)
+      );
+      const authBody = yield* Effect.promise(auth.text.bind(auth));
+
+      expect(ard.status).toBe(200);
+      expect(ard.headers.get("content-type")).toContain("application/json");
+      expect(ard.headers.get("access-control-allow-origin")).toBe("*");
+      expect(manifest).toEqual(ardManifest("https://ratstack.sh"));
+      expect(manifest.entries).toHaveLength(2);
+      expect(
+        manifest.entries.every((entry) =>
+          entry.identifier.startsWith("urn:air:ratstack.sh:")
+        )
+      ).toBe(true);
+
+      expect(auth.status).toBe(200);
+      expect(auth.headers.get("content-type")).toContain("text/markdown");
+      expect(authBody).toBe(authMarkdown);
+      expect(authBody.split("\n", 1)[0]?.toLowerCase()).toContain("auth.md");
+      expect(authBody).toContain("There is no registration endpoint");
+      expect(authBody).toContain("not an OAuth authorization server");
+    })
+  )
+);
+
+it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testWebBotAuthFlag() {
+      const disabled = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request(
+            "http://localhost/.well-known/http-message-signatures-directory"
+          )
+        )
+      );
+      expect(disabled.status).toBe(404);
+    })
+  ).pipe(
+    Effect.andThen(
+      Effect.gen(function* testEnabledWebBotAuth() {
+        const privateJwk = yield* makeTestPrivateJwk;
+        return yield* Effect.acquireUseRelease(
+          Effect.sync(() =>
+            HttpRouter.toWebHandler(
+              makeRoutes({
+                webBotAuth: { enabled: true, privateJwk },
+              }).pipe(Layer.provide(TestSandbox)),
+              { disableLogger: true }
+            )
+          ),
+          ({ handler }) => {
+            const webHandler: WebHandler = handler;
+            return Effect.gen(function* testPublishedKey() {
+              const response = yield* Effect.promise(
+                webHandler.bind(
+                  undefined,
+                  new Request(
+                    "http://localhost/.well-known/http-message-signatures-directory"
+                  )
+                )
+              );
+              const directory = yield* Schema.decodeUnknownEffect(
+                WebBotKeyDirectory
+              )(yield* readJson(response));
+              const [key] = directory.keys;
+
+              expect(response.status).toBe(200);
+              expect(key).toMatchObject({
+                alg: "EdDSA",
+                crv: "Ed25519",
+                kid: "ratstack-webbot-1",
+                kty: "OKP",
+                use: "sig",
+              });
+              expect(key?.x.length).toBeGreaterThan(10);
+              expect(JSON.stringify(directory)).not.toContain('"d"');
+            });
+          },
+          ({ dispose }) => Effect.promise(dispose)
+        );
+      })
+    )
   )
 );
 

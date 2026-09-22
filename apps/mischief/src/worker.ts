@@ -1,9 +1,12 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { routes } from "./app.js";
+import { makeRoutes } from "./app.js";
 import { layerWorkerLoader } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
 
@@ -20,11 +23,24 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
   },
   Effect.gen(function* makeMischief() {
     yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
+    const webBotAuthEnabled = yield* Config.Boolean(
+      "WEB_BOT_AUTH_ENABLED"
+    ).pipe(Config.withDefault(false));
+    const webBotAuthPrivateJwk = yield* Config.option(
+      Config.Redacted("WEB_BOT_AUTH_PRIVATE_JWK")
+    );
     const environment = yield* Cloudflare.WorkerEnvironment;
     // This is the native runtime binding declared by WorkerLoader above.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const loader = environment.CODE_SANDBOX as WorkerLoaderBinding;
-    const workerRoutes = routes.pipe(
+    const workerRoutes = makeRoutes({
+      webBotAuth: {
+        enabled: webBotAuthEnabled,
+        ...(Option.isSome(webBotAuthPrivateJwk)
+          ? { privateJwk: Redacted.value(webBotAuthPrivateJwk.value) }
+          : {}),
+      },
+    }).pipe(
       Layer.provide(
         layerWorkerLoader(loader, {
           compatibilityDate: "2026-05-28",
