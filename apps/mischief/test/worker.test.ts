@@ -665,6 +665,31 @@ it.effect("sets security headers on every response", () =>
       expect(htmlResponse.headers.get("cross-origin-resource-policy")).toBe(
         "same-origin"
       );
+
+      // HEAD maps onto the GET routes; a wildcard 404 used to swallow it.
+      const headHome = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/", { method: "HEAD" })
+        )
+      );
+      const headImage = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/og/home.png", { method: "HEAD" })
+        )
+      );
+      const headMissing = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/nope", { method: "HEAD" })
+        )
+      );
+      expect(headHome.status).toBe(200);
+      expect(headHome.headers.get("content-type")).toContain("text/markdown");
+      expect(headImage.status).toBe(200);
+      expect(headImage.headers.get("content-type")).toBe("image/png");
+      expect(headMissing.status).toBe(404);
     })
   )
 );

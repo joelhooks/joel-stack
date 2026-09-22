@@ -374,13 +374,20 @@ const contentRoutes = Layer.mergeAll(
     ),
     HttpRouter.add("GET", agentSkillPath(skill.name), markdown(skill.text)),
   ]),
-  HttpRouter.add(
-    "*",
-    "/*",
-    HttpServerResponse.text("Not found.\n", {
-      contentType: "text/plain; charset=utf-8",
-      status: 404,
-    })
+  // One 404 per explicit method rather than "*": the router only maps HEAD
+  // onto GET routes when nothing matched HEAD, and a wildcard would match
+  // first and turn every HEAD into a 404. Validators and CDNs HEAD first.
+  ...(
+    ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY"] as const
+  ).map((method) =>
+    HttpRouter.add(
+      method,
+      "/*",
+      HttpServerResponse.text("Not found.\n", {
+        contentType: "text/plain; charset=utf-8",
+        status: 404,
+      })
+    )
   )
 );
 
