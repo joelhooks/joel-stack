@@ -4,7 +4,7 @@ type: "step"
 kind: "task"
 interaction: "HITL"
 status: "open"
-assignee: ""
+assignee: "pi (flagg, 2026-09-21); Joel approved with \"ship v0\""
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./prototype-mischief-dev.svx", "./decide-site-capabilities.svx", "./decide-public-content-set.svx"]
 created_at: "2026-09-21"
@@ -17,3 +17,13 @@ created_at: "2026-09-21"
 Replace the placeholder R2 bucket in `apps/infra/alchemy.run.ts` with the `Mischief` Worker, `domain: "ratstack.sh"`, plus any DNS records the not-applicable step decided. Confirm with Joel, then `pnpm infra:deploy`, curl `/`, `/llms.txt`, `/mcp` (initialize), and record the URL and the Stack output. Add `pnpm mischief:smoke` that does the curls and runs the isitagentready scan API, printing the level.
 
 Resolved when `https://ratstack.sh/` answers with the agent-first page over TLS and the smoke script prints a level.
+
+## Result (2026-09-21), v0
+
+Joel: "ship v0". Deployed the committed prototype (`01d07df` plus this step's infra change) from a clean rift of `main`, stage `prod`, Alchemy profile `default`, state in `Cloudflare.state()` (already bootstrapped). Plan: 1 create (Mischief), 1 adopt (RatstackZone). Deploy: 9.1 s. Stack output `{ mischiefUrl: 'https://ratstack.sh' }`. Worker name `ratstack-mischief-prod-…`. The placeholder R2 bucket is gone; `alchemy dev` still skips the zone.
+
+Verified live over TLS: `/` 200 `text/markdown`; `Accept: text/html` gets the shell with `<title>`, `og:image`, `<pre>`; `/llms.txt` 200; `/robots.txt` 200; `/nope` 404; `www.ratstack.sh` 301 to the apex. MCP on `2026-07-28`: `server/discover` returns the server card with `supportedVersions: ["2026-07-28"]`, `resources/list` shows `ratstack://repo/AGENTS.md`. A pre-2026 `initialize` without the version header gets 400 "MCP-Protocol-Version header is required", which is the honest answer until the legacy-sessions decision.
+
+Second deploy in the same session: `/og.png` was 404 because the prototype never wired `apps/mischief/public`; added `assets: { directory: "../mischief/public" }` (cwd-relative to `apps/infra`, the Alchemy convention), 3 assets uploaded, all three images 200.
+
+Still open on this step: `pnpm mischief:smoke` (the curls plus the isitagentready scan printing the level). The tools, catalogue, skills, and well-known documents are v0.1, in [build-mischief-tools](./build-mischief-tools.svx).

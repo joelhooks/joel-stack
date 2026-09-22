@@ -72,7 +72,11 @@ export const routes = Layer.mergeAll(
 export default class Mischief extends Cloudflare.Worker<Mischief>()(
   "Mischief",
   {
+    // Relative to the Alchemy cwd (apps/infra): og.png and the favicons.
+    // The asset layer answers matching paths before the Worker runs.
+    assets: { directory: "../mischief/public" },
     dev: { port: 1337 },
+    domain: { name: "ratstack.sh", redirects: ["www.ratstack.sh"] },
     main: import.meta.url,
   },
   Effect.gen(function* makeMischief() {
