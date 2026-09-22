@@ -46,6 +46,10 @@ After Karpathy's LLM Wiki gist: the site is a compiled, cross-referenced wiki ov
 - **Provenance and backlinks.** Each HTML page ends with `Last changed <date> in <commit>`, a GitHub source link, and `Linked from: ...` listing the in-site pages that reference it. `ChildProcessSpawner` from `effect/unstable/process` runs `git log -1` per source concurrently.
 - **`/log.md`.** A generated change log, newest first, of every commit that touched a served file, linking each entry to its commit. It sits beside `pins.md` as a second generated law resource.
 
+- **Entities.** The stack pieces (Effect, XState, TypeScript 7, Oxlint, Oxfmt, Vitest, lefthook, pnpm, Turborepo, Alchemy, Cloudflare Workers, MCP, OpenAPI) are wiki entities: `linkStackEntities` links the first plain-text mention on each page to the tool's home, skipping headings, code, and existing links. Longer names win (`Effect diagnostics` before `Effect`). All URLs answered 200 on 2026-09-22.
+
+Cache lesson from the same day: the edge cache key is `staticContentVersion`, and it used to digest only inputs and Worker source. A compiler-only deploy (the entity plugin) kept the old key and Cloudflare served the previous HTML with `x-ratstack-cache: HIT`. The digest now includes every rendered document, so any change to the output changes the key.
+
 These additions live only in the HTML representation. The Markdown representation stays the exact checked-in source so digests and agent reads do not change.
 
 ## Compatibility rules
