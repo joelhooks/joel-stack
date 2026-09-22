@@ -293,11 +293,19 @@ const skippedByEntityLinker = new Set([
   "h5",
   "h6",
   "pre",
+  "figure",
 ]);
 
 const linkStackEntities: Plugin = () => {
   const visit = (node: unknown, linked: Set<string>): void => {
     if (typeof node !== "object" || node === null) {
+      return;
+    }
+    const nodeTagName: unknown = Reflect.get(node, "tagName");
+    if (
+      typeof nodeTagName === "string" &&
+      skippedByEntityLinker.has(nodeTagName)
+    ) {
       return;
     }
     const children: unknown = Reflect.get(node, "children");
@@ -401,7 +409,7 @@ const makeCodeHighlighter =
       language === "text" ||
       !highlighter.getLoadedLanguages().includes(language)
     ) {
-      return `<pre><code>${escapeCodeHtml(code)}</code></pre>`;
+      return `<pre><code>${escapeSvelteCodeHtml(escapeCodeHtml(code))}</code></pre>`;
     }
     return escapeSvelteCodeHtml(
       highlighter.codeToHtml(code, {
@@ -411,60 +419,66 @@ const makeCodeHighlighter =
     );
   };
 
-const makeOgElement = (page: OgPage, logoDataUrl: string) => ({
+const makeOgElement = (page: OgPage, emojiDataUrl: string) => ({
   props: {
     children: [
       {
         props: {
-          height: 286,
-          src: logoDataUrl,
-          width: 420,
-        },
-        type: "img",
-      },
-      {
-        props: {
-          children: [
-            {
-              props: {
-                children: page.title,
-                style: {
-                  fontSize: 56,
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                },
-              },
-              type: "div",
-            },
-            {
-              props: {
-                children: page.description,
-                style: {
-                  fontSize: 28,
-                  lineHeight: 1.35,
-                  marginTop: 18,
-                },
-              },
-              type: "div",
-            },
-          ],
+          children: page.title,
           style: {
-            display: "flex",
-            flex: 1,
-            flexDirection: "column",
+            fontSize: 64,
+            fontWeight: 700,
+            lineHeight: 1.1,
           },
         },
         type: "div",
       },
+      {
+        props: {
+          children: page.description,
+          style: {
+            fontSize: 30,
+            lineHeight: 1.35,
+            marginTop: 24,
+            maxWidth: 1000,
+          },
+        },
+        type: "div",
+      },
+      {
+        props: {
+          children: `ratstack.sh${page.routePath === "/" ? "" : page.routePath}`,
+          style: {
+            color: "#555555",
+            fontSize: 24,
+            lineHeight: 1.35,
+            marginTop: 20,
+          },
+        },
+        type: "div",
+      },
+      {
+        props: {
+          src: emojiDataUrl,
+          style: {
+            bottom: 64,
+            height: 96,
+            position: "absolute",
+            right: 64,
+            width: 96,
+          },
+        },
+        type: "img",
+      },
     ],
     style: {
-      alignItems: "center",
-      backgroundColor: "#FAF5E9",
-      color: "#262829",
+      backgroundColor: "#ffffff",
+      color: "#000000",
       display: "flex",
-      gap: 72,
+      flexDirection: "column",
       height: 630,
-      padding: 72,
+      padding: 80,
+      position: "relative",
       width: 1200,
     },
   },
@@ -473,7 +487,7 @@ const makeOgElement = (page: OgPage, logoDataUrl: string) => ({
 
 const renderOgImage = (
   page: OgPage,
-  logoSvg: string,
+  emojiSvg: string,
   regularFont: Buffer,
   boldFont: Buffer
 ) =>
@@ -484,7 +498,7 @@ const renderOgImage = (
       const svg = await satori(
         makeOgElement(
           page,
-          `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`
+          `data:image/svg+xml;base64,${Buffer.from(emojiSvg).toString("base64")}`
         ),
         {
           embedFont: true,
@@ -696,7 +710,10 @@ const PackageJson = Schema.Struct({
 });
 
 const skillGroups = [
-  { names: ["learn-rat-stack"], title: "See how the pieces fit" },
+  {
+    names: ["learn-rat-stack", "learn-alchemy"],
+    title: "See how the pieces fit",
+  },
   {
     names: ["add-a-capability", "add-a-lifecycle-machine"],
     title: "Learn by building",
@@ -764,6 +781,9 @@ const program = Effect.gen(function* generateContent() {
   // The checked-in mark is inlined into every page header and served as the
   // favicon. The comment is build provenance, not something to ship.
   const logoSvg = (yield* readText("assets/ratstack-logo.svg"))
+    .replaceAll(/<!--[\s\S]*?-->\s*/gu, "")
+    .trim();
+  const emojiSvg = (yield* readText("assets/emoji/1f400.svg"))
     .replaceAll(/<!--[\s\S]*?-->\s*/gu, "")
     .trim();
   const regularFont = yield* fileSystem
@@ -1211,9 +1231,19 @@ const program = Effect.gen(function* generateContent() {
     .filter((group) => group !== "")
     .join("\n\n");
 
-  const homeMarkdownTemplate = `# 🐀 Rat Stack
+  const searchCapabilitySource = yield* readText(
+    "apps/mischief/src/capabilities/search.ts"
+  );
+  const searchCapabilityExcerpt = searchCapabilitySource
+    .split("\n")
+    .slice(6)
+    .join("\n")
+    .trim();
+  const homeMarkdownSource = `# 🐀 Rat Stack
 
 Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart a working app.
+
+<Diagram alt="One capability projected onto the command line, HTTP with OpenAPI, MCP tools, and sandbox code mode">
 
 \`\`\`text
               ┌─────────────────────────────────────┐
@@ -1233,16 +1263,31 @@ Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart 
   checked by  TypeScript 7 · Oxlint · Vitest · lefthook
   shipped by  pnpm · Turborepo · Alchemy → Cloudflare Worker
 \`\`\`
+</Diagram>
 
 What to notice: the four boxes share one handler and one set of schemas. Add a capability once and every surface picks it up.
 
 Rat-stack is the example. These pieces are the point.
 
+## The pattern in code
+
+This is the whole search capability. Every surface below calls it.
+
+\`\`\`ts
+${searchCapabilityExcerpt}
+\`\`\`
+
+What to notice: the schemas and handler live together, so the command line, HTTP, MCP, and sandbox projections cannot quietly disagree.
+
 ## Learn the stack
+
+Skills are short, agent-installable guides. \`npx skills add\` copies them into your agent's skills folder; you can also just read them here.
 
 \`npx skills add joelhooks/rat-stack\`
 
 ${groupedSkills}
+
+These pieces are pre-release (Effect 4 rc, XState 6 alpha, TypeScript 7, Alchemy beta). APIs move; \`pins.md\` has the exact versions this repo builds against.
 
 ## Source files
 
@@ -1259,6 +1304,7 @@ The server can search the public rat-stack files, read an exact file, and run a 
 - [Short agent guide](${originToken}/llms.txt)
 - [All public agent docs](${originToken}/llms-full.txt)
 `;
+  const homeMarkdownTemplate = deriveAgentMarkdown(homeMarkdownSource);
   const skillIndexMarkdown = `# Learn the stack
 
 These four skills use a working app to teach the pieces inside it.
@@ -1271,7 +1317,7 @@ ${groupedSkills}
 `;
 
   const homeBodyHtml = yield* compileMarkdownBody(
-    homeMarkdownTemplate,
+    homeMarkdownSource,
     "ratstack-home.md",
     highlighter
   );
@@ -1364,7 +1410,7 @@ ${groupedSkills}
     (page) =>
       renderOgImage(
         page,
-        logoSvg,
+        emojiSvg,
         Buffer.from(regularFont),
         Buffer.from(boldFont)
       ).pipe(

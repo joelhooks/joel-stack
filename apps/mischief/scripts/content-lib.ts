@@ -63,7 +63,8 @@ export const deriveHtmlMarkdown = (source: string): string => {
       const alt = record.alt ?? "Diagram";
       const fence = record.fence ?? "```text\n\n```";
       const body = diagramFence.exec(fence)?.groups?.body ?? fence;
-      return `<figure role="img" aria-label="${escapeHtml(alt)}"><pre><code>${escapeHtml(body)}</code></pre><figcaption>${escapeHtml(alt)}</figcaption></figure>`;
+      const encodedBody = escapeHtml(body).replaceAll("\n", "&#10;");
+      return `<figure role="img" aria-label="${escapeHtml(alt)}"><pre><code>${encodedBody}</code></pre><figcaption>${escapeHtml(alt)}</figcaption></figure>`;
     }
   );
   const withoutAgent = withDiagrams.replaceAll(agentBlock, "");
