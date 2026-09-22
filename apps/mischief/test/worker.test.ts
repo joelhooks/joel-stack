@@ -650,6 +650,21 @@ it.effect("sets security headers on every response", () =>
       expectSecurityHeaders(openapiResponse, false);
       expectSecurityHeaders(notFoundResponse, false);
       expect(notFoundResponse.status).toBe(404);
+
+      // Images are meant to be embedded on other origins (preview cards,
+      // validators, chat clients), so they relax the resource policy only.
+      const imageResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/og/home.png"))
+      );
+      expect(imageResponse.headers.get("cross-origin-resource-policy")).toBe(
+        "cross-origin"
+      );
+      expect(imageResponse.headers.get("x-content-type-options")).toBe(
+        "nosniff"
+      );
+      expect(htmlResponse.headers.get("cross-origin-resource-policy")).toBe(
+        "same-origin"
+      );
     })
   )
 );

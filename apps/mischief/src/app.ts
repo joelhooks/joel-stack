@@ -527,14 +527,21 @@ const contentSecurityPolicy =
 const securityHeadersMiddleware = HttpRouter.middleware(
   (httpEffect) =>
     httpEffect.pipe(
-      Effect.map((response) =>
-        HttpServerResponse.setHeaders(response, {
+      Effect.map((response) => {
+        const contentType = response.headers["content-type"] ?? "";
+        return HttpServerResponse.setHeaders(response, {
           ...securityHeaders,
-          ...(response.headers["content-type"]?.startsWith("text/html") === true
+          // Preview images and the favicon exist to be embedded elsewhere:
+          // link-preview cards, validators, chat clients. A same-origin
+          // resource policy makes browsers refuse them on other origins.
+          ...(contentType.startsWith("image/")
+            ? { "cross-origin-resource-policy": "cross-origin" }
+            : {}),
+          ...(contentType.startsWith("text/html")
             ? { "content-security-policy": contentSecurityPolicy }
             : {}),
-        })
-      )
+        });
+      })
     ),
   { global: true }
 );
