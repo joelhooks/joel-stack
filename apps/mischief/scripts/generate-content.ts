@@ -1139,13 +1139,20 @@ ${groupedSkills}
   const staticSourceText = yield* Effect.forEach(staticSourcePaths, readText, {
     concurrency: "unbounded",
   });
+  // The edge cache key is this version, so it must follow the rendered
+  // output, not only the inputs: a change to the compiler alone (a new rehype
+  // plugin, a shell tweak) would otherwise serve the old HTML for a year.
   const staticContentVersion = digest(
     [
       homeMarkdownTemplate,
+      homeDocumentHtml,
       skillIndexMarkdown,
+      skillIndexDocumentHtml,
       logoSvg,
       ...lawSources.map((resource) => resource.digest),
+      ...lawSources.map((resource) => resource.documentHtml),
       ...skillSources.map((skill) => skill.digest),
+      ...skillSources.map((skill) => skill.documentHtml),
       ...staticSourceText,
     ].join("\u0000")
   ).slice(0, 16);
