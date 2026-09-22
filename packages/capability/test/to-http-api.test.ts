@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { Etag, HttpPlatform } from "effect/unstable/http";
 import { HttpApiTest } from "effect/unstable/httpapi";
 
@@ -73,6 +73,24 @@ describe("toHttpApi", () => {
     expect(document.info.title).toBe("TestApi");
     expect(document.paths["/greet"]?.post?.requestBody).toBeDefined();
     expect(JSON.stringify(document)).not.toContain("ApprovalDenied");
+    expect(JSON.stringify(document)).not.toContain('"429"');
+  });
+
+  it("documents host errors on every endpoint without touching failures", () => {
+    const Throttled = Schema.String.annotate({
+      description: "Slow down",
+      httpApiStatus: 429,
+    });
+    const document = toHttpApi("HostErrors", [echo, greet], {
+      errors: [Throttled],
+    }).openApi();
+
+    for (const path of ["/echo", "/greet"]) {
+      const responses = document.paths[path]?.post?.responses ?? {};
+      expect(Object.keys(responses)).toContain("429");
+      expect(Object.keys(responses)).toContain("200");
+    }
+    expect(JSON.stringify(document.paths["/greet"])).toContain("422");
   });
 
   it.layer(TestServices)("enforces approval as a 403 HTTP failure", (test) => {

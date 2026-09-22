@@ -651,6 +651,24 @@ it.effect("sets security headers on every response", () =>
       expectSecurityHeaders(notFoundResponse, false);
       expect(notFoundResponse.status).toBe(404);
 
+      // The fail-closed rate limit is part of the public contract.
+      const openapi: unknown = yield* Effect.promise(
+        openapiResponse.json.bind(openapiResponse)
+      );
+      const executeResponses = Schema.decodeUnknownSync(
+        Schema.Struct({
+          paths: Schema.Record(
+            Schema.String,
+            Schema.Struct({
+              post: Schema.Struct({
+                responses: Schema.Record(Schema.String, Schema.Unknown),
+              }),
+            })
+          ),
+        })
+      )(openapi).paths["/api/execute"]?.post.responses;
+      expect(Object.keys(executeResponses ?? {})).toContain("429");
+
       // Images are meant to be embedded on other origins (preview cards,
       // validators, chat clients), so they relax the resource policy only.
       const imageResponse = yield* Effect.promise(

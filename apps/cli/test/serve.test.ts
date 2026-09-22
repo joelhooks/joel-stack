@@ -2,7 +2,7 @@
 // the Scalar page, and one capability call through the generated client.
 import { NodeHttpServer, NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
-import { FileInspector } from "@rat-stack/core";
+import { capabilities, FileInspector } from "@rat-stack/core";
 import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { HttpClient, HttpRouter } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
@@ -27,7 +27,10 @@ describe("serve routes", () => {
       const openapi = yield* HttpClient.get("/openapi.json");
       expect(openapi.status).toBe(200);
       const document = decodeOpenApi(yield* openapi.json);
-      expect(Object.keys(document.paths)).toEqual(["/inspectFile"]);
+      // One route per registered capability, so adding one cannot break this.
+      expect(Object.keys(document.paths)).toEqual(
+        capabilities.map((capability) => `/${capability.name}`)
+      );
 
       const docs = yield* HttpClient.get("/docs");
       expect(docs.status).toBe(200);

@@ -8,6 +8,7 @@ import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
+import * as HttpApiSchema from "effect/unstable/httpapi/HttpApiSchema";
 
 import { a2aError, handleA2aRequest } from "./a2a.js";
 import { capabilities } from "./capabilities/index.js";
@@ -226,7 +227,18 @@ const staticCaching = (cache: StaticResponseCache) =>
   );
 
 export const toolkitProjection = toToolkit(capabilities);
+// The rate limiter answers before any handler runs, as text with
+// Retry-After. Declaring it here puts the 429 in the OpenAPI document so a
+// client can see the fail-closed path without tripping it.
+const RateLimited = Schema.String.annotate({
+  description:
+    "Rate limit exceeded for this IP or for execute globally. Retry after the number of seconds in Retry-After.",
+  httpApiStatus: 429,
+  identifier: "RateLimited",
+}).pipe(HttpApiSchema.asText({ contentType: "text/plain" }));
+
 export const apiProjection = toHttpApi("ratstack.sh", capabilities, {
+  errors: [RateLimited],
   prefix: "/api",
 });
 

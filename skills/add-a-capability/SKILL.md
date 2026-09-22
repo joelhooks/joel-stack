@@ -15,7 +15,7 @@ Create `packages/core/src/<capability>.ts`.
 2. Call `defineCapability` from `@rat-stack/capability`.
 3. Give the capability a stable name and a short description.
 4. Use `Schema.Struct` for its input.
-5. Set honest flags such as `readOnly`, `idempotent`, and `needsApproval`.
+5. Set honest flags such as `readOnly`, `idempotent`, and `needsApproval`. `needsApproval: true` is not a label. It adds the `Approval` service to the handler's requirements, so every surface must provide a policy (`Approval.denyAll` is the default at the CLI root, `--yes` opts in, `Approval.allowAll` is for tests) and the capability gains an `ApprovalDenied` failure (403 over HTTP, a typed tool error over MCP and code mode).
 6. Keep the handler small. Put real work in a service or lifecycle machine.
 
 ```ts
@@ -45,9 +45,9 @@ export const capabilities = [inspectFile, doThing] as const;
 
 The order is public. This tuple feeds HTTP, MCP, the catalogue, and sandbox declarations.
 
-## 3. Add its command
+## 3. Check its command
 
-In `apps/cli/src/command.ts`, call `toCommand(doThing, options)`. Add the result to `rootCommand` with `Command.withSubcommands`.
+The CLI builds one subcommand per registered capability from the same tuple, so `doThing` already exists once step 2 is done. Only open `apps/cli/src/command.ts` when the command needs something the schema cannot say: a positional argument, a custom renderer, or an alias (`inspectFile` keeps `stats` that way). A test in `apps/cli/test/command.test.ts` fails if a registered capability is missing from the command tree.
 
 Use:
 

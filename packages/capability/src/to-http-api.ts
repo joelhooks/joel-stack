@@ -62,12 +62,10 @@ const withFailureStatus = (failure: PlainSchema): Schema.Top =>
     ? failure.annotate({ httpApiStatus: DEFAULT_FAILURE_STATUS })
     : failure;
 
-const httpFailure = (
-  capability: AnyCapability
-): Schema.Top | readonly Schema.Top[] =>
+const httpFailure = (capability: AnyCapability): readonly Schema.Top[] =>
   capability.needsApproval
     ? [withFailureStatus(capability.failure), ApprovalDenied]
-    : withFailureStatus(failureSchemaOf(capability));
+    : [withFailureStatus(failureSchemaOf(capability))];
 
 export type EndpointOf<C> = ReturnType<
   typeof HttpApiEndpoint.post<
@@ -120,6 +118,13 @@ export type ApiOf<
 > = ReturnType<typeof apiFor<Id, GroupOf<Caps>>>;
 
 export interface HttpApiProjectionOptions {
+  /**
+   * Failures the host can produce on any route before a handler runs, such
+   * as a 429 from a rate limiter. Each schema carries its own `httpApiStatus`
+   * annotation. They are documented on every endpoint; the capabilities'
+   * own failure schemas are unchanged.
+   */
+  readonly errors?: readonly Schema.Top[] | undefined;
   readonly prefix?: `/${string}` | undefined;
 }
 
@@ -145,9 +150,10 @@ export const toHttpApi = <
   capabilities: Caps,
   options?: HttpApiProjectionOptions
 ): HttpApiProjection<Id, Caps> => {
+  const hostErrors = options?.errors ?? [];
   const endpoints = capabilities.map((capability) =>
     post(capability.name, `/${capability.name}`, {
-      error: httpFailure(capability),
+      error: [...httpFailure(capability), ...hostErrors],
       payload: capability.input,
       success: capability.output,
     })
