@@ -29,3 +29,13 @@ Second deploy in the same session: `/og.png` was 404 because the prototype never
 Still open on this step: `pnpm mischief:smoke` (the curls plus the isitagentready scan printing the level). The tools, catalogue, skills, and well-known documents are v0.1, in [build-mischief-tools](./build-mischief-tools.svx).
 
 First live scan (`POST https://isitagentready.com/api/scan`, format `agent`), same day: **0/5**. Expected for v0: Level 1 needs two of `robotsTxt`, `sitemap`, `linkHeaders`, and v0 has only robots. Everything the scan lists (sitemap, Link headers, API catalog, MCP server card, agent-skills index, DNS-AID, the auth trio, A2A) is either in [build-mischief-tools](./build-mischief-tools.svx) or the two remaining decisions.
+
+## Result (2026-09-22), v0.1
+
+Joel: "push, I'm on paid already, that's totally fine." Deployed `a617aac` from the shared tree, stage `prod`: plan 1 update plus the new `Mischief/CODE_SANDBOX` WorkerLoader binding, 7.7 s, zone no-op. The account accepted the binding.
+
+Verified live: `/`, `/skills`, `/skills/add-a-capability`, `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/.well-known/agent-skills/index.json`, `/.well-known/api-catalog` (`application/linkset+json`), `/.well-known/mcp.json`, `/openapi.json`, `/og.png` all 200 with the right content types; the root carries the Link header (api-catalog, service-desc, describedby, alternate). MCP `tools/list` on `2026-07-28` returns `search`, `read`, `execute`. A live `execute` program called `search` then `read` inside a fresh Dynamic Worker and returned `ratstack://skills/add-a-capability` with the skill's head; a program calling `fetch` got "This worker is not permitted to access the internet via global functions", so `globalOutbound: null` holds in production.
+
+Live scan the same hour: **4/5, Agent-Integrated**, up from 0/5 on v0. Remaining findings are exactly the Level 5 groups and the not-applicable set: DNS-AID, OAuth discovery, OAuth protected resource, `auth.md`, A2A card, WebMCP, ARD manifest.
+
+Still open: `pnpm mischief:smoke`; the `execute` tool's argument is `code`, worth saying in the tool description since the first guess was `program`.
