@@ -5,7 +5,11 @@ import {
   skillSources,
 } from "./bundled-content.generated.js";
 
-export { homeHtml, skillIndexHtml } from "./bundled-content.generated.js";
+export {
+  homeHtml,
+  skillIndexHtml,
+  staticContentVersion,
+} from "./bundled-content.generated.js";
 
 export type ContentKind = "law" | "skill";
 
@@ -65,22 +69,22 @@ export const mcpVersionText = (origin: string) =>
 
 export const llmsText = (origin: string) => `# ratstack.sh
 
-> Effect-native TypeScript capabilities with CLI, HTTP, MCP, and sandboxed code-mode projections.
+Use this working app to learn Effect, XState, TypeScript, Alchemy, and agent interfaces together.
 
-## Entry points
+## Read this repo
 
-- [Repository map](${origin}/): concise human and agent overview
-- [Full corpus](${origin}/llms-full.txt): all public law and skill documents in one response
-- [OpenAPI](${origin}/openapi.json): generated HTTP capability contract
-- [MCP](${origin}/mcp): stateless MCP endpoint
+- [Home](${origin}/): short overview
+- [All public docs](${origin}/llms-full.txt): rules and skills in one response
+- [HTTP API](${origin}/openapi.json): routes, inputs, outputs, and errors
+- [MCP server](${origin}/mcp): tools for search, reading, and sandboxed code
 
-## MCP
+## Connect with MCP
 
-Protocol 2026-07-28 only. Legacy clients should read [this file](${origin}/llms.txt) and upgrade before connecting.
+Use protocol 2026-07-28. Older clients need to upgrade before connecting.
 
-Rate limits: 120 API or MCP requests per IP per 60 seconds; \`execute\` is additionally limited to 6 per IP and 300 total per 60 seconds. Cloudflare counts approximately per location.
+Each IP may make 120 API or MCP requests per 60 seconds. \`execute\` also allows 6 calls per IP and 300 total calls per 60 seconds. Cloudflare counts these limits separately in each location.
 
-## Law
+## Source files
 
 ${entryList(lawResources)}
 
@@ -209,7 +213,7 @@ export const a2aAgentCard = (origin: string) => ({
   defaultInputModes: ["text/plain"],
   defaultOutputModes: ["text/plain"],
   description:
-    "Answers rat-stack questions with source-grounded search and read results from the public project corpus.",
+    "Answers questions about rat-stack by searching and reading its public files.",
   name: "Rat Stack",
   skills: [
     {
@@ -266,15 +270,14 @@ export const ardManifest = (origin: string) => ({
 
 export const authMarkdown = `# ratstack.sh auth.md
 
-Ratstack's public agent surfaces are anonymous. Agents may call the MCP, A2A, and HTTP capability endpoints without credentials.
+You do not need an account or token to use ratstack.sh.
 
-## Agent access
+## Access
 
-- Audience: agents reading and querying the public rat-stack corpus.
-- Registration or provisioning: none. There is no registration endpoint.
-- Supported method: anonymous HTTPS requests.
-- Credentials: do not send any. Ratstack does not issue or accept access tokens.
-- OAuth: none. Ratstack is not an OAuth authorization server and has no protected-resource metadata.
+- Send normal HTTPS requests to the public MCP, A2A, and HTTP routes.
+- Do not send credentials. Ratstack does not issue or accept access tokens.
+- There is no signup or registration route.
+- Ratstack does not use OAuth.
 `;
 
 export interface SearchMatch {

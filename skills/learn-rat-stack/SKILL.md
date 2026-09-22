@@ -1,55 +1,59 @@
 ---
 name: learn-rat-stack
-description: Understand rat-stack before changing a clone, choosing a surface, adding behavior, or trimming the template.
+description: See how Effect, XState, TypeScript, Alchemy, and four agent interfaces fit together.
 ---
 
-# Learn rat-stack
+# Learn the stack
 
-Use this skill when you enter the repo or need to decide where a change belongs.
+Use this repo as a working map of the stack. Rat-stack is the example. The pieces are what you are here to learn.
 
-## Read first
+## The pieces
 
-1. Read `AGENTS.md`. It is repo law: pins, architecture, commands, boundaries, and stop rules.
-2. Read `VISION.md`. It explains why the scaffold exists and which outcomes matter.
-3. Read `README.md` for the current workspace and runnable example.
-4. Before Effect or XState work, read `node_modules/effect/AGENTS.md` and the pinned mirrors listed in `AGENTS.md`.
+- **Effect** defines schemas, typed errors, services, layers, commands, HTTP routes, and MCP tools.
+- **XState** owns work with real states, retries, cancellation, or resume points.
+- **TypeScript 7** checks the types. Effect diagnostics catch mistakes that normal TypeScript misses.
+- **Oxlint, Oxfmt, Vitest, and lefthook** keep the same rules in the editor, tests, and commits.
+- **pnpm and Turborepo** connect the packages and cache their checks.
+- **Alchemy** declares and deploys the Cloudflare Worker.
+- **The command line, HTTP, MCP, and sandbox** are four ways to call the same action.
 
-A product clone should replace rat-stack's product intent and project-law sections instead of stretching them.
+## Trace one action
 
-## The core rule
+Start with `inspectFile`.
 
-Define behavior once as a `Capability`:
+1. `packages/core/src/inspect-file.ts` defines the action and its schemas.
+2. `packages/core/src/file-inspector.ts` does the file work through an Effect service.
+3. `packages/core/src/inspect-machine.ts` models the work as an XState machine.
+4. `packages/capability/src` turns the action into commands, HTTP routes, MCP tools, and sandbox calls.
+5. `apps/cli/src/surfaces.ts` creates those interfaces.
+6. `apps/cli/src/cli.ts` provides the services they need.
+7. `apps/infra/alchemy.run.ts` declares the cloud resources.
 
-- Effect Schema for input, output, and declared failure
-- one Effect handler
-- read-only, destructive, idempotent, and open-world annotations
-- an approval flag
+Rat-stack calls the shared action a `Capability`. It has an input schema, an output schema, a schema for expected errors, one Effect handler, and flags that say whether it reads, writes, repeats safely, or needs approval.
 
-`packages/capability/src/capability.ts` defines that object. Domain capabilities live in `packages/core`. The `capabilities` tuple in `packages/core/src/inspect-file.ts` is the registry.
+The `capabilities` tuple in `packages/core/src/inspect-file.ts` lists every action. Add one there and each interface picks it up. Do not write a second handler for one interface.
 
-Four projections expose the same contract:
+## Read before changing a piece
 
-1. CLI: `toCommand` maps schema fields to arguments and flags.
-2. HTTP: `toHttpApi` creates `POST /<capability>` endpoints and derived OpenAPI.
-3. MCP: `toToolkit` creates one MCP tool per capability.
-4. Code mode: `toCodeMode` creates `search` and `execute`; sandbox calls still pass through capability schemas and handlers.
+1. Read `AGENTS.md` for commands, pins, boundaries, and checks.
+2. Read `VISION.md` for the reason the pieces are assembled this way.
+3. Read the package or source file you plan to change.
+4. Before Effect or XState work, read `node_modules/effect/AGENTS.md` and the pinned source listed in `AGENTS.md`.
 
-`apps/cli/src/surfaces.ts` instantiates HTTP, MCP, and code mode from the registry. `apps/cli/src/command.ts` creates CLI commands. `apps/cli/src/cli.ts` is the composition root that provides service layers.
+If this is a product repo copied from rat-stack, replace rat-stack's product notes and project rules. Keep the stack lessons that still help the product.
 
-## Choose the next skill
+## Pick the next skill
 
-- Add domain behavior: use `add-a-capability`.
-- Add finite states, retries, cancellation, or another lifecycle: use `add-a-lifecycle-machine`.
-- Remove unused surfaces from a clone: use `keep-or-cut`.
-
-Do not bypass a capability with a custom route, command, MCP handler, or sandbox function. Schemas are the contract, and generated OpenAPI, MCP schemas, catalog JSON Schema, and code-mode declarations derive from them.
+- Learn Effect schemas and shared interfaces: use `add-a-capability`.
+- Learn Effect and XState together: use `add-a-lifecycle-machine`.
+- Learn which pieces can stand alone: use `keep-or-cut`.
 
 ## Finish
 
-Run the required gate:
+Run:
 
 ```sh
 pnpm turbo run check test build
 ```
 
-Do not weaken the fence to make the gate pass.
+Fix failures. Do not weaken the checks.

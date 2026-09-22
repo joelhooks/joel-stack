@@ -1,17 +1,17 @@
 ---
 name: keep-or-cut
-description: Remove unused rat-stack surfaces from a new clone while preserving the smallest working capability-to-CLI scaffold and its fence.
+description: Learn which pieces depend on each other, then keep only the ones your project needs.
 ---
 
 # Keep or cut rat-stack
 
-Use this on day one of a clone. Delete surfaces you will not use; do not keep speculative machinery.
+Use this to learn the stack's seams. Delete interfaces your product will not use. Do not keep code because you might need it one day.
 
-Read `AGENTS.md` first. Preserve unrelated product work. Inspect imports and tests before deleting files.
+Read `AGENTS.md` first. Keep unrelated product work. Check imports and tests before deleting files.
 
-## Minimum: CLI only
+## Smallest version: command line only
 
-The smallest working slice is:
+Keep these files:
 
 - `packages/capability/src/capability.ts`
 - `packages/capability/src/to-command.ts`
@@ -19,7 +19,7 @@ The smallest working slice is:
 - all of `packages/core`
 - the CLI composition needed by the projected command
 
-`defineCapability` plus `toCommand` keeps the shipped `stats` command working. `capability.ts` does not depend on the other projections.
+`defineCapability` plus `toCommand` keeps the shipped `stats` command working. `capability.ts` does not depend on the other interfaces.
 
 For CLI only, delete:
 
@@ -51,7 +51,7 @@ Delete:
 
 Delete:
 
-- `packages/capability/src/to-http-api.ts`, `packages/capability/src/http-api.ts`, and the projection test
+- `packages/capability/src/to-http-api.ts`, `packages/capability/src/http-api.ts`, and the HTTP adapter test
 - the `./http-api` export from `packages/capability/package.json`
 - `http`, `routes`, and `webServer` from `apps/cli/src/surfaces.ts`
 - the `openapi` and `serve` commands from `apps/cli/src/command.ts`
@@ -62,7 +62,7 @@ Delete:
 
 Delete:
 
-- `packages/capability/src/to-toolkit.ts`, `packages/capability/src/toolkit.ts`, and the projection test
+- `packages/capability/src/to-toolkit.ts`, `packages/capability/src/toolkit.ts`, and the MCP adapter test
 - `packages/capability/test/mcp-harness.ts`
 - `tools` and `mcpServer` from `apps/cli/src/surfaces.ts`
 - the `mcp` command from `apps/cli/src/command.ts`
@@ -83,7 +83,7 @@ Delete:
 
 Then call `FileInspector.inspect` directly from the capability handler in `packages/core/src/inspect-file.ts`.
 
-## Clean every cut
+## Clean up after each cut
 
 1. Remove stale exports from `packages/capability/src/index.ts` and any affected package barrel.
 2. Remove stale imports, layers, commands, and tests found by the compiler.
@@ -96,4 +96,4 @@ pnpm fix
 pnpm turbo run check test build
 ```
 
-Let the fence expose every dangling reference. Do not silence diagnostics or delete tests unrelated to the removed surface.
+Let the compiler and checks find every stale reference. Do not silence errors or delete unrelated tests.

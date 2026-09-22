@@ -26,11 +26,13 @@ import {
   markdownDocument,
   mcpServerCard,
   mcpVersionText,
+  publicPaths,
   robotsText,
   sitemapXml,
   skillIndex,
   skillIndexHtml,
   skills,
+  staticContentVersion,
 } from "./content.js";
 import { renderHomePage, renderSkillPage, renderSkillsPage } from "./html.js";
 import type { RateLimitName, RateLimits } from "./rate-limits.js";
@@ -64,6 +66,111 @@ const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) =>
     return mediaType === "text/html" && quality !== "q=0";
   }) === true;
 
+export interface StaticResponseCache {
+  readonly match: (request: Request) => Promise<Response | undefined>;
+  readonly put: (request: Request, response: Response) => Promise<void>;
+}
+
+const staticPaths = new Set<string>(publicPaths);
+const negotiatedHtmlPaths = new Set<string>([
+  "/",
+  "/skills",
+  ...skills.map((skill) => skill.routePath),
+]);
+const staticCacheControl =
+  "public, max-age=60, s-maxage=31536000, stale-while-revalidate=86400";
+
+const staticRepresentation = (
+  request: HttpServerRequest.HttpServerRequest,
+  path: string
+) =>
+  negotiatedHtmlPaths.has(path) && acceptsHtml(request) ? "html" : "default";
+
+const staticEtag = (path: string, representation: string) =>
+  `W/"${staticContentVersion}:${representation}:${encodeURIComponent(path)}"`;
+
+const matchesEtag = (requestValue: string | undefined, etag: string) =>
+  requestValue
+    ?.split(",")
+    .map((value) => value.trim())
+    .some((value) => value === etag || value === "*") === true;
+
+const staticHeaders = (
+  path: string,
+  etag: string,
+  cacheStatus: "HIT" | "MISS" | "REVALIDATED"
+) => ({
+  "cache-control": staticCacheControl,
+  etag,
+  ...(negotiatedHtmlPaths.has(path) ? { vary: "Accept" } : {}),
+  "x-ratstack-cache": cacheStatus,
+});
+
+const staticCacheKey = (
+  request: HttpServerRequest.HttpServerRequest,
+  representation: string
+) => {
+  const url = new URL(request.url, "https://ratstack.sh");
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("__ratstack_content", staticContentVersion);
+  url.searchParams.set("__ratstack_representation", representation);
+  return new Request(url, { method: "GET" });
+};
+
+const staticCaching = (cache: StaticResponseCache) =>
+  HttpRouter.middleware(
+    (httpEffect) =>
+      Effect.gen(function* cacheStaticResponse() {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const path = new URL(request.url, "https://ratstack.sh").pathname;
+        if (request.method !== "GET" || !staticPaths.has(path)) {
+          return yield* httpEffect;
+        }
+
+        const representation = staticRepresentation(request, path);
+        const etag = staticEtag(path, representation);
+        if (matchesEtag(request.headers["if-none-match"], etag)) {
+          return HttpServerResponse.empty({
+            headers: staticHeaders(path, etag, "REVALIDATED"),
+            status: 304,
+          });
+        }
+
+        const key = staticCacheKey(request, representation);
+        const cached = yield* Effect.tryPromise(
+          // Cloudflare's Cache API owns this Promise-returning boundary.
+          // oxlint-disable-next-line typescript/promise-function-async
+          () => cache.match(key)
+        ).pipe(Effect.orElseSucceed(() => null));
+        if (cached !== null && cached !== undefined) {
+          const headers = new Headers(cached.headers);
+          headers.set("x-ratstack-cache", "HIT");
+          return HttpServerResponse.fromWeb(
+            new Response(cached.body, {
+              headers,
+              status: cached.status,
+              statusText: cached.statusText,
+            })
+          );
+        }
+
+        const response = (yield* httpEffect).pipe(
+          HttpServerResponse.setHeaders(staticHeaders(path, etag, "MISS"))
+        );
+        if (response.status === 200) {
+          const webResponse = HttpServerResponse.toWeb(response);
+          yield* Effect.tryPromise(
+            // Cloudflare's Cache API owns this Promise-returning boundary.
+            // oxlint-disable-next-line typescript/promise-function-async
+            () => cache.put(key, webResponse)
+          ).pipe(Effect.orElseSucceed(() => null));
+        }
+        return response;
+      }),
+    { global: true }
+  );
+
 export const toolkitProjection = toToolkit(capabilities);
 export const apiProjection = toHttpApi("Mischief", capabilities, {
   prefix: "/api",
@@ -80,7 +187,7 @@ const mcpTransport = McpServer.layerHttp({
   allowedOrigins: ["https://ratstack.sh", "http://localhost:1337"],
   description: "Search, read, and execute against the rat-stack source corpus",
   instructions:
-    "Use search to find source-grounded rat-stack law and skills, read exact resources by id, and execute only when a multi-step program is more efficient.",
+    "Use search to find a file. Use read to get its exact text. Use execute only when one short program can replace several tool calls.",
   name: "sh.ratstack/rat-stack",
   path: "/mcp",
   protocols: [McpProtocol.v2026_07_28],
@@ -330,6 +437,7 @@ export interface WebBotAuthOptions {
 
 export interface MischiefRouteOptions {
   readonly rateLimits?: RateLimits;
+  readonly staticCache?: StaticResponseCache;
   readonly webBotAuth?: WebBotAuthOptions;
 }
 
@@ -374,6 +482,9 @@ export const makeRoutes = (options: MischiefRouteOptions = {}) =>
       ? Layer.empty
       : requestProtection(options.rateLimits),
     linkHeaders,
+    options.staticCache === undefined
+      ? Layer.empty
+      : staticCaching(options.staticCache),
     webBotAuthRoutes(options.webBotAuth ?? { enabled: false })
   );
 

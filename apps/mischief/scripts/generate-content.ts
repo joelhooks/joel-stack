@@ -76,38 +76,38 @@ const lawSources = await Promise.all([
   readSource(
     "AGENTS.md",
     "/AGENTS.md",
-    "Repository law",
-    "Commands, architecture constraints, boundaries, and contribution rules."
+    "AGENTS.md",
+    "What you may change, which commands to run, and which changes need approval."
   ),
   readSource(
     "VISION.md",
     "/VISION.md",
-    "Product vision",
-    "Why rat-stack exists and what a successful clone should preserve."
+    "VISION.md",
+    "What this starter is for and what a useful copy should keep."
   ),
   readSource(
     "README.md",
     "/README.md",
-    "Rat-stack README",
-    "The stack, shipped example, surfaces, and first-run instructions."
+    "README.md",
+    "What is in the repo, how the example works, and how to run it."
   ),
   readSource(
     "vendor/README.md",
     "/vendor/README.md",
-    "Vendoring policy",
-    "Rules for pinned unpublished packages and eventual removal."
+    "vendor/README.md",
+    "How to pin an unpublished package and when to remove the local copy."
   ),
   readSource(
     ".brain/resources/effect-4-reference-projects.svx",
     "/resources/effect-4-reference-projects.svx",
-    "Effect 4 reference projects",
-    "Source-grounded reference implementations for this pinned Effect release."
+    "effect-4-reference-projects.svx",
+    "Working examples for the exact Effect version used by this repo."
   ),
   readSource(
     ".brain/resources/schema-projections-and-code-mode.svx",
     "/resources/schema-projections-and-code-mode.svx",
-    "Schema projections and code mode",
-    "The architectural reasoning behind capabilities and their projections."
+    "schema-projections-and-code-mode.svx",
+    "Why one typed action powers the command line, HTTP, MCP, and sandbox."
   ),
 ]);
 
@@ -199,7 +199,7 @@ lawSources.splice(4, 0, {
   routePath: "/pins.md",
   sourcePath: "workspace package.json files",
   text: pinsText,
-  title: "Workspace pins",
+  title: "pins.md",
 });
 
 const skillDirectory = path.join(root, "skills");
@@ -257,12 +257,12 @@ const entryList = (
     .join("\n");
 
 const skillGroups = [
-  { names: ["learn-rat-stack"], title: "Learn" },
+  { names: ["learn-rat-stack"], title: "See how the pieces fit" },
   {
     names: ["add-a-capability", "add-a-lifecycle-machine"],
-    title: "Build",
+    title: "Learn by building",
   },
-  { names: ["keep-or-cut"], title: "Shape a clone" },
+  { names: ["keep-or-cut"], title: "Choose what you keep" },
 ] as const;
 
 const groupedSkills = skillGroups
@@ -279,36 +279,86 @@ const groupedSkills = skillGroups
 
 const homeMarkdownTemplate = `# ratstack.sh
 
-> A source-first TypeScript scaffold where one schema-typed capability projects to CLI, HTTP, MCP, and sandboxed code mode.
+Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart a working app.
+
+\`\`\`text
+Call it    command line · HTTP · MCP · sandbox
+Define it  Effect Schema · typed errors · one handler
+Run it     Effect services · XState lifecycles
+Check it   TypeScript 7 · Oxlint · Vitest · hooks
+Ship it    pnpm · Turborepo · Alchemy · Cloudflare
+\`\`\`
+
+Rat-stack is the example. These pieces are the point.
+
+## Learn the stack
 
 \`npx skills add joelhooks/rat-stack\`
 
-## Skills
-
 ${groupedSkills}
 
-## Law
+## Source files
 
 ${entryList(lawSources)}
 
-## MCP
+## Connect an agent
 
-Connect a modern stateless MCP client to [{{ORIGIN}}/mcp]({{ORIGIN}}/mcp). The server exposes \`search\`, \`read\`, and sandboxed \`execute\` tools, every law file as a resource, and every skill as a prompt.
+Point an MCP client at [{{ORIGIN}}/mcp]({{ORIGIN}}/mcp).
 
-- [MCP server card]({{ORIGIN}}/.well-known/mcp.json)
-- [OpenAPI]({{ORIGIN}}/openapi.json)
-- [Agent index]({{ORIGIN}}/llms.txt)
-- [Full agent corpus]({{ORIGIN}}/llms-full.txt)
+The server can search the public rat-stack files, read an exact file, and run a short program in a locked-down sandbox.
+
+- [MCP connection details]({{ORIGIN}}/.well-known/mcp.json)
+- [HTTP API docs]({{ORIGIN}}/openapi.json)
+- [Short agent guide]({{ORIGIN}}/llms.txt)
+- [All public agent docs]({{ORIGIN}}/llms-full.txt)
 `;
 
-const skillIndexMarkdown = `# Rat-stack skills
+const skillIndexMarkdown = `# Learn the stack
 
-Install all four skills:
+These four skills use a working app to teach the pieces inside it.
+
+Install them:
 
 \`npx skills add joelhooks/rat-stack\`
 
 ${groupedSkills}
 `;
+
+const staticSourcePathGroups = await Promise.all(
+  ["apps/mischief/src", "packages/capability/src"].map(
+    // This build-only boundary finds source that can change a public response.
+    // @effect-diagnostics-next-line asyncFunction:off
+    async (directory) => {
+      const relativePaths = await readdir(path.join(root, directory), {
+        recursive: true,
+      });
+      return relativePaths
+        .filter(
+          (relativePath) =>
+            relativePath.endsWith(".ts") &&
+            relativePath !== "bundled-content.generated.ts"
+        )
+        .map((relativePath) => `${directory}/${relativePath}`);
+    }
+  )
+);
+const staticSourcePaths = staticSourcePathGroups.flat().toSorted();
+// This build-only boundary reads one source file for the cache version.
+// @effect-diagnostics-next-line asyncFunction:off
+const readStaticSource = async (sourcePath: string) =>
+  await readFile(path.join(root, sourcePath), "utf-8");
+const staticSourceText = await Promise.all(
+  staticSourcePaths.map(readStaticSource)
+);
+const staticContentVersion = digest(
+  [
+    homeMarkdownTemplate,
+    skillIndexMarkdown,
+    ...lawSources.map((resource) => resource.digest),
+    ...skillSources.map((skill) => skill.digest),
+    ...staticSourceText,
+  ].join("\u0000")
+).slice(0, 16);
 
 const { html: homeHtml } = renderMarkdown(
   homeMarkdownTemplate.replaceAll("{{ORIGIN}}", "https://ratstack.sh")
@@ -321,6 +371,6 @@ const sourceLiteral = (value: unknown) =>
     "\\u0040effect-diagnostics"
   );
 
-const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeHtml = ${sourceLiteral(homeHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexHtml = ${sourceLiteral(skillIndexHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
+const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeHtml = ${sourceLiteral(homeHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexHtml = ${sourceLiteral(skillIndexHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
 
 await writeFile(output, generated, "utf-8");

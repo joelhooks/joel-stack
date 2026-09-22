@@ -1,21 +1,23 @@
 ---
 name: add-a-lifecycle-machine
-description: Add an Effect-backed XState lifecycle for finite states, retries, cancellation, or resumable work in rat-stack.
+description: Learn how XState owns a lifecycle while Effect owns its work, errors, and services.
 ---
 
 # Add a lifecycle machine
 
-Mirror `packages/core/src/inspect-machine.ts` when behavior has real modes or transitions. Do not replace a direct Effect unless the lifecycle matters.
+Use this to learn the seam between XState and Effect. Copy `packages/core/src/inspect-machine.ts` when the work has states that matter. Keep a direct Effect when it does not.
 
-Before editing Effect or XState code, read `node_modules/effect/AGENTS.md`, then inspect the pinned XState and `@xstate/effect` sources listed in `AGENTS.md`.
+Before changing Effect or XState code, read `node_modules/effect/AGENTS.md`. Then read the pinned XState and `@xstate/effect` source listed in `AGENTS.md`.
 
-## 1. Name the lifecycle
+## 1. Write the states first
 
-Write the states and terminal outcomes first. Keep domain failures in an explicit outcome union when the machine must transition on them.
+List the states and final results before writing the machine.
 
-For file inspection, the machine owns `reading`, `inspected`, and `unreadable`. The terminal outcome is either `Inspected` with stats or `Unreadable` with `FileStatsError`.
+For file inspection, the states are `reading`, `inspected`, and `unreadable`. The final result is either `Inspected` with file stats or `Unreadable` with a `FileStatsError`.
 
-## 2. Declare side-effect actors
+Use an explicit result union when a known error should move the machine into a final state.
+
+## 2. Put side effects in actors
 
 Define each side effect with `fromEffect` outside the machine:
 
@@ -26,11 +28,11 @@ const performWork = fromEffect({
 });
 ```
 
-Declared actors carry typed failures and service requirements. Only actions and actors declared through `setupEffect` contribute requirements to the Effect actor. Never return an Effect from an inline XState callback or spawn inline Effect logic.
+These actors carry typed errors and service dependencies. Declare them through `setupEffect`. Do not return an Effect from an inline XState callback.
 
-## 3. Build with `setupEffect`
+## 3. Build the machine
 
-Use `setupEffect` with the declared actors and schemas, then call `createMachine`:
+Pass the actors and schemas to `setupEffect`, then call `createMachine`:
 
 ```ts
 type ThingOutcome =
@@ -78,11 +80,11 @@ export const thingMachine = setupEffect({
 });
 ```
 
-Let XState own states and transitions. Let Effect own side effects, typed errors, services, and resource scope.
+XState owns states and moves between them. Effect owns side effects, errors, services, and cleanup.
 
-## 4. Run it as an Effect
+## 4. Run it inside Effect
 
-Start Effect-backed machines only with `createEffectActor`, never XState's `createActor`. Wait with `join` inside `Effect.scoped`:
+Start the machine with `createEffectActor`. Do not use XState's `createActor`. Wait for it with `join` inside `Effect.scoped`:
 
 ```ts
 export const runThingMachine = Effect.fn("runThingMachine")(function* (
@@ -101,17 +103,19 @@ export const runThingMachine = Effect.fn("runThingMachine")(function* (
 }, Effect.scoped);
 ```
 
-A machine-level error or early stop is a defect in this shape. The domain failure travels through a final state. `join` has an `unknown` machine error channel, so the reference uses a targeted `anyUnknownInErrorContext` diagnostic override and `Effect.orDie`.
+A missing result or machine-level error is a bug in this design. A known product error belongs in the final result. `join` has an `unknown` machine-error channel, so the example uses one narrow diagnostic override before `Effect.orDie`.
 
-Call the runner from the capability handler, as `packages/core/src/inspect-file.ts` does. Provide the actor's service layer at the composition root in `apps/cli/src/cli.ts`.
+Call the runner from the capability handler. Provide its service layer in `apps/cli/src/cli.ts`.
 
-## 5. Test both terminal paths
+## 5. Test both endings
 
-Use `@effect/vitest` with `it.layer`. Start the machine with `createEffectActor`, `join` it, then assert both the final snapshot state and output. Also test that the runner returns success and lifts the domain failure into Effect's error channel.
+Use `@effect/vitest` with `it.layer`.
 
-The `xstate-effect/no-inline-effect` rule in `scripts/oxlint-plugin-xstate-effect.ts`, wired through `oxlint.config.ts`, guards the declared-actor boundary. Do not disable it to make inline Effect logic pass.
+Start the machine with `createEffectActor` and wait with `join`. Check the final state and result for success and failure. Also test that the runner returns the success value and puts the known failure in Effect's error channel.
 
-## 6. Verify
+The `xstate-effect/no-inline-effect` rule blocks inline Effect logic. Fix the code instead of disabling the rule.
+
+## 6. Finish
 
 ```sh
 pnpm turbo run check test build

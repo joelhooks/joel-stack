@@ -1,22 +1,22 @@
 ---
 name: add-a-capability
-description: Add one schema-typed behavior to rat-stack and project it through CLI, HTTP, MCP, and code mode without duplicating handlers.
+description: Learn how one Effect action becomes a command, HTTP route, MCP tool, and sandbox call.
 ---
 
 # Add a capability
 
-Follow the existing `inspectFile` vertical slice. Do not write separate business logic for each surface.
+Build one action all the way through the stack. Copy the `inspectFile` example. Do not write separate business logic for each interface.
 
-## 1. Define the domain contract
+## 1. Define the action
 
-In `packages/core/src/<capability>.ts`:
+Create `packages/core/src/<capability>.ts`.
 
-1. Define or import the output and failure schemas. Expected failures must be typed.
+1. Define the output schema and the schema for expected errors.
 2. Call `defineCapability` from `@rat-stack/capability`.
-3. Give it a stable name and short description.
-4. Use a `Schema.Struct` input. Annotate fields with descriptions where useful.
-5. Supply output and failure schemas, truthful annotations, and `needsApproval` when required.
-6. Keep the handler thin. Call a domain service or lifecycle machine instead of putting transport logic in it.
+3. Give the capability a stable name and a short description.
+4. Use `Schema.Struct` for its input.
+5. Set honest flags such as `readOnly`, `idempotent`, and `needsApproval`.
+6. Keep the handler small. Put real work in a service or lifecycle machine.
 
 ```ts
 export const doThing = defineCapability("doThing", {
@@ -29,13 +29,13 @@ export const doThing = defineCapability("doThing", {
 });
 ```
 
-Capability schemas must be plain: decoding and encoding cannot require services. Put dependencies in the handler's Effect requirement channel.
+Schemas must encode and decode without services. Put service dependencies on the handler's Effect.
 
-If the behavior needs a service, follow `packages/core/src/file-inspector.ts`: use a `Context.Service` class, capture dependencies in `make`, and keep `static layer` beside it. Export the capability and service from `packages/core/src/index.ts`.
+If the action needs a service, copy `packages/core/src/file-inspector.ts`. Use a `Context.Service` class. Capture dependencies in `make`. Keep `static layer` beside it. Export the service and capability from `packages/core/src/index.ts`.
 
 ## 2. Register it
 
-In `packages/core/src/inspect-file.ts`, import the new capability and add it to the exported `capabilities` tuple:
+Add the capability to the `capabilities` tuple in `packages/core/src/inspect-file.ts`:
 
 ```ts
 import { doThing } from "./do-thing.js";
@@ -43,43 +43,47 @@ import { doThing } from "./do-thing.js";
 export const capabilities = [inspectFile, doThing] as const;
 ```
 
-Keep catalog order intentional. This tuple feeds the HTTP, MCP, catalog, and code-mode projections in `apps/cli/src/surfaces.ts`.
+The order is public. This tuple feeds HTTP, MCP, the catalogue, and sandbox declarations.
 
-## 3. Add the CLI projection
+## 3. Add its command
 
-In `apps/cli/src/command.ts`, create a command with `toCommand(doThing, options)` and add it to `rootCommand`'s `Command.withSubcommands` list.
+In `apps/cli/src/command.ts`, call `toCommand(doThing, options)`. Add the result to `rootCommand` with `Command.withSubcommands`.
 
-Use `name` when the public command name differs from the capability name. Use `positional` for selected input fields. Use `render` for human output; `toCommand` then adds `--json` automatically.
+Use:
 
-Do not hand-parse schema fields or call the service directly from the command.
+- `name` when the command name differs from the capability name
+- `positional` for input fields that should be arguments
+- `render` for readable output
 
-## 4. Confirm every surface
+`toCommand` adds `--json`. Do not parse the fields again or call the service directly.
 
-No extra handler is needed for the other surfaces:
+## 4. Check the other interfaces
 
-- `toHttpApi("RatStack", capabilities)` creates `POST /doThing` and includes it in OpenAPI.
-- `toToolkit(capabilities)` exposes an MCP tool named `doThing` with the same schemas and annotations.
-- `toCodeMode(capabilities)` adds it to catalog search and generated `tools.doThing(input)` declarations.
-- Every code-mode call decodes input, runs the same handler, and encodes output or declared failure.
+You do not need more handlers.
 
-Provide any new service layer once in `apps/cli/src/cli.ts`, following `FileInspector.layer` and `NodeServices.layer`. The projections preserve handler requirements.
+- HTTP adds `POST /doThing` and updates OpenAPI.
+- MCP adds a `doThing` tool with the same schemas and flags.
+- The sandbox catalogue adds `tools.doThing(input)`.
+- Sandbox calls still decode input, run the same handler, and encode the result.
 
-## 5. Test the vertical slice
+If the action needs a new service, provide its layer once in `apps/cli/src/cli.ts`.
 
-Use `@effect/vitest`. Run Effects with `it.effect` or `it.layer`; do not call `Effect.run*` or `ManagedRuntime.make` in tests.
+## 5. Test it
 
-Add focused tests:
+Use `@effect/vitest`. Run Effects with `it.effect` or `it.layer`. Do not call `Effect.run*` or `ManagedRuntime.make` in tests.
 
-1. `packages/core/test/<capability>.test.ts`: run the handler through a test layer; assert encoded output, typed failure, and annotations.
-2. `packages/capability/test/*`: change these only when projection behavior changes. Existing tests already cover CLI parsing, HTTP success/failure, MCP schemas/calls, catalog declarations/search, and sandbox execution.
-3. `apps/cli/test/cli.e2e.test.ts`: run the built command; assert the OpenAPI path, MCP tool listing, and catalog declaration include the new capability; exercise code mode when the capability adds a meaningful execution path.
+Add these tests:
 
-Use `Schema.encodeEffect` when asserting the wire shape. Use `Effect.flip` to inspect typed failures.
+1. `packages/core/test/<capability>.test.ts`: check the output, expected errors, and flags.
+2. Shared interface tests only when the code that builds those interfaces changes.
+3. `apps/cli/test/cli.e2e.test.ts`: check the command, OpenAPI route, MCP tool, and sandbox declaration. Run the sandbox path when it adds useful coverage.
 
-## 6. Verify
+Use `Schema.encodeEffect` to check the encoded result. Use `Effect.flip` to inspect expected errors.
+
+## 6. Finish
 
 ```sh
 pnpm turbo run check test build
 ```
 
-If the gate fails, fix the implementation. Do not loosen diagnostics, lint rules, hooks, or exact pins.
+Fix failures. Do not loosen the checks, hooks, or pinned versions.

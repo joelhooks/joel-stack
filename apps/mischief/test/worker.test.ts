@@ -5,6 +5,7 @@ import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
 import { makeRoutes } from "../src/app.js";
+import type { StaticResponseCache } from "../src/app.js";
 import { ReadOutput, SearchOutput } from "../src/capabilities/schemas.js";
 import {
   a2aAgentCard,
@@ -28,6 +29,41 @@ import type {
 import { TestSandbox } from "./test-sandbox.js";
 
 type WebHandler = (request: Request) => Promise<Response>;
+
+interface FakeStaticResponseCache extends StaticResponseCache {
+  readonly matchKeys: string[];
+  readonly putKeys: string[];
+}
+
+const makeFakeStaticResponseCache = (): FakeStaticResponseCache => {
+  const matchKeys: string[] = [];
+  const putKeys: string[] = [];
+  const responses = new Map<string, Response>();
+  return {
+    // This fake deliberately matches Cloudflare's Promise-returning Cache API.
+    // oxlint-disable-next-line typescript/promise-function-async
+    match(request) {
+      const key = request.url;
+      matchKeys.push(key);
+      return Promise.resolve(responses.get(key)?.clone());
+    },
+    matchKeys,
+    // This fake deliberately matches Cloudflare's Promise-returning Cache API.
+    // oxlint-disable-next-line typescript/promise-function-async
+    put(request, response) {
+      const key = request.url;
+      putKeys.push(key);
+      responses.set(key, response.clone());
+      return Promise.resolve();
+    },
+    putKeys,
+  };
+};
+
+const htmlHomeRequest = () =>
+  new Request("http://localhost/", {
+    headers: { accept: "text/html" },
+  });
 
 class FakeRateLimitBinding implements NativeRateLimitBinding {
   readonly keys: string[] = [];
@@ -131,14 +167,16 @@ const postJson = Effect.fnUntraced(function* postJsonRequest(
 
 const withHandler = <A, E, R>(
   use: (handler: WebHandler) => Effect.Effect<A, E, R>,
-  rateLimits: RateLimitBindings = fakeRateLimitBindings()
+  rateLimits: RateLimitBindings = fakeRateLimitBindings(),
+  staticCache?: StaticResponseCache
 ) =>
   Effect.acquireUseRelease(
     Effect.sync(() =>
       HttpRouter.toWebHandler(
-        makeRoutes({ rateLimits: makeRateLimits(rateLimits) }).pipe(
-          Layer.provide(TestSandbox)
-        ),
+        makeRoutes({
+          rateLimits: makeRateLimits(rateLimits),
+          ...(staticCache === undefined ? {} : { staticCache }),
+        }).pipe(Layer.provide(TestSandbox)),
         { disableLogger: true }
       )
     ),
@@ -339,14 +377,23 @@ it.effect(
         );
         expect(markdownResponse.headers.get("link")).toBe(linkHeader);
         expect(markdown).toBe(markdownDocument("https://ratstack.sh"));
+        expect(markdown).toContain(
+          "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces"
+        );
+        expect(markdown).toContain(
+          "Call it    command line · HTTP · MCP · sandbox"
+        );
         expect(markdown).toContain("npx skills add joelhooks/rat-stack");
-        expect(markdown).toContain("## Law");
-        expect(markdown).toContain("## MCP");
+        expect(markdown).toContain("## Source files");
+        expect(markdown).toContain("[AGENTS.md](/AGENTS.md)");
+        expect(markdown).toContain("[VISION.md](/VISION.md)");
+        expect(markdown).toContain("## Connect an agent");
         expect(htmlResponse.headers.get("content-type")).toContain("text/html");
         expect(html).toContain(
-          "<title>rat-stack — one capability, every surface</title>"
+          "<title>rat-stack: learn the pieces in a working app</title>"
         );
         expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
+        expect(html).toContain('<code class="language-text">Call it');
         expect(html).not.toContain("<style");
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");
@@ -355,14 +402,87 @@ it.effect(
         expect(skillsHtmlResponse.headers.get("content-type")).toContain(
           "text/html"
         );
-        expect(skillsHtml).toContain('<h1 id="rat-stack-skills">');
+        expect(skillsHtml).toContain('<h1 id="learn-the-stack">');
+        expect(skillsHtml).toContain(
+          "working app to teach the pieces inside it"
+        );
         expect(skillHtmlResponse.headers.get("content-type")).toContain(
           "text/html"
         );
         expect(skillHtml).toContain('<nav aria-label="Breadcrumb">');
-        expect(skillHtml).toContain('<h1 id="learn-rat-stack">');
+        expect(skillHtml).toContain('<h1 id="learn-the-stack">');
+        expect(skillHtml).toContain("Trace one action");
       })
     )
+);
+
+it.effect(
+  "caches each static representation and revalidates with its ETag",
+  () => {
+    const cache = makeFakeStaticResponseCache();
+    return withHandler(
+      (handler) =>
+        Effect.gen(function* testStaticCache() {
+          const firstHtml = yield* Effect.promise(
+            handler.bind(undefined, htmlHomeRequest())
+          );
+          const firstHtmlBody = yield* Effect.promise(
+            firstHtml.text.bind(firstHtml)
+          );
+          const secondHtml = yield* Effect.promise(
+            handler.bind(undefined, htmlHomeRequest())
+          );
+          const secondHtmlBody = yield* Effect.promise(
+            secondHtml.text.bind(secondHtml)
+          );
+          const markdownResponse = yield* Effect.promise(
+            handler.bind(undefined, new Request("http://localhost/"))
+          );
+          const etag = firstHtml.headers.get("etag");
+          const revalidated = yield* Effect.promise(
+            handler.bind(
+              undefined,
+              new Request("http://localhost/", {
+                headers: {
+                  accept: "text/html",
+                  "if-none-match": etag ?? "missing",
+                },
+              })
+            )
+          );
+          const mcp = yield* Effect.promise(
+            handler.bind(undefined, new Request("http://localhost/mcp"))
+          );
+
+          expect(firstHtml.headers.get("x-ratstack-cache")).toBe("MISS");
+          expect(secondHtml.headers.get("x-ratstack-cache")).toBe("HIT");
+          expect(secondHtmlBody).toBe(firstHtmlBody);
+          expect(firstHtml.headers.get("cache-control")).toContain(
+            "s-maxage=31536000"
+          );
+          expect(firstHtml.headers.get("vary")).toBe("Accept");
+          expect(etag).toMatch(/^W\//u);
+          expect(markdownResponse.headers.get("x-ratstack-cache")).toBe("MISS");
+          expect(markdownResponse.headers.get("etag")).not.toBe(etag);
+          expect(revalidated.status).toBe(304);
+          expect(revalidated.headers.get("x-ratstack-cache")).toBe(
+            "REVALIDATED"
+          );
+          expect(mcp.headers.get("x-ratstack-cache")).toBeNull();
+          expect(cache.matchKeys).toHaveLength(3);
+          expect(cache.putKeys).toHaveLength(2);
+          expect(cache.matchKeys[0]).toContain("__ratstack_content=");
+          expect(cache.matchKeys[0]).toContain(
+            "__ratstack_representation=html"
+          );
+          expect(cache.matchKeys[2]).toContain(
+            "__ratstack_representation=default"
+          );
+        }),
+      fakeRateLimitBindings(),
+      cache
+    );
+  }
 );
 
 it.effect("serves every public GET route and exact skill discovery bytes", () =>
@@ -431,9 +551,11 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
 
       const llmsBody = yield* Effect.promise(llms.text.bind(llms));
       expect(llmsBody).toBe(llmsText("https://ratstack.sh"));
-      expect(llmsBody).toContain("## MCP");
-      expect(llmsBody).toContain("Protocol 2026-07-28 only");
-      expect(llmsBody).toContain("6 per IP and 300 total per 60 seconds");
+      expect(llmsBody).toContain("## Connect with MCP");
+      expect(llmsBody).toContain("Use protocol 2026-07-28");
+      expect(llmsBody).toContain(
+        "6 calls per IP and 300 total calls per 60 seconds"
+      );
       expect(yield* Effect.promise(robots.text.bind(robots))).toBe(robotsText);
       expect(robotsText).toContain(
         "Content-Signal: ai-train=no, search=yes, ai-input=yes"
@@ -561,8 +683,8 @@ it.effect("serves the ARD manifest and honest anonymous auth.md", () =>
       expect(auth.headers.get("content-type")).toContain("text/markdown");
       expect(authBody).toBe(authMarkdown);
       expect(authBody.split("\n", 1)[0]?.toLowerCase()).toContain("auth.md");
-      expect(authBody).toContain("There is no registration endpoint");
-      expect(authBody).toContain("not an OAuth authorization server");
+      expect(authBody).toContain("There is no signup or registration route");
+      expect(authBody).toContain("does not use OAuth");
     })
   )
 );

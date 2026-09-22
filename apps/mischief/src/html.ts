@@ -43,15 +43,15 @@ const renderDocument = (
 <header>
 <a href="/">ratstack.sh</a>
 <nav aria-label="Primary navigation">
-<a href="/">catalogue</a>
+<a href="/">home</a>
 <a href="/skills">skills</a>
-<a href="/llms.txt">llms.txt</a>
-<a href="/openapi.json">openapi</a>
+<a href="/llms.txt">agent guide</a>
+<a href="/openapi.json">API docs</a>
 </nav>
 </header>
 <main>${body}</main>
 <footer>
-<p>one capability → every surface · <a href="https://github.com/joelhooks/rat-stack">source</a></p>
+<p>Learn the pieces in a working app. <a href="https://github.com/joelhooks/rat-stack">Source code</a>.</p>
 </footer>
 </body>
 </html>`;
@@ -62,9 +62,9 @@ export const renderHomePage = (origin: string, html: string) =>
     origin,
     {
       description:
-        "An Effect-first TypeScript template where one schema-typed capability projects to CLI, HTTP, MCP, and code mode.",
+        "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces in one working app.",
       path: "/",
-      title: "rat-stack — one capability, every surface",
+      title: "rat-stack: learn the pieces in a working app",
     },
     html
   );
@@ -74,9 +74,9 @@ export const renderSkillsPage = (origin: string, html: string) =>
     origin,
     {
       description:
-        "Install the rat-stack skills for learning the architecture, adding capabilities and lifecycle machines, or shaping a clone.",
+        "Four hands-on guides to Effect actions, XState lifecycles, and the seams between stack pieces.",
       path: "/skills",
-      title: "rat-stack skills — learn, build, shape",
+      title: "Learn the stack | rat-stack",
     },
     html
   );
@@ -88,7 +88,7 @@ export const renderSkillPage = (origin: string, skill: SkillPage) => {
     {
       description: skill.description,
       path: `/skills/${skill.name}`,
-      title: `${skill.name} — rat-stack skill`,
+      title: `${skill.name} | rat-stack`,
     },
     `<nav aria-label="Breadcrumb">
 <a href="/skills">skills</a> / <span>${name}</span>

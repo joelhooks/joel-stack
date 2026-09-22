@@ -12,6 +12,16 @@ import type { RateLimitBindings } from "./rate-limits.js";
 import { layerWorkerLoader } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
 
+const cloudflareStaticCache = {
+  // Cloudflare provides this global only when a request reaches the Worker.
+  // oxlint-disable-next-line typescript/promise-function-async
+  match: (request: Request) => caches.default.match(request),
+  // Cloudflare provides this global only when a request reaches the Worker.
+  // oxlint-disable-next-line typescript/promise-function-async
+  put: (request: Request, response: Response) =>
+    caches.default.put(request, response),
+};
+
 export default class Mischief extends Cloudflare.Worker<Mischief>()(
   "Mischief",
   {
@@ -52,6 +62,7 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
     });
     const workerRoutes = makeRoutes({
       rateLimits,
+      staticCache: cloudflareStaticCache,
       webBotAuth: {
         enabled: webBotAuthEnabled,
         ...(Option.isSome(webBotAuthPrivateJwk)
