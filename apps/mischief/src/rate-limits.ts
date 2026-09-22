@@ -1,16 +1,19 @@
 import { Effect } from "effect";
 
+// Cloudflare rejects non-numeric namespace ids at deploy time ("must have
+// valid namespace_id") even though Alchemy's type allows strings and its
+// local provider accepts them. Ids are account-unique; 1001-1003 are ours.
 export const rateLimitDeclarations = {
   API_PER_IP: {
-    namespaceId: "ratstack-api-per-ip-v1",
+    namespaceId: 1001,
     simple: { limit: 120, period: 60 },
   },
   EXECUTE_GLOBAL: {
-    namespaceId: "ratstack-execute-global-v1",
+    namespaceId: 1002,
     simple: { limit: 300, period: 60 },
   },
   EXECUTE_PER_IP: {
-    namespaceId: "ratstack-execute-per-ip-v1",
+    namespaceId: 1003,
     simple: { limit: 6, period: 60 },
   },
 } as const;
