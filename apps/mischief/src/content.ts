@@ -31,9 +31,10 @@ export interface ContentResource {
 export const lawResources: readonly ContentResource[] = lawSources.map(
   (source) => ({
     ...source,
+    // Generated pages (pins, log) have no file behind them; use the route.
     id: `ratstack://repo/${
-      source.routePath === "/pins.md"
-        ? "pins.md"
+      source.sourcePath.includes(" ")
+        ? source.routePath.slice(1)
         : source.sourcePath.replace(/^\.brain\//u, "")
     }`,
     kind: "law" as const,

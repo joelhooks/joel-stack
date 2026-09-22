@@ -397,6 +397,23 @@ it.effect(
         const resourceHtml = yield* Effect.promise(
           resourceHtmlResponse.text.bind(resourceHtmlResponse)
         );
+        const agentsHtmlResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/AGENTS.md", {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
+        const agentsHtml = yield* Effect.promise(
+          agentsHtmlResponse.text.bind(agentsHtmlResponse)
+        );
+        const logResponse = yield* Effect.promise(
+          handler.bind(undefined, new Request("http://localhost/log.md"))
+        );
+        const logMarkdown = yield* Effect.promise(
+          logResponse.text.bind(logResponse)
+        );
 
         expect(markdownResponse.status).toBe(200);
         expect(markdownResponse.headers.get("content-type")).toContain(
@@ -416,14 +433,18 @@ it.effect(
         expect(markdown).toContain("## Connect an agent");
         expect(htmlResponse.headers.get("content-type")).toContain("text/html");
         expect(html).toContain(
-          "<title>rat-stack: learn the pieces in a working app</title>"
+          "<title>Rat Stack: learn the pieces in a working app</title>"
         );
-        expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
+        expect(html).toContain('<h1 id="rat-stack">🐀 Rat Stack</h1>');
+        expect(html.match(/<h1\b/gu)).toHaveLength(1);
+        expect(html).not.toContain("<strong>🐀 Rat Stack</strong>");
+        expect(skillHtml).toContain("<strong>🐀 Rat Stack</strong>");
+        expect(skillHtml.match(/<h1\b/gu)).toHaveLength(1);
         expect(html).toContain('<code class="language-text">');
         expect(html).toContain("│  defineCapability");
-        expect(html).toContain('<a class="mark');
-        expect(html).toContain("<svg");
-        expect(html).not.toContain("<!-- Rat Stack mark");
+        expect(html).not.toContain("<svg");
+        expect(html).not.toContain("prefers-color-scheme");
+        expect(html).not.toContain("background");
         expect(html).toContain('href="/favicon.svg"');
         expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
         expect(html).toContain("max-width:80ch");
@@ -450,6 +471,44 @@ it.effect(
         expect(skillHtml).toContain('<h1 id="learn-the-stack">');
         expect(skillHtml).toContain("Trace one action");
         expect(skillHtml).not.toContain("description:");
+        // llmwiki cross-references: real repo paths link to GitHub, served
+        // pages and skills link inside the site, placeholders stay plain.
+        expect(skillHtml).toContain(
+          '<a href="https://github.com/joelhooks/rat-stack/blob/main/packages/core/src/inspect-file.ts"><code>packages/core/src/inspect-file.ts</code></a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="https://github.com/joelhooks/rat-stack/tree/main/packages/capability/src"><code>packages/capability/src</code></a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="/AGENTS.md"><code>AGENTS.md</code></a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="/skills/add-a-capability"><code>add-a-capability</code></a>'
+        );
+        expect(skillHtml).toContain(
+          "<code>node_modules/effect/AGENTS.md</code>"
+        );
+        expect(skillHtml).not.toContain(
+          'href="https://github.com/joelhooks/rat-stack/blob/main/node_modules'
+        );
+        expect(agentsHtml).toContain("Linked from: ");
+        expect(agentsHtml).toContain(
+          '<a href="https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md">Source on GitHub</a>'
+        );
+        expect(agentsHtml).toMatch(
+          /Last changed \d{4}-\d{2}-\d{2} in <a href="https:\/\/github\.com\/joelhooks\/rat-stack\/commit\/[0-9a-f]{40}">[0-9a-f]{7,}<\/a>/u
+        );
+        expect(agentsHtml).toContain(
+          '<a href="/skills/learn-rat-stack">learn-rat-stack</a>'
+        );
+        expect(agentsHtml).not.toContain(
+          '<a href="/AGENTS.md"><code>AGENTS.md</code></a>'
+        );
+        expect(logResponse.status).toBe(200);
+        expect(logResponse.headers.get("content-type")).toContain(
+          "text/markdown"
+        );
+        expect(logMarkdown.startsWith("# Change log\n")).toBe(true);
         expect(resourceMarkdownResponse.headers.get("content-type")).toContain(
           "text/markdown"
         );

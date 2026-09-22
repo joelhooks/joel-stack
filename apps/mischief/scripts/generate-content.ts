@@ -3,7 +3,8 @@
 import { createHash } from "node:crypto";
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
-import { Effect, FileSystem, Path, Schema } from "effect";
+import { Effect, FileSystem, Option, Path, Schema } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { compile as compileMdsvex } from "mdsvex";
 import remarkGfm from "remark-gfm";
 import type { Component } from "svelte";
@@ -12,6 +13,41 @@ import { render } from "svelte/server";
 import type { Plugin } from "unified";
 
 const originToken = "__RATSTACK_ORIGIN__";
+const repoUrl = "https://github.com/joelhooks/rat-stack";
+// Backtick spans that look like repository paths. Placeholders such as
+// `packages/core/src/<capability>.ts` fail the character class on purpose.
+const repoPathToken =
+  /^(?:\.brain|\.pi|\.cursor|\.claude|apps|packages|scripts|skills|vendor)\/[\w./-]+$|^[\w.-]+\.(?:md|ts|js|json|yml|yaml|toml|schema)$/u;
+const fencedBlock = /```[\s\S]*?```/gu;
+const inlineCode = /`(?<span>[^`\n]+)`/gu;
+const emptyTargets: ReadonlyMap<string, string> = new Map();
+
+const codeSpans = (text: string): readonly string[] => {
+  const spans = new Set<string>();
+  for (const match of text.replaceAll(fencedBlock, "").matchAll(inlineCode)) {
+    const span = match.groups?.span?.trim();
+    if (span !== undefined && span !== "") {
+      spans.add(span);
+    }
+  }
+  return [...spans];
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+// Commit subjects land inside a Svelte template, where angle brackets and
+// braces are markup. Neutralise them before mdsvex sees the text.
+const svelteSafeText = (value: string) =>
+  value
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("{", "&#123;")
+    .replaceAll("}", "&#125;");
 const svelteServerUrl = import.meta.resolve("svelte/internal/server");
 
 class ContentBuildError extends Schema.TaggedError<ContentBuildError>()(
@@ -32,6 +68,10 @@ interface SourceSpec {
   readonly routePath: `/${string}`;
   readonly sourcePath: string;
   readonly title: string;
+}
+
+interface PublicSpec extends SourceSpec {
+  readonly text: string;
 }
 
 interface DocumentProps {
@@ -109,6 +149,102 @@ const stableHeadingIds: Plugin = () => {
   return visit;
 };
 
+const isElement = (node: unknown, tagName: string) =>
+  typeof node === "object" &&
+  node !== null &&
+  Reflect.get(node, "tagName") === tagName;
+
+const rowsOf = (section: unknown) =>
+  childNodes(section).filter((row) => isElement(row, "tr"));
+
+// Each body cell learns its column header so the shell can stack a table into
+// label and value rows on narrow screens with `attr(data-label)`.
+const tableCellLabels: Plugin = () => {
+  const visit = (node: unknown): void => {
+    if (isElement(node, "table")) {
+      const headers = childNodes(node)
+        .filter((section) => isElement(section, "thead"))
+        .flatMap(rowsOf)
+        .flatMap((row) =>
+          childNodes(row)
+            .filter((cell) => isElement(cell, "th"))
+            .map(nodeText)
+        );
+      for (const body of childNodes(node).filter((section) =>
+        isElement(section, "tbody")
+      )) {
+        for (const row of rowsOf(body)) {
+          const cells = childNodes(row).filter((cell) => isElement(cell, "td"));
+          for (const [index, cell] of cells.entries()) {
+            const label = headers[index];
+            if (
+              label === undefined ||
+              typeof cell !== "object" ||
+              cell === null
+            ) {
+              continue;
+            }
+            const properties: unknown = Reflect.get(cell, "properties");
+            Reflect.set(cell, "properties", {
+              ...(typeof properties === "object" && properties !== null
+                ? properties
+                : {}),
+              dataLabel: label,
+            });
+          }
+        }
+      }
+    }
+    for (const child of childNodes(node)) {
+      visit(child);
+    }
+  };
+  return visit;
+};
+
+// Inline code spans that name a public page, a skill, or a real repository
+// path become links. Fenced blocks and existing links are left alone.
+const linkCodeSpans =
+  (targets: ReadonlyMap<string, string>): Plugin =>
+  () => {
+    const visit = (node: unknown, insideBlock: boolean): void => {
+      if (typeof node !== "object" || node === null) {
+        return;
+      }
+      const children: unknown = Reflect.get(node, "children");
+      if (!Array.isArray(children)) {
+        return;
+      }
+      const list: unknown[] = children;
+      for (const [index, child] of list.entries()) {
+        if (!insideBlock && isElement(child, "code")) {
+          const href = targets.get(nodeText(child).trim());
+          if (href !== undefined) {
+            list[index] = {
+              children: [child],
+              properties: { href },
+              tagName: "a",
+              type: "element",
+            };
+            continue;
+          }
+        }
+        visit(
+          child,
+          insideBlock || isElement(child, "pre") || isElement(child, "a")
+        );
+      }
+    };
+    return (tree: unknown) => {
+      visit(tree, false);
+    };
+  };
+
+// Markdown and Svelte-flavoured sources compile under their own name so
+// mdsvex picks the right extension; generated pages compile under the title.
+const compileName = (spec: SourceSpec) =>
+  /\.(?:md|svx)$/u.test(spec.sourcePath) ? spec.sourcePath : spec.title;
+
 const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
   function* loadCompiledComponent(source: string, sourcePath: string) {
     const compiled = yield* Effect.try({
@@ -147,7 +283,11 @@ const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
 );
 
 const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
-  function* compileMarkdownBody(source: string, sourcePath: string) {
+  function* compileMarkdownBody(
+    source: string,
+    sourcePath: string,
+    targets: ReadonlyMap<string, string> = emptyTargets
+  ) {
     const transformed: unknown = yield* Effect.tryPromise({
       catch: (cause) => buildError("mdsvex compile", sourcePath, cause),
       // mdsvex 0.12.8 declares a nested Promise even though JavaScript adopts it.
@@ -158,7 +298,11 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
           extensions: [".md", ".svx"],
           filename: sourcePath,
           highlight: false,
-          rehypePlugins: [stableHeadingIds],
+          rehypePlugins: [
+            stableHeadingIds,
+            tableCellLabels,
+            linkCodeSpans(targets),
+          ],
           remarkPlugins: [remarkGfm as Plugin],
         }).then((value): unknown => value),
     });
@@ -350,36 +494,57 @@ const program = Effect.gen(function* generateContent() {
       sourcePath
     );
 
-  const readSource = (spec: SourceSpec) =>
-    Effect.gen(function* readAndRenderSource() {
-      const text = yield* readText(spec.sourcePath);
-      const bodyHtml = yield* compileMarkdownBody(text, spec.sourcePath);
-      const documentHtml = yield* makeDocument(
-        bodyHtml,
-        {
-          breadcrumbHref: "/",
-          breadcrumbLabel: "source files",
-          breadcrumbName: spec.title,
-          description: spec.description,
-          path: spec.routePath,
-          title: `${spec.title} | rat-stack`,
-        },
-        spec.sourcePath
-      );
-      return {
-        description: spec.description,
-        digest: digest(text),
-        documentHtml,
-        routePath: spec.routePath,
-        sourcePath: spec.sourcePath,
-        text,
-        title: spec.title,
-      };
-    });
+  const lawTexts: readonly PublicSpec[] = yield* Effect.forEach(
+    lawSpecs,
+    (spec) =>
+      readText(spec.sourcePath).pipe(Effect.map((text) => ({ ...spec, text }))),
+    { concurrency: "unbounded" }
+  );
 
-  const lawSources = yield* Effect.forEach(lawSpecs, readSource, {
-    concurrency: "unbounded",
-  });
+  // The change log is the wiki's log.md: every commit that touched a served
+  // file, newest first. A shallow clone simply yields fewer entries.
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const gitLog = yield* spawner
+    .string(
+      ChildProcess.make(
+        "git",
+        [
+          "log",
+          "-n",
+          "80",
+          "--date=short",
+          "--format=%ad%x09%H%x09%h%x09%s",
+          "--",
+          ...lawSpecs.map((spec) => spec.sourcePath),
+          "skills",
+        ],
+        { cwd: root }
+      )
+    )
+    .pipe(Effect.orElseSucceed(() => ""));
+  const logEntries = gitLog
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => {
+      const [date, hash, short, ...subject] = line.split("\t");
+      return date === undefined || hash === undefined || short === undefined
+        ? []
+        : [{ date, hash, short, subject: svelteSafeText(subject.join("\t")) }];
+    });
+  const logText = [
+    "# Change log",
+    "",
+    "Newest first. Every commit that touched a file served on this site: the source files, the skills, and the two Brain resources. Built from git history at generation time, so a shallow clone lists fewer entries.",
+    "",
+    ...(logEntries.length === 0
+      ? ["No git history was available when this build ran."]
+      : logEntries.flatMap((entry) => [
+          `## [${entry.date}] ${entry.subject}`,
+          "",
+          `Commit [${entry.short}](${repoUrl}/commit/${entry.hash}).`,
+          "",
+        ])),
+  ].join("\n");
 
   const packageDirectoryGroups = yield* Effect.forEach(
     ["apps", "packages"],
@@ -456,29 +621,25 @@ const program = Effect.gen(function* generateContent() {
       "",
     ]),
   ].join("\n");
-  const pinsBodyHtml = yield* compileMarkdownBody(pinsText, "pins.md");
-  const pinsDocumentHtml = yield* makeDocument(
-    pinsBodyHtml,
+  const publicSpecs: readonly PublicSpec[] = [
+    ...lawTexts.slice(0, 4),
     {
-      breadcrumbHref: "/",
-      breadcrumbLabel: "source files",
-      breadcrumbName: "pins.md",
       description:
         "Exact dependency values declared by every workspace package.",
-      path: "/pins.md",
-      title: "pins.md | rat-stack",
+      routePath: "/pins.md",
+      sourcePath: "workspace package.json files",
+      text: pinsText,
+      title: "pins.md",
     },
-    "pins.md"
-  );
-  lawSources.splice(4, 0, {
-    description: "Exact dependency values declared by every workspace package.",
-    digest: digest(pinsText),
-    documentHtml: pinsDocumentHtml,
-    routePath: "/pins.md",
-    sourcePath: "workspace package.json files",
-    text: pinsText,
-    title: "pins.md",
-  });
+    {
+      description: "What changed in the files served here, newest first.",
+      routePath: "/log.md",
+      sourcePath: "git history",
+      text: logText,
+      title: "log.md",
+    },
+    ...lawTexts.slice(4),
+  ];
 
   const skillEntries = yield* fileSystem
     .readDirectory(path.join(root, "skills"))
@@ -486,7 +647,7 @@ const program = Effect.gen(function* generateContent() {
       Effect.mapError((cause) => buildError("read directory", "skills", cause))
     );
   const skillDirectories = yield* directoryNames("skills", skillEntries);
-  const skillSources = yield* Effect.forEach(
+  const skillTexts = yield* Effect.forEach(
     skillDirectories.toSorted(),
     (directoryName) =>
       Effect.gen(function* readSkill() {
@@ -509,28 +670,245 @@ const program = Effect.gen(function* generateContent() {
           catch: (cause) => buildError("frontmatter", sourcePath, cause),
           try: () => frontmatterValue(text, "description"),
         });
-        const bodyHtml = yield* compileMarkdownBody(text, sourcePath);
         const routePath = `/skills/${name}` as const;
+        return { description, name, routePath, sourcePath, text };
+      }),
+    { concurrency: "unbounded" }
+  );
+
+  // Cross-references. A span that names a served page or a skill links inside
+  // the site; a span that names a real repository path links to GitHub. Paths
+  // are checked on disk, so the build cannot mint a dead link.
+  const servedRoutes = new Map<string, string>();
+  const titles = new Map<string, string>();
+  for (const spec of publicSpecs) {
+    servedRoutes.set(spec.sourcePath, spec.routePath);
+    servedRoutes.set(spec.title, spec.routePath);
+    titles.set(spec.routePath, spec.title);
+  }
+  for (const skill of skillTexts) {
+    servedRoutes.set(skill.name, skill.routePath);
+    titles.set(skill.routePath, skill.name);
+  }
+
+  const resolveTarget = (
+    span: string,
+    selfRoute: string
+  ): Effect.Effect<Option.Option<string>> =>
+    Effect.gen(function* resolveSpan() {
+      const served = servedRoutes.get(span);
+      if (served === selfRoute) {
+        return Option.none();
+      }
+      if (served !== undefined) {
+        return Option.some(served);
+      }
+      if (!repoPathToken.test(span)) {
+        return Option.none();
+      }
+      const relative = span.replace(/\/$/u, "");
+      const absolute = path.join(root, relative);
+      const exists = yield* fileSystem
+        .exists(absolute)
+        .pipe(Effect.orElseSucceed(() => false));
+      if (!exists) {
+        return Option.none();
+      }
+      const info = yield* fileSystem
+        .stat(absolute)
+        .pipe(Effect.orElseSucceed(() => null));
+      const kind = info?.type === "Directory" ? "tree" : "blob";
+      return Option.some(`${repoUrl}/${kind}/main/${relative}`);
+    });
+
+  const resolveTargets = (text: string, selfRoute: string) =>
+    Effect.forEach(
+      codeSpans(text),
+      (span) =>
+        resolveTarget(span, selfRoute).pipe(
+          Effect.map((href) => ({ href, span }))
+        ),
+      { concurrency: "unbounded" }
+    ).pipe(
+      Effect.map((pairs) => {
+        const targets = new Map<string, string>();
+        for (const pair of pairs) {
+          if (Option.isSome(pair.href)) {
+            targets.set(pair.span, pair.href.value);
+          }
+        }
+        return targets;
+      })
+    );
+
+  const publicTargets = yield* Effect.forEach(
+    publicSpecs,
+    (spec) => resolveTargets(spec.text, spec.routePath),
+    { concurrency: "unbounded" }
+  );
+  const skillTargets = yield* Effect.forEach(
+    skillTexts,
+    (skill) => resolveTargets(skill.text, skill.routePath),
+    { concurrency: "unbounded" }
+  );
+
+  // Backlinks: which pages point at this one. Only in-site links count.
+  const linkedFrom = new Map<string, Set<string>>();
+  const recordLinks = (from: string, targets: ReadonlyMap<string, string>) => {
+    for (const href of targets.values()) {
+      if (!href.startsWith("/")) {
+        continue;
+      }
+      const sources = linkedFrom.get(href) ?? new Set<string>();
+      sources.add(from);
+      linkedFrom.set(href, sources);
+    }
+  };
+  for (const [index, spec] of publicSpecs.entries()) {
+    recordLinks(spec.routePath, publicTargets[index] ?? emptyTargets);
+  }
+  for (const [index, skill] of skillTexts.entries()) {
+    recordLinks(skill.routePath, skillTargets[index] ?? emptyTargets);
+  }
+  // Per-page provenance: the last commit that touched the source file.
+  const lastChange = (sourcePath: string) =>
+    spawner
+      .string(
+        ChildProcess.make(
+          "git",
+          [
+            "log",
+            "-n",
+            "1",
+            "--date=short",
+            "--format=%ad%x09%H%x09%h",
+            "--",
+            sourcePath,
+          ],
+          { cwd: root }
+        )
+      )
+      .pipe(
+        Effect.orElseSucceed(() => ""),
+        Effect.map((line) => {
+          const [date, hash, short] = line.trim().split("\t");
+          return date === undefined || hash === undefined || short === undefined
+            ? undefined
+            : { date, hash, short };
+        })
+      );
+  const lastChanges = new Map<
+    string,
+    { date: string; hash: string; short: string }
+  >();
+  const trackedPaths = [
+    ...publicSpecs.map((spec) => spec.sourcePath),
+    ...skillTexts.map((skill) => skill.sourcePath),
+  ].filter((sourcePath) => !sourcePath.includes(" "));
+  const changes = yield* Effect.forEach(
+    trackedPaths,
+    (sourcePath) =>
+      lastChange(sourcePath).pipe(
+        Effect.map((change) => ({ change, sourcePath }))
+      ),
+    { concurrency: "unbounded" }
+  );
+  for (const { change, sourcePath } of changes) {
+    if (change !== undefined) {
+      lastChanges.set(sourcePath, change);
+    }
+  }
+
+  const pageFooterHtml = (route: string, sourcePath: string) => {
+    const lines: string[] = [];
+    const change = lastChanges.get(sourcePath);
+    if (change !== undefined) {
+      lines.push(
+        `<p>Last changed ${change.date} in <a href="${repoUrl}/commit/${change.hash}">${change.short}</a>. <a href="${repoUrl}/blob/main/${sourcePath}">Source on GitHub</a>. <a href="/log.md">Change log</a>.</p>`
+      );
+    }
+    const sources = [...(linkedFrom.get(route) ?? [])].toSorted();
+    if (sources.length > 0) {
+      const links = sources
+        .map(
+          (source) =>
+            `<a href="${source}">${escapeHtml(titles.get(source) ?? source)}</a>`
+        )
+        .join(", ");
+      lines.push(`<p>Linked from: ${links}</p>`);
+    }
+    return lines.length === 0 ? "" : `<hr>${lines.join("")}`;
+  };
+
+  const lawSources = yield* Effect.forEach(
+    publicSpecs.map((spec, index) => ({
+      spec,
+      targets: publicTargets[index] ?? emptyTargets,
+    })),
+    ({ spec, targets }) =>
+      Effect.gen(function* renderPublic() {
+        const bodyHtml = yield* compileMarkdownBody(
+          spec.text,
+          compileName(spec),
+          targets
+        );
         const documentHtml = yield* makeDocument(
-          bodyHtml,
+          `${bodyHtml}${pageFooterHtml(spec.routePath, spec.sourcePath)}`,
+          {
+            breadcrumbHref: "/",
+            breadcrumbLabel: "source files",
+            breadcrumbName: spec.title,
+            description: spec.description,
+            path: spec.routePath,
+            title: `${spec.title} | rat-stack`,
+          },
+          spec.sourcePath
+        );
+        return {
+          description: spec.description,
+          digest: digest(spec.text),
+          documentHtml,
+          routePath: spec.routePath,
+          sourcePath: spec.sourcePath,
+          text: spec.text,
+          title: spec.title,
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+
+  const skillSources = yield* Effect.forEach(
+    skillTexts.map((skill, index) => ({
+      skill,
+      targets: skillTargets[index] ?? emptyTargets,
+    })),
+    ({ skill, targets }) =>
+      Effect.gen(function* renderSkill() {
+        const bodyHtml = yield* compileMarkdownBody(
+          skill.text,
+          skill.sourcePath,
+          targets
+        );
+        const documentHtml = yield* makeDocument(
+          `${bodyHtml}${pageFooterHtml(skill.routePath, skill.sourcePath)}`,
           {
             breadcrumbHref: "/skills",
             breadcrumbLabel: "skills",
-            breadcrumbName: name,
-            description,
-            path: routePath,
-            title: `${name} | rat-stack`,
+            breadcrumbName: skill.name,
+            description: skill.description,
+            path: skill.routePath,
+            title: `${skill.name} | rat-stack`,
           },
-          sourcePath
+          skill.sourcePath
         );
         return {
-          description,
-          digest: digest(text),
+          description: skill.description,
+          digest: digest(skill.text),
           documentHtml,
-          name,
-          routePath,
-          sourcePath,
-          text,
+          name: skill.name,
+          routePath: skill.routePath,
+          sourcePath: skill.sourcePath,
+          text: skill.text,
         };
       }),
     { concurrency: "unbounded" }
@@ -548,7 +926,7 @@ const program = Effect.gen(function* generateContent() {
     .filter((group) => group !== "")
     .join("\n\n");
 
-  const homeMarkdownTemplate = `# ratstack.sh
+  const homeMarkdownTemplate = `# 🐀 Rat Stack
 
 Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart a working app.
 
@@ -617,7 +995,7 @@ ${groupedSkills}
       description:
         "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces in one working app.",
       path: "/",
-      title: "rat-stack: learn the pieces in a working app",
+      title: "Rat Stack: learn the pieces in a working app",
     },
     "ratstack-home.md"
   );

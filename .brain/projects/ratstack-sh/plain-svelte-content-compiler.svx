@@ -30,11 +30,23 @@ Effect owns build I/O, typed `ContentBuildError` failures, concurrent source rea
 
 ## Document shell (2026-09-22)
 
-`apps/mischief/src/document.svelte` is a man page, not a marketing site. Monospace everywhere so box-drawing diagrams line up, an 80ch measure, `color-scheme: light dark` with the brand colours from `assets/ratstack-logo.svg` (cream `#FAF5E9`, charcoal `#262829`), and rules above and below the nav. The logo SVG is read at build time, inlined in every header, and served as `/favicon.svg`; nothing else is fetched.
+`apps/mischief/src/document.svelte` is a man page, not a marketing site. Monospace everywhere so box-drawing diagrams line up, an 80ch measure, light only (Joel rejected dark mode: no `prefers-color-scheme`, no `background`, no colour variables), default link colours, and `<hr>` rules above and below the nav. There is no logo in the header; `🐀 Rat Stack` is the single h1 on the home page and a small link back home elsewhere. `assets/ratstack-logo.svg` is still read at build time only to serve `/favicon.svg`; nothing else is fetched.
+
+Tables stack on phones. A build-time rehype plugin writes each cell's column header into `data-label`, and under 40rem the CSS hides `thead`, turns rows and cells into blocks, and prints the label before each value.
 
 Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. Quiver (Arrow) drew the logo and stays available for marks and Open Graph art, not for diagrams, because an SVG would exist only in the HTML face.
 
 Table cells reset `overflow-wrap` to `normal`; the page-level `anywhere` setting shredded words into single characters on phones.
+
+## Wiki links, backlinks, and a change log (2026-09-22)
+
+After Karpathy's LLM Wiki gist: the site is a compiled, cross-referenced wiki over the repo, not a pile of pages. `generate-content.ts` now does three things at build time.
+
+- **Cross-references.** A `rehype` plugin (`linkCodeSpans`) turns inline code spans into links when the span names a served page (`AGENTS.md`, a skill name) or a real repository path (`packages/core/src/inspect-file.ts`). Served pages link inside the site; repo paths link to GitHub `blob` or `tree` on `main`. Every path is checked on disk with Effect `FileSystem.exists`/`stat`, so the build cannot mint a dead link; placeholders like `<capability>.ts` and `node_modules/...` stay plain. Fenced blocks and existing links are skipped, and a page never links to itself.
+- **Provenance and backlinks.** Each HTML page ends with `Last changed <date> in <commit>`, a GitHub source link, and `Linked from: ...` listing the in-site pages that reference it. `ChildProcessSpawner` from `effect/unstable/process` runs `git log -1` per source concurrently.
+- **`/log.md`.** A generated change log, newest first, of every commit that touched a served file, linking each entry to its commit. It sits beside `pins.md` as a second generated law resource.
+
+These additions live only in the HTML representation. The Markdown representation stays the exact checked-in source so digests and agent reads do not change.
 
 ## Compatibility rules
 
@@ -46,7 +58,7 @@ Table cells reset `overflow-wrap` to `normal`; the page-level `anywhere` setting
 ## Evidence
 
 - `pnpm turbo run check test build --force`: 20/20 tasks passed.
-- Mischief tests: 14/14 passed, including exact source, negotiated HTML, frontmatter removal, tables, stable headings, caching, and no application scripts.
+- Mischief tests: 14/14 passed, including exact source, negotiated HTML, frontmatter removal, tables, stable headings, caching, no application scripts, GitHub and in-site code-span links, backlinks, last-changed provenance, and `/log.md`.
 - `pnpm mischief:smoke`: production remained 5/5 Agent-Native.
 - Production returned formatted HTML for both public `.svx` resources and exact source for default requests.
 - A 390px browser check reported a 390px document width and a 358px contained table.

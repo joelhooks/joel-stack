@@ -5,13 +5,13 @@
     breadcrumbLabel,
     breadcrumbName,
     description,
-    logoSvg,
     origin,
     path,
     title,
   } = $props();
 
   const canonicalUrl = `${origin}${path}`;
+  const isHome = path === "/";
 </script>
 
 <svelte:head>
@@ -28,32 +28,27 @@
 </svelte:head>
 
 <header>
-  <a class="mark" href="/" aria-label="ratstack.sh home">{@html logoSvg}</a>
-  <p class="wordmark">
-    <strong>ratstack.sh</strong><br />
-    learn the pieces in a working app
-  </p>
+  <nav aria-label="Primary navigation">
+    {#if !isHome}<a href="/"><strong>🐀 Rat Stack</strong></a> ·{/if}
+    <a href="/">home</a> ·
+    <a href="/skills">skills</a> ·
+    <a href="/llms.txt">agent guide</a> ·
+    <a href="/openapi.json">API docs</a> ·
+    <a href="https://github.com/joelhooks/rat-stack">source</a>
+  </nav>
+  <hr />
 </header>
 
-<nav aria-label="Primary navigation">
-  <a href="/">home</a>
-  <a href="/skills">skills</a>
-  <a href="/llms.txt">agent guide</a>
-  <a href="/openapi.json">API docs</a>
-  <a href="https://github.com/joelhooks/rat-stack">source</a>
-</nav>
-
 {#if breadcrumbHref && breadcrumbLabel && breadcrumbName}
-  <nav aria-label="Breadcrumb" class="breadcrumb">
-    <a href={breadcrumbHref}>{breadcrumbLabel}</a>
-    <span>/</span>
-    <span>{breadcrumbName}</span>
+  <nav aria-label="Breadcrumb">
+    <a href={breadcrumbHref}>{breadcrumbLabel}</a> / {breadcrumbName}
   </nav>
 {/if}
 
 <main>{@html bodyHtml}</main>
 
 <footer>
+  <hr />
   <p>
     Markdown by default. HTML when you ask for it.
     <a href="/llms.txt">Agents start here</a>.
@@ -61,26 +56,7 @@
 </footer>
 
 <style>
-  :global(:root) {
-    color-scheme: light dark;
-    --bg: #faf5e9;
-    --fg: #262829;
-    --link: #1a4fa3;
-    --rule: rgb(38 40 41 / 0.35);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :global(:root) {
-      --bg: #262829;
-      --fg: #faf5e9;
-      --link: #9cc4ff;
-      --rule: rgb(250 245 233 / 0.35);
-    }
-  }
-
   :global(html) {
-    background: var(--bg);
-    color: var(--fg);
     font:
       16px/1.5 ui-monospace,
       SFMono-Regular,
@@ -95,16 +71,6 @@
     margin: 0 auto;
     max-width: 80ch;
     padding: 1rem;
-  }
-
-  :global(a) {
-    color: var(--link);
-  }
-
-  :global(h1),
-  :global(h2),
-  :global(h3) {
-    line-height: 1.2;
   }
 
   :global(code) {
@@ -126,7 +92,7 @@
 
   :global(th),
   :global(td) {
-    border: 1px solid var(--rule);
+    border: 1px solid;
     overflow-wrap: normal;
     padding: 0.25rem 0.5rem;
     text-align: left;
@@ -137,53 +103,33 @@
     white-space: nowrap;
   }
 
-  :global(hr) {
-    border: 0;
-    border-top: 1px solid var(--rule);
-  }
+  @media (max-width: 40rem) {
+    :global(thead) {
+      display: none;
+    }
 
-  header {
-    align-items: center;
-    display: flex;
-    gap: 0.75rem;
-  }
+    :global(tbody),
+    :global(tr),
+    :global(td) {
+      display: block;
+    }
 
-  .mark {
-    flex: none;
-    line-height: 0;
-  }
+    :global(tr) {
+      border: 1px solid;
+      margin-bottom: 0.75rem;
+    }
 
-  .mark :global(svg) {
-    display: block;
-    height: 2.75rem;
-    width: auto;
-  }
+    :global(td) {
+      border: 0;
+    }
 
-  .wordmark {
-    line-height: 1.3;
-    margin: 0;
-  }
+    :global(td + td) {
+      border-top: 1px solid;
+    }
 
-  nav {
-    border-bottom: 1px solid var(--rule);
-    border-top: 1px solid var(--rule);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 1rem;
-    margin: 0.75rem 0 1.5rem;
-    padding: 0.25rem 0;
-  }
-
-  nav.breadcrumb {
-    border: 0;
-    gap: 0 0.5rem;
-    margin: 0 0 1rem;
-    padding: 0;
-  }
-
-  footer {
-    border-top: 1px solid var(--rule);
-    margin-top: 2rem;
-    padding-top: 0.5rem;
+    :global(td[data-label])::before {
+      content: attr(data-label) ": ";
+      font-weight: bold;
+    }
   }
 </style>
