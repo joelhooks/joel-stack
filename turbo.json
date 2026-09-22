@@ -14,11 +14,15 @@
       "outputs": []
     },
     "//#lint": {
+      "dependsOn": ["@rat-stack/mischief#generate"],
       "outputs": []
     },
     "check": {
       "dependsOn": ["typecheck", "//#lint"],
       "outputs": []
+    },
+    "@rat-stack/mischief#generate": {
+      "outputs": ["src/bundled-content.generated.ts"]
     }
   }
 }
