@@ -304,11 +304,33 @@ it.effect(
             })
           )
         );
+        const skillsHtmlResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/skills", {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
+        const skillHtmlResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/skills/learn-rat-stack", {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
         const markdown = yield* Effect.promise(
           markdownResponse.text.bind(markdownResponse)
         );
         const html = yield* Effect.promise(
           htmlResponse.text.bind(htmlResponse)
+        );
+        const skillsHtml = yield* Effect.promise(
+          skillsHtmlResponse.text.bind(skillsHtmlResponse)
+        );
+        const skillHtml = yield* Effect.promise(
+          skillHtmlResponse.text.bind(skillHtmlResponse)
         );
 
         expect(markdownResponse.status).toBe(200);
@@ -321,8 +343,24 @@ it.effect(
         expect(markdown).toContain("## Law");
         expect(markdown).toContain("## MCP");
         expect(htmlResponse.headers.get("content-type")).toContain("text/html");
-        expect(html).toContain("<pre>");
-        expect(html).toContain('property="og:image"');
+        expect(html).toContain(
+          "<title>rat-stack — one capability, every surface</title>"
+        );
+        expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
+        expect(html).not.toContain("<style");
+        expect(html).not.toContain('rel="stylesheet"');
+        expect(html).not.toContain("<img");
+        expect(html).not.toContain('property="og:image"');
+        expect(html).not.toContain("<script");
+        expect(skillsHtmlResponse.headers.get("content-type")).toContain(
+          "text/html"
+        );
+        expect(skillsHtml).toContain('<h1 id="rat-stack-skills">');
+        expect(skillHtmlResponse.headers.get("content-type")).toContain(
+          "text/html"
+        );
+        expect(skillHtml).toContain('<nav aria-label="Breadcrumb">');
+        expect(skillHtml).toContain('<h1 id="learn-rat-stack">');
       })
     )
 );

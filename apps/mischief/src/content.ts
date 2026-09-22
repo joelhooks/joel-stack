@@ -1,10 +1,18 @@
-import { lawSources, skillSources } from "./bundled-content.generated.js";
+import {
+  homeMarkdownTemplate,
+  lawSources,
+  skillIndexMarkdown,
+  skillSources,
+} from "./bundled-content.generated.js";
+
+export { homeHtml, skillIndexHtml } from "./bundled-content.generated.js";
 
 export type ContentKind = "law" | "skill";
 
 export interface ContentResource {
   readonly description: string;
   readonly digest: string;
+  readonly html: string;
   readonly id: string;
   readonly kind: ContentKind;
   readonly name: string;
@@ -49,82 +57,8 @@ const entryList = (resources: readonly ContentResource[]) =>
     )
     .join("\n");
 
-const skillGroups = [
-  {
-    names: ["learn-rat-stack"],
-    title: "Learn",
-  },
-  {
-    names: ["add-a-capability", "add-a-lifecycle-machine"],
-    title: "Build",
-  },
-  {
-    names: ["keep-or-cut"],
-    title: "Shape a clone",
-  },
-] as const;
-
-const groupedSkills = () =>
-  skillGroups
-    .map((group) => {
-      const members = skills.filter((skill) =>
-        group.names.some((name) => name === skill.name)
-      );
-      return members.length === 0
-        ? ""
-        : `### ${group.title}\n\n${entryList(members)}`;
-    })
-    .filter((group) => group !== "")
-    .join("\n\n");
-
-export const markdownDocument = (origin: string) => `# ratstack.sh
-
-> A source-first TypeScript scaffold where one schema-typed capability projects to CLI, HTTP, MCP, and sandboxed code mode.
-
-\`npx skills add joelhooks/rat-stack\`
-
-## Skills
-
-${groupedSkills()}
-
-## Law
-
-${entryList(lawResources)}
-
-## MCP
-
-Connect a modern stateless MCP client to [${origin}/mcp](${origin}/mcp). The server exposes \`search\`, \`read\`, and sandboxed \`execute\` tools, every law file as a resource, and every skill as a prompt.
-
-- [MCP server card](${origin}/.well-known/mcp.json)
-- [OpenAPI](${origin}/openapi.json)
-- [Agent index](${origin}/llms.txt)
-- [Full agent corpus](${origin}/llms-full.txt)
-`;
-
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-
-export const htmlDocument = (origin: string) => `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ratstack.sh</title>
-<meta name="description" content="Effect-native capabilities projected to CLI, HTTP, MCP, and sandboxed code mode.">
-<meta property="og:title" content="ratstack.sh">
-<meta property="og:description" content="A source-first TypeScript capability stack.">
-<meta property="og:type" content="website">
-<meta property="og:url" content="${origin}/">
-<meta property="og:image" content="${origin}/og.png">
-<style>
-:root{color-scheme:dark}body{margin:0;background:#10110f;color:#e9eddc;font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}main{max-width:76ch;margin:auto;padding:3rem 1.25rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#bbdb78}
-</style>
-</head>
-<body><main><pre>${escapeHtml(markdownDocument(origin))}</pre></main></body>
-</html>`;
+export const markdownDocument = (origin: string) =>
+  homeMarkdownTemplate.replaceAll("{{ORIGIN}}", origin);
 
 export const mcpVersionText = (origin: string) =>
   `ratstack.sh MCP supports protocol 2026-07-28 only.\nSee ${origin}/llms.txt for connection details.\n`;
@@ -164,14 +98,7 @@ export const llmsFullText = (origin: string) =>
     ),
   ].join("\n");
 
-export const skillIndex = () => `# Rat-stack skills
-
-Install all four skills:
-
-\`npx skills add joelhooks/rat-stack\`
-
-${groupedSkills()}
-`;
+export const skillIndex = () => skillIndexMarkdown;
 
 export const robotsText = `User-agent: *
 Allow: /

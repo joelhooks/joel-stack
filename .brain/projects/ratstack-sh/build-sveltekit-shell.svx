@@ -1,19 +1,54 @@
 ---
-title: "Build the SvelteKit face: light mode, Dank Mono, rendered markdown, same Worker"
+title: "Build the human face: rendered markdown, same Worker"
 type: "step"
 kind: "build"
 interaction: "AFK"
-status: "open"
+status: "resolved"
 assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-22)"
+resolved_at: "2026-09-22"
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./research-sveltekit-shell.svx", "./protect-and-polish.svx", "./reach-level-five.svx"]
 created_at: "2026-09-22"
 ---
 
-# Build the SvelteKit face: light mode, Dank Mono, rendered markdown, same Worker
+# Build the human face: rendered markdown, same Worker
 
 ## Step
 
 Apply the [research asset](./research-sveltekit-shell-asset.svx): turn `apps/mischief` into the SvelteKit app that hosts the Effect router, with the agent surfaces byte-for-byte unchanged (the existing route and MCP tests keep passing), and the `text/html` face rendered from the same generated content: home page is the catalogue, `/skills/<name>` pages, light theme, Dank Mono self-hosted, prose styles for rendered markdown, the OG tags. Dependencies pinned exactly, `minimumReleaseAgeExclude` entries where prerelease, the fence extended to `.svelte` per the asset. `alchemy dev` serves both faces locally. Joel signs off on the dependency additions and the first deploy that ships the font files.
 
 Resolved when the gate is green, `curl -H 'Accept: text/html' http://localhost:1337/` returns a SvelteKit-rendered page with the catalogue as real markup, and every existing agent test passes unchanged.
+
+## Result
+
+Resolved on 2026-09-22 with a plain HTML shell on the existing Effect Worker. The SvelteKit implementation was built and passed locally, then deliberately removed after production exposed more adapter cost than product value.
+
+### What shipped
+
+- `apps/mischief/src/html.ts` renders complete static HTML documents for `/`, `/skills`, and known `/skills/<name>` pages.
+- `apps/mischief/src/app.ts` negotiates those documents only when `Accept` permits `text/html`; default and agent requests still receive the exact generated Markdown.
+- The HTML uses browser-default semantic elements. There is no CSS, font, logo, favicon, OG image, image metadata, or Worker asset binding.
+- The generated Markdown renderer still runs at build time against checked-in source. The Worker performs no repository reads and ships no application JavaScript.
+- MCP, HTTP, OpenAPI, rate limits, Dynamic Worker execution, discovery documents, DNS-AID, DNSSEC, and auth behavior remain on the original Effect route graph.
+
+### Why SvelteKit was removed
+
+The local SvelteKit implementation needed a TypeScript 7 config-API patch because Kit next.27 expected the removed classic TypeScript compiler API. The first production build then failed because Alchemy beta.79's pinned adapter called Kit 3's removed `generateManifest` API. A second compatibility patch built and deployed the Website, but live MCP requests threw Cloudflare 1101 while HTML and static routes returned 200. The launch smoke caught the broken behavior immediately.
+
+Joel: "plain html 86 sveltkit wanking".
+
+The deployment was first restored to the previous Effect Worker, which returned MCP to green. SvelteKit, `@alchemy.run/frontend-frameworks`, `@rsvelte/svelte-check`, Vite app configuration, Svelte components, route loaders, generated Kit state, and both compatibility patches were then removed. The final plain HTML Worker replaced the restored version.
+
+### Verification
+
+- `pnpm turbo run check test build`: 20/20 tasks passed on a cold local Turbo cache.
+- `pnpm lint`: passed.
+- `git diff --check`: passed.
+- Mischief: 13/13 tests passed, including HTML negotiation for all three human route shapes and exact Markdown discovery bytes.
+- Fresh local `alchemy dev --stage mischief-plain-html-dev`: one Worker plus the four existing bindings became ready.
+- Final production deploy: one Worker update; zone, DNS-AID, DNSSEC, rate-limit bindings, and WorkerLoader binding were no-ops.
+- `pnpm mischief:smoke`: all five routes returned 200, MCP listed `search`, `read`, and `execute`, and isitagentready returned 5/5 Agent-Native.
+- Live HTML returned the expected titles for `/`, `/skills`, and `/skills/learn-rat-stack`; raw `/` still began with `# ratstack.sh`.
+- Live responses contain no style element, stylesheet link, image element, or image metadata. Former CSS, image, favicon, and font URLs return 404.
+- Live MCP `server/discover` advertised only `2026-07-28`.
+- Browser inspection showed the full semantic catalogue and navigation.

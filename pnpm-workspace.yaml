@@ -13,6 +13,7 @@ allowBuilds:
 # Exact prerelease pins that pnpm's release-age check would otherwise hold back.
 # One entry per version; a bump replaces its entry rather than adding one.
 minimumReleaseAgeExclude:
+  - alchemy@2.0.0-beta.79
   - xstate@6.0.0-alpha.58
   - "@xstate/effect@0.1.0-alpha.2"
   - "@distilled.cloud/aws@1.0.0-rc.12"

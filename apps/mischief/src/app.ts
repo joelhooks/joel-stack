@@ -18,7 +18,7 @@ import {
   apiCatalog,
   ardManifest,
   authMarkdown,
-  htmlDocument,
+  homeHtml,
   lawResources,
   linkHeader,
   llmsFullText,
@@ -29,14 +29,21 @@ import {
   robotsText,
   sitemapXml,
   skillIndex,
+  skillIndexHtml,
   skills,
 } from "./content.js";
+import { renderHomePage, renderSkillPage, renderSkillsPage } from "./html.js";
 import type { RateLimitName, RateLimits } from "./rate-limits.js";
 import { decodeEd25519PrivateJwk, publicKeyDirectory } from "./web-bot-auth.js";
 
 const markdown = (body: string) =>
   HttpServerResponse.text(body, {
     contentType: "text/markdown; charset=utf-8",
+  });
+
+const html = (body: string) =>
+  HttpServerResponse.text(body, {
+    contentType: "text/html; charset=utf-8",
   });
 
 const json = (body: unknown, contentType = "application/json") =>
@@ -47,6 +54,15 @@ const json = (body: unknown, contentType = "application/json") =>
 
 const originOf = (request: HttpServerRequest.HttpServerRequest) =>
   new URL(request.url, "https://ratstack.sh").origin;
+
+const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) =>
+  request.headers.accept?.split(",").some((entry) => {
+    const [mediaType, ...parameters] = entry.trim().toLowerCase().split(";");
+    const quality = parameters
+      .map((parameter) => parameter.trim())
+      .find((parameter) => parameter.startsWith("q="));
+    return mediaType === "text/html" && quality !== "q=0";
+  }) === true;
 
 export const toolkitProjection = toToolkit(capabilities);
 export const apiProjection = toHttpApi("Mischief", capabilities, {
@@ -98,10 +114,8 @@ const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/", (request) => {
     const origin = originOf(request);
     return Effect.succeed(
-      request.headers.accept?.includes("text/html") === true
-        ? HttpServerResponse.text(htmlDocument(origin), {
-            contentType: "text/html; charset=utf-8",
-          })
+      acceptsHtml(request)
+        ? html(renderHomePage(origin, homeHtml))
         : markdown(markdownDocument(origin))
     );
   }),
@@ -112,7 +126,13 @@ const contentRoutes = Layer.mergeAll(
     Effect.succeed(markdown(llmsFullText(originOf(request))))
   ),
   HttpRouter.add("GET", "/auth.md", markdown(authMarkdown)),
-  HttpRouter.add("GET", "/skills", markdown(skillIndex())),
+  HttpRouter.add("GET", "/skills", (request) =>
+    Effect.succeed(
+      acceptsHtml(request)
+        ? html(renderSkillsPage(originOf(request), skillIndexHtml))
+        : markdown(skillIndex())
+    )
+  ),
   HttpRouter.add(
     "GET",
     "/robots.txt",
@@ -164,7 +184,13 @@ const contentRoutes = Layer.mergeAll(
     HttpRouter.add("GET", resource.routePath, markdown(resource.text))
   ),
   ...skills.flatMap((skill) => [
-    HttpRouter.add("GET", skill.routePath, markdown(skill.text)),
+    HttpRouter.add("GET", skill.routePath, (request) =>
+      Effect.succeed(
+        acceptsHtml(request)
+          ? html(renderSkillPage(originOf(request), skill))
+          : markdown(skill.text)
+      )
+    ),
     HttpRouter.add("GET", agentSkillPath(skill.name), markdown(skill.text)),
   ])
 );

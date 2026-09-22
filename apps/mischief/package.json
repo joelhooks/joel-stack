@@ -19,6 +19,7 @@
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.116",
     "@types/node": "24.13.6",
+    "marked": "18.0.13",
     "typescript": "7.0.2",
     "vitest": "5.0.1"
   }

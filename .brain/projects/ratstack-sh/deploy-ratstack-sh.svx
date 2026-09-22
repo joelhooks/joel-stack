@@ -44,3 +44,18 @@ Still open: `pnpm mischief:smoke`; the `execute` tool's argument is `code`, wort
 ## Result (2026-09-22), v0.2
 
 Deployed `b7b6988` (Level 5 documents, rate limits) and `0646d74` (namespace-id fix), stage `prod`. First deploy created the four DNS-AID records and `RatstackDnssec` then failed on the Worker update (string namespace ids); the site stayed on v0.1 throughout. Second deploy updated the Worker with `API_PER_IP`, `EXECUTE_GLOBAL`, `EXECUTE_PER_IP` bindings. `pnpm mischief:smoke` exists and printed 5/5. This step is resolved; the smoke script is `apps/mischief/scripts/smoke.sh`.
+
+## Result (2026-09-22), plain HTML shell
+
+Joel authorized the human-shell deploy. The first SvelteKit Website build failed before upload because Alchemy beta.79 called Kit 3's removed `generateManifest` API. A scoped Kit compatibility patch allowed the next deploy, but the behavioral gate caught live MCP returning Cloudflare 1101 even though HTML and static routes returned 200. `pnpm mischief:smoke` failed at the MCP request, so the deployment was not accepted.
+
+The original Effect Worker was restored immediately; `pnpm mischief:smoke` returned 5/5 again. Joel then chose plain HTML over the SvelteKit adapter chain. The final deploy kept the generated catalogue and human routes as semantic HTML rendered by the Effect Worker. SvelteKit and both compatibility patches were removed. A final deploy stripped every style and image surface: no CSS, fonts, logos, favicons, OG images, image metadata, or Worker asset binding remain.
+
+Final production readback:
+
+- `/`, `/skills`, and `/skills/learn-rat-stack` return negotiated HTML with the expected titles.
+- Raw `/` remains exact Markdown and begins with `# ratstack.sh`.
+- HTML contains no style element, stylesheet link, image element, or image metadata; the former CSS, font, favicon, and image paths return 404.
+- MCP `tools/list` returns `search`, `read`, and `execute`.
+- MCP `server/discover` advertises only `2026-07-28`.
+- `pnpm mischief:smoke` returns five HTTP 200s and **5/5 Agent-Native**.
