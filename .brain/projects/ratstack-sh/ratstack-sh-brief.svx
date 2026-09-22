@@ -25,6 +25,7 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - **resource** — an MCP resource whose body is one file from this repo, never authored separately.
 - **skill** — a `skills/<name>/SKILL.md` file in this repo, served as an MCP prompt and at `/skills/<name>`, installable by any harness that reads a skills directory.
 - **projection** — as in `packages/capability`: the same capability appearing as an MCP tool, an HTTP route with OpenAPI, or a CLI command.
+- **The human face** (added 2026-09-22, Joel): a request with `Accept: text/html` gets the same content rendered as a page, not a `<pre>` shell: SvelteKit on the same Worker at the newest published kit and Svelte 5 (Joel: "latest with all the new shit": runes, async Svelte, remote functions where stable), light mode, Dank Mono, markdown rendered with real markup. Agents keep the Markdown, MCP, and code-mode surfaces untouched; the page is a projection of the same generated content.
 - **Level 5** — isitagentready.com's top level, "agent-native": Level 4 (robots, sitemap, Link headers, AI rules, Content Signals, markdown negotiation, one integration) plus two of three groups: Web Bot Auth; all four integrations (MCP server card, A2A agent card, agent skills index, API catalog); auth metadata (OAuth discovery or `auth.md`). The 22 checks are the checklist; `llms.txt` is required by this brief, not by the scanner.
 - **Stack** — the one `Alchemy.Stack` in `apps/infra/alchemy.run.ts`; every cloud resource is declared there.
 
@@ -36,6 +37,8 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - Execution authorization (Joel, 2026-09-21): research steps run AFK. The `alchemy dev` prototype and the fetch-handler tests may be built without further approval. The first deploy to `ratstack.sh` and any change under `apps/infra` are confirmed with Joel before running, per `AGENTS.md` Boundaries; after that first confirmation, redeploys inside this effort are authorized.
 - Workers do not commit and do not edit this brief; the steering session writes ledger lines at harvest.
 - Logo (Joel, 2026-09-21): `assets/ratstack-logo.svg`, a rat on a three-layer stack, cream `#FAF5E9` on charcoal `#262829` with one lime layer. The root page stays plain text for agents; browsers and unfurlers get the HTML shell with `og:image` (Joel, 2026-09-21: "be sure site has a nice og image"). The mark is also the README header and the favicon.
+
+- Font: Dank Mono woff2 (Regular, Bold, Italic) already lives in Joel's joelclaw web apps (`apps/web/app/fonts/`); the SvelteKit shell self-hosts the same files. Check the Dank Mono license text for web embedding on owned sites before the first deploy that ships them (2026-09-22).
 
 ## Decision ledger
 
@@ -57,6 +60,8 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - [Decide the not-applicable checks](./decide-not-applicable-checks.svx) — Level 5 through a real minimal A2A endpoint (group b) plus an honest anonymous `auth.md` if the scanner counts it (group c), else a Web Bot Auth key directory with a real key (group a); never fake OAuth. DNS-AID and ARD are applicable and still owed. WebMCP and commerce stay out.
 - Rate limiting (2026-09-22, Joel: "we likely want rate limiting protection"): each `execute` is one billable Dynamic Worker (`load()` counts per invocation; 1,000 free per month, then USD 0.002 per worker per day) with a 100 ms CPU cap, so the exposure is call volume, not per-call cost. Protection in [protect-and-polish](./protect-and-polish.svx) via Alchemy's `RateLimit` Worker binding.
 
+- The human face (2026-09-22, Joel: "dank mono, light mode, more rendered markdown markup style, sveltekit if possible"): feasible. Alchemy beta.79 ships `Cloudflare.Website.SvelteKit` (wrangler-free adapter, bindings on `platform.env`, HMR dev) with a runnable example; Dank Mono woff2 is on disk. Shape decided in [research-sveltekit-shell](./research-sveltekit-shell.svx), built in [build-sveltekit-shell](./build-sveltekit-shell.svx) after the rate-limit and Level 5 harvests land, since all three touch `apps/mischief`.
+
 ## Latent
 
 - Deploy from CI with a scoped Cloudflare token, so a merge to `main` redeploys the site; today deploy is manual from a machine with the profile.
@@ -67,6 +72,8 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - Legacy-protocol sunset: when the hybrid exists, the evidence to drop the Durable Object is a client matrix where every likely client defaults to `2026-07-28`.
 - Whether `apps/mischief` also gets a CLI projection (`pnpm mischief search ...`) for local use of the same capabilities.
 
+- Cloudflare CI (checked 2026-09-22, Joel asked): `github.com/cloudflare/ci` is the `@cloudflare/ci` library (0.2.0, 2026-09-14), a CI engine you deploy as your own Worker on Workflows plus a Sandbox container; not a hosted product with an API to adopt. Alchemy beta.79 has no mention of it (zero code or issue hits upstream), but it can declare almost every piece the example Worker needs: Worker with `nodejs_compat`, Containers, sqlite Durable Objects, Workflows, Queues, R2, and Artifacts namespaces and bindings. The one gap found: the example's `triggers.events` (`cf.artifacts.repo.pushed` targeting a workflow); nothing in `Workflows/Workflow.ts` declares event triggers. Workaround if ever wanted: a push webhook route that calls `CI_WORKFLOW.create()`. Not part of this effort; GitHub Actions stays the gate.
+
 ## Out of scope
 
-- A human-facing website, auth, analytics, and every commerce protocol on day one (Joel, 2026-09-21). They return only as a fresh effort if the finish line is redrawn.
+- Auth, analytics, and every commerce protocol on day one (Joel, 2026-09-21). They return only as a fresh effort if the finish line is redrawn. The human-facing page left this list on 2026-09-22 when Joel redrew the finish line (see The human face); it is a projection of the same generated content, not a separate site.

@@ -1,0 +1,19 @@
+---
+title: "Research the SvelteKit shell on the same Worker as the Effect router"
+type: "step"
+kind: "research"
+interaction: "AFK"
+status: "open"
+assignee: "pi (flagg, herdr pane w9M:p4, 2026-09-22)"
+parent: "./ratstack-sh-brief.svx"
+blockers: []
+created_at: "2026-09-22"
+---
+
+# Research the SvelteKit shell on the same Worker as the Effect router
+
+## Step
+
+Joel wants the `text/html` face of ratstack.sh to be a real page: SvelteKit, light mode, Dank Mono, markdown rendered with proper markup. Content negotiation means one origin, so the question is how SvelteKit and the Effect router share one Worker. Read, in this order: `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/frontend/sveltekit.mdx` and `examples/cloudflare-website-sveltekit` (kit v3 has no `svelte.config.js`; Alchemy injects its adapter; bindings are declared on the resource and read from `platform.env`; `alchemy dev` runs Vite with HMR); the current `apps/mischief/src/worker.ts`, `app.ts`, `content.ts`, and `sandbox-worker-loader.ts` for what must keep working (the Effect `HttpRouter` with `McpServer.layerHttp`, the `CODE_SANDBOX` WorkerLoader binding, the rate-limit bindings once the parallel step lands). Answer with evidence: (1) mounting: SvelteKit `hooks.server.ts` `handle` that sends non-HTML `Accept` and every agent path (`/mcp`, `/api/*`, `/.well-known/*`, `/llms*.txt`, `/robots.txt`, `/sitemap.xml`, `/skills*` when not HTML) to the Effect web handler built once from the router, passing `platform.env` bindings into the layers, versus SvelteKit server routes that call the Effect app per path; recommend one, with the exact code shape; (2) whether the Effect-native `Cloudflare.Worker<T>()` class can be kept for binding declaration or the bindings move to `Cloudflare.Website.SvelteKit("Mischief", { bindings })`, and what `InferEnv` gives; (3) markdown to HTML: at generate time (extend `scripts/generate-content.ts` to emit HTML with `marked` or `remark`) versus at request time in a `+page.server.ts` load; recommend one, with a note on `@html` and sanitization since the source is our own repo; (4) the page: light theme, Dank Mono self-hosted from `static/fonts` (files exist at `/Users/joel/Code/joelhooks/joelclaw/apps/web/app/fonts/DankMono-*.woff2`; copy them into the spike, note the license question), a prose stylesheet for rendered markdown, the OG tags from `make-og-image-asset.svx`, one layout with the catalogue as the home page and `/skills/<name>` pages; (5) exact new dependencies with versions to pin (`@alchemy.run/frontend-frameworks` matching alchemy beta.79, `@sveltejs/kit`, `svelte`, `vite`, the markdown library), and what the type-aware oxlint and TypeScript 7 fence needs for `.svelte` files (a `svelte-check` task, or exclusion with a reason); (6) a scratch spike under `/tmp` proving `alchemy dev` serves a SvelteKit page and a non-HTML request handled by a web handler from `hooks.server.ts`, without a Cloudflare login; record what breaks.
+
+Resolved when `research-sveltekit-shell-asset.svx` exists with the recommended mounting shape as copy-ready code, the binding answer, the markdown answer, the dependency list with versions, the fence answer, and the spike verdict.
