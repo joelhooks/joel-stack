@@ -1,0 +1,56 @@
+---
+title: "Layers as composable SaaS: what rat-stack builds next"
+type: "decision"
+status: "active"
+created_at: "2026-09-22"
+privacy: "public"
+---
+
+# Layers as composable SaaS: what rat-stack builds next
+
+Decided by Joel on 2026-09-22, in a jam between the rat-stack session and the Alchemy + Effect content research session. This note records his calls. The episode arc and its citations are owned by the content research project, not this repo.
+
+## What rat-stack is
+
+- **A reference.** rat-stack is how Joel, his team, and their agents understand what they are building. Real projects vendor it in the way they would vendor a library. It is not a toy template and not a course.
+- **The teaching substrate for a YouTube series** on Alchemy and Effect. Every claim made on camera points at running code in this repo.
+- **ratstack.sh is the teaching surface.** The site does not have to live in this repo. Where the site and its LLM wiki are built is an open question (see Todo).
+
+## The thesis
+
+With Alchemy, an Effect Layer can declare the cloud resources it needs. Providing the Layer provisions them on the next deploy. That makes Layers composable SaaS ("SaaS as NPM", Sam Goodwin):
+
+- **Service tag** = the product's API.
+- **Layer** = one vendor's implementation, carrying its own infrastructure.
+- **`Layer.provide`** = that vendor's private supply chain. **`Layer.mergeAll`** = independent vendors in scope.
+- **Typed errors** = the SLA in the type.
+
+Prior art: `@alchemy.run/better-auth`, which takes its database as a swappable Layer (D1, Hyperdrive, Postgres, Memory for tests) and prefixes internal resource ids with a caller-supplied `id`.
+
+## Calls
+
+- **Build real things only. No toys.** Anything that exists only to demonstrate a pattern is dropped.
+- **The house rule is a clean, organized playground where real work gets done.** It is not a cap on how many things we add. Picture clear, labeled bins on IKEA shelves that push in and pull out like game cartridges. Anything good can go in, Drizzle included, as long as it follows the cartridge test:
+  - **Labeled.** One package with one job, named for that job.
+  - **Push in.** Adding it takes one package plus one `Layer.provide` or Stack line.
+  - **Pull out.** Removing it takes deleting that package and that line, and the rest still passes `pnpm turbo run check test build`.
+  - **Self-contained.** It declares its own resources and bindings, so no loose parts spill into other bins.
+
+  This replaces the "one sanctioned widening" line in [vision steer](./ratstack-sh/vision-steer-from-alchemy-research.svx), which was a proposal, not Joel's rule.
+- **The database is a vendor choice, shown as one.** The same database service tag gets a Cloudflare-native Layer (D1) and a Hyperdrive Layer. Hyperdrive in front of PlanetScale is where Joel leans for production. Being able to use more than one provider is part of the point.
+- **An email automation engine is the flagship case study.** It is a working prototype (XState journeys, one Durable Object per contact journey, a pure `decide(snapshot, event)` fold) that is shown as a general-purpose email automation SaaS behind a service tag. Its details live in the content research project, not here.
+
+## Build order
+
+1. **Purity + binding proof.** Importing `apps/infra/alchemy.run.ts` deploys nothing, and removing a binding is a type error. Adds a vitest devDependency to `apps/infra`.
+2. **Database service tag, two vendor Layers:** D1 and Hyperdrive (PlanetScale), with Drizzle on top.
+   - Keep the Drizzle schema tiny and real: whatever ratstack.sh actually needs, not a demo table.
+   - Swapping vendors must be a one-line `Layer.provide` change. That diff is the episode.
+   - Record any PlanetScale profile or secret setup step. It becomes the episode beat on Alchemy profiles.
+3. Episode-sized follow-ups as the arc needs them. Keep each PR small enough that the whole diff fits on one Hunk screen, because on camera the diff is the demo.
+
+## Todo
+
+- [ ] **Mischief becomes an external, composed Layer.** Joel's call: latent and understood, not yet scheduled. The generic "agent front door" (REST, MCP, A2A, code-mode sandbox, rate limits, Web Bot Auth) becomes an `AgentFrontDoor({ id, capabilities })` Layer that rat-stack's Worker provides instead of inheriting. DNS-AID records move to a Stack-scope function over the zone. Keep existing logical ids or use `Alchemy.renamedFrom`, or the plan replaces the DNS records. Build it on the `Approval`-aware `defineCapability` shape.
+- [ ] **Decide where ratstack.sh and its LLM wiki live.** This repo, or a separate site repo that consumes rat-stack. The content research wiki stays private either way. A public wiki would be a separate layer, derived from it and redacted.
+- [ ] **Add the second lifecycle pattern to AGENTS.md.** Durable machines fold (pure transition, persisted snapshot, emitted intents, alarm timers). Live machines run (`createEffectActor`, `fromEffect` side effects).
