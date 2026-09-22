@@ -38,3 +38,9 @@ Polish shipped in the same slice: the `execute` tool description names the `code
 Verification: ten Mischief tests pass, including fake-binding allow/deny paths for `API_PER_IP`, `EXECUTE_PER_IP`, and `EXECUTE_GLOBAL`; `pnpm lint` passes; `pnpm turbo run check test build` passes 20/20 tasks; `git diff --check` passes; Brain validation passes 41 pages.
 
 What felt forced: Cloudflare documents these counters as approximate and per-colo. `EXECUTE_GLOBAL` is therefore one constant key in each Cloudflare location, not a globally consistent account-wide ceiling. A true global budget would need a Durable Object or billing alert. No deploy ran, so the live smoke proved the script and current v0.1 surface, not these unshipped limiters.
+
+## Live result (2026-09-22)
+
+Deployed. First attempt failed: Cloudflare rejected the string namespace ids ("must have valid namespace_id"); Alchemy's type allows strings and its local provider accepted them. Numeric ids 1001 to 1003 fixed it.
+
+Accuracy in production, measured: 131 `/api/search` calls from one IP over separate connections all returned 200 (limit 120); 8 sequential `execute` calls all ran (limit 6). Over one reused connection, the same tests denied after 111 and after 7. This matches Cloudflare's documentation: the binding is "permissive, eventually consistent, and intentionally designed to not be used as an accurate accounting system"; each isolate checks a locally cached count that converges within the location. A third-party measurement saw dozens to a hundred requests through a limit of 10. So the limiters slow a sustained client and stop a single hot connection; they are not a hard cap. The 25 USD billing alarm is the backstop; a strict per-IP and global counter would be a Durable Object, listed under Latent.

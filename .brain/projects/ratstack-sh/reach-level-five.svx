@@ -3,11 +3,12 @@ title: "Iterate the site until isitagentready reports Level 5"
 type: "step"
 kind: "task"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane in rift level-five, 2026-09-22)"
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./deploy-ratstack-sh.svx", "./decide-not-applicable-checks.svx"]
 created_at: "2026-09-21"
+closed_at: "2026-09-22"
 ---
 
 # Iterate the site until isitagentready reports Level 5
@@ -61,3 +62,7 @@ Final gate: `pnpm turbo run check test build` passed, 20 tasks successful. Misch
 ### What felt forced
 
 The A2A “answer” is deliberately retrieval, not fake intelligence: it returns the best source passages found through the same two capabilities. Web Bot Auth remains the soft edge. Ratstack has no outbound bot-request path to sign today, so enabling a key directory would satisfy the scanner before it satisfies the whole protocol; that is why the flag stays off unless the owner proves `auth.md` does not count and explicitly chooses the fallback. DNS publication and DNSSEC activation also remain unverified until the owner deploys and reads them back.
+
+## Scan result (2026-09-22)
+
+Deployed `b7b6988` then `0646d74` (numeric rate-limit namespace ids after Cloudflare rejected the names). `pnpm mischief:smoke`: every route 200, tools `search`, `read`, `execute`, **5/5 Agent-Native**. Output saved in [the asset](./reach-level-five-asset.svx). Live checks: `/auth.md`, both A2A card paths (`application/a2a+json`), `/.well-known/ai-catalog.json` 200; `/a2a` `message/send` returned a source-grounded answer for "how do I add a capability"; the key directory 404 as flagged off. DNS-AID records live via DoH; DS at the parent pending.

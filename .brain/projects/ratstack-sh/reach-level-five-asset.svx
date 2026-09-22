@@ -1,0 +1,49 @@
+---
+title: "isitagentready scan of ratstack.sh at Level 5"
+type: "asset"
+parent: "./reach-level-five.svx"
+created_at: "2026-09-22"
+privacy: "public"
+---
+
+# isitagentready scan of ratstack.sh at Level 5
+
+Captured 2026-09-22 after deploying `0646d74` (A2A, ARD, `auth.md`, DNS-AID records, DNSSEC, rate limits) with `POST https://isitagentready.com/api/scan` and `format: "agent"`. `pnpm mischief:smoke` printed `5/5 (Agent-Native)` the same minute.
+
+## Scanner output
+
+```text
+# Site Analysis: https://ratstack.sh
+
+Score: 5/5 (Agent-Native)
+
+The following issues were found. Fix them to improve your agent-readiness score:
+
+## Publish DNS for AI Discovery (DNS-AID) SVCB/HTTPS records for DNS-based agent discovery
+Publish DNS for AI Discovery (DNS-AID) ServiceMode SVCB or HTTPS records under _agents with DNSSEC validation enabled.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/dns-aid/SKILL.md
+
+## Publish OAuth/OIDC discovery metadata so agents can authenticate with your APIs
+If your site has protected APIs, publish /.well-known/openid-configuration or /.well-known/oauth-authorization-server with your auth server metadata.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/oauth-discovery/SKILL.md
+
+## Publish OAuth Protected Resource Metadata so agents can discover how to authenticate
+Publish /.well-known/oauth-protected-resource with your resource identifier and authorization_servers so agents can discover how to authenticate.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/oauth-protected-resource/SKILL.md
+
+## Publish Auth.md metadata for agent registration
+Serve /auth.md and advertise agent_auth in OAuth Authorization Server metadata so agents can register securely.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/auth-md/SKILL.md
+
+## Support WebMCP to expose site tools to AI agents via the browser
+Implement the WebMCP API by calling navigator.modelContext.registerTool() for each tool that exposes your site's key actions to AI agents.
+Implementation guide: https://isitagentready.com/.well-known/agent-skills/webmcp/SKILL.md
+```
+
+## What earned the level
+
+Level 4 plus two of three groups: all four integrations (MCP server card, A2A agent card backed by a real `/a2a` endpoint, agent-skills index, API catalog) and auth metadata through an honest `/auth.md` that states every surface is anonymous. The Web Bot Auth key directory stayed off; the scanner counted `auth.md`, so the softest option was never needed. Never published: OAuth discovery or protected-resource metadata, since no authorization server exists.
+
+## Left for DNS
+
+DNS-AID SVCB and TXT records resolve through Cloudflare DoH. DNSSEC is enabled on the zone (two DNSKEYs) but the DS record at the `.sh` parent was not yet visible at capture time, so validating resolvers do not set AD yet; Cloudflare Registrar publishes the DS on its own, and a watch records the flip.
