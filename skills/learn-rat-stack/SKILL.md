@@ -14,7 +14,7 @@ Use this repo as a working map of the stack. Rat-stack is the example. The piece
 - **TypeScript 7** checks the types. Effect diagnostics catch mistakes that normal TypeScript misses.
 - **Oxlint, Oxfmt, Vitest, and lefthook** keep the same rules in the editor, tests, and commits.
 - **pnpm and Turborepo** connect the packages and cache their checks.
-- **Alchemy** declares and deploys the Cloudflare Worker.
+- **Alchemy** declares and deploys the Cloudflare Worker. Start with `learn-alchemy` to see the whole cloud footprint as one Effect program.
 - **The command line, HTTP, MCP, and sandbox** are four ways to call the same action.
 
 ## Trace one action
@@ -47,6 +47,7 @@ If this is a product repo copied from rat-stack, replace rat-stack's product not
 - Learn Effect schemas and shared interfaces: use `add-a-capability`.
 - Learn Effect and XState together: use `add-a-lifecycle-machine`.
 - Learn which pieces can stand alone: use `keep-or-cut`.
+- Learn the cloud footprint and deployment graph: use `learn-alchemy`.
 
 ## Finish
 
