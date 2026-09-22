@@ -6,6 +6,7 @@
 import type { JsonSchema } from "effect";
 import { Tool } from "effect/unstable/ai";
 
+import { failureSchemaOf } from "./capability.js";
 import type { Annotations, AnyCapability } from "./capability.js";
 
 export interface CatalogEntry {
@@ -27,7 +28,7 @@ export const toCatalog = (capabilities: readonly AnyCapability[]): Catalog => ({
   capabilities: capabilities.map((capability) => ({
     annotations: capability.annotations,
     description: capability.description,
-    failure: Tool.getJsonSchemaFromSchema(capability.failure),
+    failure: Tool.getJsonSchemaFromSchema(failureSchemaOf(capability)),
     input: Tool.getJsonSchemaFromSchema(capability.input),
     name: capability.name,
     needsApproval: capability.needsApproval,

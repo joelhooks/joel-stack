@@ -2,8 +2,8 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { McpServer } from "effect/unstable/ai";
 
-import { toToolkit } from "../src/index.js";
-import { Greeter, echo, greet } from "./fixtures.js";
+import { Approval, toToolkit } from "../src/index.js";
+import { Greeter, approved, echo, greet } from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";
 
 const projection = toToolkit([echo, greet]);
@@ -11,6 +11,17 @@ const projection = toToolkit([echo, greet]);
 const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   Layer.provideMerge(projection.layer),
   Layer.provide(Greeter.layer),
+  Layer.provide(serverLayer)
+);
+const approvalProjection = toToolkit([approved]);
+const deniedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
+  Layer.provideMerge(approvalProjection.layer),
+  Layer.provide(Approval.denyAll),
+  Layer.provide(serverLayer)
+);
+const allowedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
+  Layer.provideMerge(approvalProjection.layer),
+  Layer.provide(Approval.allowAll),
   Layer.provide(serverLayer)
 );
 
@@ -61,6 +72,28 @@ describe("toToolkit", () => {
       expect(content?.type === "text" ? content.text : "").toContain(
         "No one called nobody"
       );
+    })
+  );
+
+  it.effect("turns approval denial into a typed tool error", () =>
+    Effect.gen(function* deniesApprovedTool() {
+      const deniedClient = yield* makeMcpClient(deniedApprovalApp);
+      const denied = yield* deniedClient["tools/call"]({
+        arguments: { message: "run" },
+        name: "approved",
+      });
+      expect(denied.isError).toBe(true);
+      const [content] = denied.content;
+      expect(content?.type === "text" ? content.text : "").toContain(
+        "Approval is required"
+      );
+
+      const allowedClient = yield* makeMcpClient(allowedApprovalApp);
+      const allowed = yield* allowedClient["tools/call"]({
+        arguments: { message: "run" },
+        name: "approved",
+      });
+      expect(allowed.structuredContent).toEqual({ ok: true });
     })
   );
 });

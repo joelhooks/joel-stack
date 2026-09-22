@@ -13,6 +13,7 @@ import type { Layer } from "effect";
 import { Effect } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
+import { failureSchemaOf } from "./capability.js";
 import type {
   AnyCapability,
   FailureOf,
@@ -72,7 +73,7 @@ const toTool = (capability: AnyCapability) =>
     capability.description,
     capability.input,
     capability.output,
-    capability.failure,
+    failureSchemaOf(capability),
     capability.needsApproval
   )
     .annotate(Tool.Readonly, capability.annotations.readOnly)

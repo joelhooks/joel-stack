@@ -4,8 +4,8 @@ import { Effect, Layer } from "effect";
 import { TestConsole } from "effect/testing";
 import { CliOutput, Command } from "effect/unstable/cli";
 
-import { toCommand } from "../src/index.js";
-import { Greeter, echo, greet, shape } from "./fixtures.js";
+import { ApprovalDenied, toCommand } from "../src/index.js";
+import { Greeter, approved, echo, greet, shape } from "./fixtures.js";
 
 const TestLayer = Layer.mergeAll(
   TestConsole.layer,
@@ -80,6 +80,17 @@ describe("toCommand", () => {
       Effect.gen(function* failure() {
         const error = yield* run(command, ["nobody"]).pipe(Effect.flip);
         expect(error._tag).toBe("NotFound");
+      })
+    );
+
+    test.effect("denies gated commands unless --yes is explicit", () =>
+      Effect.gen(function* approval() {
+        const denied = yield* run(toCommand(approved), [
+          "--message",
+          "run",
+        ]).pipe(Effect.flip);
+        expect(denied).toBeInstanceOf(ApprovalDenied);
+        yield* run(toCommand(approved), ["--message", "run", "--yes"]);
       })
     );
   });

@@ -3,16 +3,34 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { McpServer } from "effect/unstable/ai";
 
+import { Approval } from "../src/index.js";
 import { layerSubprocess } from "../src/sandbox-subprocess.js";
 import { toCodeMode } from "../src/to-code-mode.js";
-import { Greeter, echo, greet } from "./fixtures.js";
+import { Greeter, approved, echo, greet } from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";
 
 const projection = toCodeMode([echo, greet]);
+const approvalProjection = toCodeMode([approved]);
 
 const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   Layer.provideMerge(projection.layer),
   Layer.provide(Greeter.layer),
+  Layer.provide(
+    Layer.provide(layerSubprocess({ timeout: "5 seconds" }), NodeServices.layer)
+  ),
+  Layer.provide(serverLayer)
+);
+const deniedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
+  Layer.provideMerge(approvalProjection.layer),
+  Layer.provide(Approval.denyAll),
+  Layer.provide(
+    Layer.provide(layerSubprocess({ timeout: "5 seconds" }), NodeServices.layer)
+  ),
+  Layer.provide(serverLayer)
+);
+const allowedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
+  Layer.provideMerge(approvalProjection.layer),
+  Layer.provide(Approval.allowAll),
   Layer.provide(
     Layer.provide(layerSubprocess({ timeout: "5 seconds" }), NodeServices.layer)
   ),
@@ -98,6 +116,31 @@ describe("toCodeMode", () => {
       expect(result.isError).toBe(true);
       const [content] = result.content;
       expect(content?.type === "text" ? content.text : "").toContain("nope");
+    })
+  );
+
+  it.effect("requires approval before code mode execution", () =>
+    Effect.gen(function* gatesCodeMode() {
+      const deniedClient = yield* makeMcpClient(deniedApprovalApp);
+      const denied = yield* deniedClient["tools/call"]({
+        arguments: { code: "return await tools.approved({ message: 'run' });" },
+        name: "execute",
+      });
+      expect(denied.isError).toBe(true);
+      const [content] = denied.content;
+      expect(content?.type === "text" ? content.text : "").toContain(
+        "Approval is required"
+      );
+
+      const allowedClient = yield* makeMcpClient(allowedApprovalApp);
+      const allowed = yield* allowedClient["tools/call"]({
+        arguments: { code: "return await tools.approved({ message: 'run' });" },
+        name: "execute",
+      });
+      expect(allowed.structuredContent).toEqual({
+        logs: [],
+        result: { ok: true },
+      });
     })
   );
 });

@@ -12,8 +12,12 @@ import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
-import { defineCapability } from "./capability.js";
-import type { AnyCapability } from "./capability.js";
+import { defineCapability, failureSchemaOf } from "./capability.js";
+import type {
+  AnyCapability,
+  ApprovalRequirement,
+  FailureSchemaOf,
+} from "./capability.js";
 import { searchCatalog, toCatalog, toTypeScript } from "./catalog.js";
 import type { Catalog } from "./catalog.js";
 import { Sandbox, SandboxError } from "./sandbox-service.js";
@@ -68,6 +72,9 @@ export interface CodeModeOptions {
   readonly searchLimit?: number | undefined;
 }
 
+type NeedsApprovalOf<Caps extends readonly AnyCapability[]> =
+  true extends Caps[number]["needsApproval"] ? true : false;
+
 export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   readonly catalog: Catalog;
   /** The `.d.ts` shown to the model and usable for editor tooling. */
@@ -79,7 +86,10 @@ export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
       {
         readonly parameters: Schema.Struct<{ readonly code: Schema.String }>;
         readonly success: typeof ExecuteResult;
-        readonly failure: typeof SandboxError;
+        readonly failure: FailureSchemaOf<
+          typeof SandboxError,
+          NeedsApprovalOf<Caps>
+        >;
         readonly failureMode: "error";
       }
     >;
@@ -87,7 +97,7 @@ export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   readonly layer: Layer.Layer<
     Tool.HandlersFor<CodeModeProjection<Caps>["toolkit"]["tools"]>,
     never,
-    RequirementsOf<Caps> | Sandbox
+    RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>> | Sandbox
   >;
 }
 
@@ -112,6 +122,10 @@ export const toExecuteCapability = <
     capabilities.map((capability) => [capability.name, capability] as const)
   );
 
+  // Caps preserves the literal approval flag for the generated capability.
+  const hasApproval = capabilities.some((item) => item.needsApproval);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
   const capability = defineCapability("execute", {
     annotations: {
       destructive: capabilities.some((item) => item.annotations.destructive),
@@ -121,7 +135,9 @@ export const toExecuteCapability = <
     description: executeDescription(declarations),
     failure: SandboxError,
     handler: Effect.fn("CodeMode.execute")(function* execute({ code }) {
-      const context = yield* Effect.context<RequirementsOf<Caps>>();
+      const context = yield* Effect.context<
+        RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
+      >();
       const sandbox = yield* Sandbox;
 
       const invoke: Invoke = (name, input) => {
@@ -138,7 +154,7 @@ export const toExecuteCapability = <
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
         const encodeOutput = Schema.encodeUnknownEffect(item.output);
-        const encodeFailure = Schema.encodeUnknownEffect(item.failure);
+        const encodeFailure = Schema.encodeUnknownEffect(failureSchemaOf(item));
         return Schema.decodeUnknownEffect(item.input)(input).pipe(
           Effect.matchEffect({
             onFailure: (error) =>
@@ -183,7 +199,7 @@ export const toExecuteCapability = <
       };
     }),
     input: ExecuteInput,
-    needsApproval: capabilities.some((item) => item.needsApproval),
+    needsApproval,
     output: ExecuteResult,
   });
 
@@ -202,7 +218,7 @@ export const toCodeMode = <
 
   const execute = Tool.make("execute", {
     description: executeProjection.capability.description,
-    failure: SandboxError,
+    failure: failureSchemaOf(executeProjection.capability),
     needsApproval: executeProjection.capability.needsApproval,
     parameters: ExecuteInput,
     success: ExecuteResult,
@@ -224,7 +240,9 @@ export const toCodeMode = <
 
   const layer = toolkit.toLayer(
     Effect.gen(function* buildCodeModeHandlers() {
-      const context = yield* Effect.context<RequirementsOf<Caps>>();
+      const context = yield* Effect.context<
+        RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
+      >();
       const sandbox = yield* Sandbox;
       return toolkit.of({
         execute: (input) =>

@@ -44,6 +44,16 @@ export const greet = defineCapability("greet", {
   output: Schema.Struct({ greeting: Schema.String }),
 });
 
+/** Requires a host decision before the handler can run. */
+export const approved = defineCapability("approved", {
+  description: "A capability that requires approval",
+  failure: Schema.Never,
+  handler: () => Effect.succeed({ ok: true }),
+  input: Schema.Struct({ message: Schema.String }),
+  needsApproval: true,
+  output: Schema.Struct({ ok: Schema.Boolean }),
+});
+
 /** Exercises the remaining flag kinds. */
 export const shape = defineCapability("shape", {
   description: "Echo a mixed input back",

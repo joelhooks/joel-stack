@@ -1,8 +1,8 @@
-// Every command here is a projection of the same capabilities: `stats` is
-// the CLI projection of inspectFile, `serve` and `openapi` the HTTP one, `mcp`
-// the MCP one. Adding a capability in @rat-stack/core adds it to all four.
+// Capability commands derive from the same registry used by the other
+// projections. `stats` remains the legacy alias for `inspectFile`; the other
+// capability names become their command names automatically.
 import { toCommand } from "@rat-stack/capability";
-import { formatFileStats, inspectFile } from "@rat-stack/core";
+import { capabilities, formatFileStats, inspectFile } from "@rat-stack/core";
 import { Console, Effect, Layer } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
@@ -11,10 +11,15 @@ import { VERSION } from "./version.js";
 
 export { VERSION } from "./version.js";
 
-const statsCommand = toCommand(inspectFile, {
-  name: "stats",
-  positional: ["path"],
-  render: formatFileStats,
+const capabilityCommands = capabilities.map((capability) => {
+  const command =
+    capability === inspectFile
+      ? toCommand(capability, {
+          positional: ["path"],
+          render: formatFileStats,
+        }).pipe(Command.withAlias("stats"))
+      : toCommand(capability);
+  return command;
 });
 
 const openapiCommand = Command.make("openapi", {}, () =>
@@ -78,7 +83,7 @@ const catalogCommand = Command.make(
 export const rootCommand = Command.make("rat-stack").pipe(
   Command.withDescription("Agent-first file inspection: CLI, REST, and MCP"),
   Command.withSubcommands([
-    statsCommand,
+    ...capabilityCommands,
     catalogCommand,
     openapiCommand,
     serveCommand,

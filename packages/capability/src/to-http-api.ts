@@ -17,6 +17,8 @@ import {
   OpenApi,
 } from "effect/unstable/httpapi";
 
+import { ApprovalDenied } from "./approval.js";
+import { failureSchemaOf } from "./capability.js";
 import type {
   AnyCapability,
   FailureOf,
@@ -42,7 +44,7 @@ const post = HttpApiEndpoint.post as unknown as (
   name: string,
   path: `/${string}`,
   options: {
-    readonly error: Schema.Top;
+    readonly error: Schema.Top | readonly Schema.Top[];
     readonly payload: InputSchema;
     readonly success: PlainSchema;
   }
@@ -59,6 +61,13 @@ const withFailureStatus = (failure: PlainSchema): Schema.Top =>
   failure.ast.annotations?.httpApiStatus === undefined
     ? failure.annotate({ httpApiStatus: DEFAULT_FAILURE_STATUS })
     : failure;
+
+const httpFailure = (
+  capability: AnyCapability
+): Schema.Top | readonly Schema.Top[] =>
+  capability.needsApproval
+    ? [withFailureStatus(capability.failure), ApprovalDenied]
+    : withFailureStatus(failureSchemaOf(capability));
 
 export type EndpointOf<C> = ReturnType<
   typeof HttpApiEndpoint.post<
@@ -138,7 +147,7 @@ export const toHttpApi = <
 ): HttpApiProjection<Id, Caps> => {
   const endpoints = capabilities.map((capability) =>
     post(capability.name, `/${capability.name}`, {
-      error: withFailureStatus(capability.failure),
+      error: httpFailure(capability),
       payload: capability.input,
       success: capability.output,
     })

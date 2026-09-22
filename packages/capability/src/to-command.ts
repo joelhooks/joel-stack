@@ -13,6 +13,7 @@ import type { SchemaAST } from "effect";
 import { Console, Effect, Option, Schema } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
+import { Approval } from "./approval.js";
 import type {
   AnyCapability,
   FailureOf,
@@ -146,6 +147,7 @@ const argumentFor = (
 };
 
 const JSON_FLAG = "json";
+const APPROVAL_FLAG = "yes";
 
 export const toCommand = <C extends AnyCapability>(
   capability: C,
@@ -168,6 +170,12 @@ export const toCommand = <C extends AnyCapability>(
       Flag.withDescription("Print machine-readable JSON")
     );
   }
+  if (capability.needsApproval) {
+    config[APPROVAL_FLAG] = Flag.Boolean(APPROVAL_FLAG).pipe(
+      Flag.withDefault(false),
+      Flag.withDescription("Approve this capability for this invocation")
+    );
+  }
 
   const decodeInput = Schema.decodeUnknownEffect(capability.input);
   const encodeOutput = Schema.encodeEffect(capability.output);
@@ -186,11 +194,13 @@ export const toCommand = <C extends AnyCapability>(
     options?.name ?? capability.name,
     config,
     Effect.fn(`Capability.${capability.name}`)(function* runCommand(parsed) {
-      const { [JSON_FLAG]: json, ...fields } = parsed;
+      const { [APPROVAL_FLAG]: yes, [JSON_FLAG]: json, ...fields } = parsed;
       const input = yield* decodeInput(fields);
       // Decoded through `capability.input`, whose Type `C` makes precise.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-      const output = yield* run(input);
+      const output = yield* run(input).pipe(
+        Effect.provide(yes === true ? Approval.allowAll : Approval.denyAll)
+      );
       const text =
         render !== undefined && json !== true
           ? render(output)

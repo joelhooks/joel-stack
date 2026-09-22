@@ -22,7 +22,16 @@
       "outputs": []
     },
     "@rat-stack/mischief#generate": {
+      "cache": false,
       "outputs": ["src/bundled-content.generated.ts"]
+    },
+    "@rat-stack/mischief#typecheck": {
+      "dependsOn": ["@rat-stack/mischief#generate", "^typecheck"],
+      "outputs": []
+    },
+    "@rat-stack/mischief#build": {
+      "dependsOn": ["@rat-stack/mischief#generate", "^build"],
+      "outputs": ["dist/**"]
     }
   }
 }
