@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { McpServer } from "effect/unstable/ai";
 
-import { layerSubprocess } from "../src/sandbox.js";
+import { layerSubprocess } from "../src/sandbox-subprocess.js";
 import { toCodeMode } from "../src/to-code-mode.js";
 import { Greeter, echo, greet } from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";

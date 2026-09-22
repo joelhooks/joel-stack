@@ -22,18 +22,22 @@ export {
   type SearchMatch,
 } from "./catalog.js";
 export {
-  layerSubprocess,
   Sandbox,
   SandboxError,
   type Invoke,
   type InvokeOutcome,
   type SandboxRun,
-  type SubprocessOptions,
-} from "./sandbox.js";
+} from "./sandbox-service.js";
 export {
+  layerSubprocess,
+  type SubprocessOptions,
+} from "./sandbox-subprocess.js";
+export {
+  ExecuteInput,
   ExecuteResult,
   SearchResult,
   toCodeMode,
+  toExecuteCapability,
   type CodeModeOptions,
   type CodeModeProjection,
 } from "./to-code-mode.js";
@@ -42,6 +46,7 @@ export {
   GROUP as HTTP_API_GROUP,
   toHttpApi,
   type HttpApiProjection,
+  type HttpApiProjectionOptions,
 } from "./to-http-api.js";
 export {
   toToolkit,

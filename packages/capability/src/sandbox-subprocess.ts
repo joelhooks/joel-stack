@@ -1,55 +1,13 @@
-// A Sandbox runs untrusted, model-written JavaScript with exactly one way
-// out: `tools.<name>(input)`, which the host answers by invoking a capability.
-// The subprocess implementation below is the reference runtime: a fresh Node
-// process under `--permission` (no file system, no child processes, no worker
-// threads), speaking newline-delimited JSON over stdio. Network egress is not
-// blocked by Node's permission model; a Worker or Deno runtime behind the same
-// `Sandbox` shape is the next step for real isolation.
-import {
-  Context,
-  Duration,
-  Effect,
-  Layer,
-  Option,
-  Queue,
-  Schema,
-  Stream,
-} from "effect";
+// Node implementation of Sandbox: a fresh process under `--permission`
+// speaks newline-delimited JSON over stdio. Network egress is not blocked by
+// Node's permission model; use a Worker-side implementation for real isolation.
+import { Duration, Effect, Layer, Option, Queue, Schema, Stream } from "effect";
 import type { Cause } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { SandboxError } from "./sandbox-error.js";
-
-export { SandboxError } from "./sandbox-error.js";
-
-export type InvokeOutcome =
-  | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly error: unknown };
-
-/** Answers a `tools.<name>(input)` call from inside the sandbox. */
-export type Invoke = (
-  name: string,
-  input: unknown
-) => Effect.Effect<InvokeOutcome>;
-
-export interface SandboxRun {
-  readonly result: unknown;
-  readonly logs: readonly string[];
-}
-
-export class Sandbox extends Context.Service<
-  Sandbox,
-  {
-    readonly run: (
-      code: string,
-      invoke: Invoke
-    ) => Effect.Effect<SandboxRun, SandboxError>;
-  }
->()("@rat-stack/capability/Sandbox") {}
-
-// ---------------------------------------------------------------------------
-// Subprocess runtime
-// ---------------------------------------------------------------------------
+import { Sandbox } from "./sandbox-service.js";
+import type { Invoke, InvokeOutcome, SandboxRun } from "./sandbox-service.js";
 
 /**
  * The program the child runs, passed with `-e` so the permission model never
@@ -193,7 +151,7 @@ const makeSubprocess = (options?: SubprocessOptions) =>
             Effect.flatMap((message) => {
               if (message.type === "call") {
                 return invoke(message.name, message.input).pipe(
-                  Effect.flatMap((result) =>
+                  Effect.flatMap((result: InvokeOutcome) =>
                     send({ id: message.id, type: "result", ...result })
                   ),
                   Effect.andThen(Effect.succeedNone)

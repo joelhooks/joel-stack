@@ -12,6 +12,7 @@
     "pretest": "pnpm run --silent build"
   },
   "dependencies": {
+    "@rat-stack/capability": "workspace:*",
     "alchemy": "2.0.0-beta.79",
     "effect": "4.0.0-rc.116"
   },

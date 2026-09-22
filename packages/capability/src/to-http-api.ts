@@ -110,6 +110,10 @@ export type ApiOf<
   Caps extends readonly AnyCapability[],
 > = ReturnType<typeof apiFor<Id, GroupOf<Caps>>>;
 
+export interface HttpApiProjectionOptions {
+  readonly prefix?: `/${string}` | undefined;
+}
+
 export interface HttpApiProjection<
   Id extends string,
   Caps extends readonly AnyCapability[],
@@ -129,7 +133,8 @@ export const toHttpApi = <
   const Caps extends readonly [AnyCapability, ...AnyCapability[]],
 >(
   id: Id,
-  capabilities: Caps
+  capabilities: Caps,
+  options?: HttpApiProjectionOptions
 ): HttpApiProjection<Id, Caps> => {
   const endpoints = capabilities.map((capability) =>
     post(capability.name, `/${capability.name}`, {
@@ -144,11 +149,14 @@ export const toHttpApi = <
   }
   // `map` over a tuple returns an array; `EndpointsOf<Caps>` is the tuple
   // type the group needs. One cast at this boundary keeps callers typed.
+  const baseApi = apiFor(id, groupFor(first, ...rest));
+  const projectedApi =
+    options?.prefix === undefined ? baseApi : baseApi.prefix(options.prefix);
+  // Prefixing changes endpoint paths but not the API id, group id, schemas, or
+  // handler service. Keep the stable public type while preserving that runtime
+  // path transformation for HttpApiBuilder and OpenAPI.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const api = apiFor(id, groupFor(first, ...rest)) as unknown as ApiOf<
-    Id,
-    Caps
-  >;
+  const api = projectedApi as unknown as ApiOf<Id, Caps>;
 
   const implementations: Record<
     string,

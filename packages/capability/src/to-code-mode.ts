@@ -12,11 +12,12 @@ import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
+import { defineCapability } from "./capability.js";
 import type { AnyCapability } from "./capability.js";
 import { searchCatalog, toCatalog, toTypeScript } from "./catalog.js";
 import type { Catalog } from "./catalog.js";
-import { Sandbox, SandboxError } from "./sandbox.js";
-import type { Invoke, InvokeOutcome } from "./sandbox.js";
+import { Sandbox, SandboxError } from "./sandbox-service.js";
+import type { Invoke, InvokeOutcome } from "./sandbox-service.js";
 import type { RequirementsOf } from "./to-toolkit.js";
 
 export const SearchMatch = Schema.Struct({
@@ -29,6 +30,10 @@ export const SearchMatch = Schema.Struct({
 export const SearchResult = Schema.Struct({
   matches: Schema.Array(SearchMatch),
   total: Schema.Int,
+});
+
+export const ExecuteInput = Schema.Struct({
+  code: Schema.String,
 });
 
 export const ExecuteResult = Schema.Struct({
@@ -91,48 +96,37 @@ const failure = (tag: string, message: string): InvokeOutcome => ({
   ok: false,
 });
 
-export const toCodeMode = <
+/**
+ * Turns a capability tuple into one ordinary `execute` Capability. The caller
+ * can project it beside its public capabilities through MCP and HTTP while the
+ * default `toCodeMode` projection keeps its compact search/execute toolkit.
+ */
+export const toExecuteCapability = <
   const Caps extends readonly [AnyCapability, ...AnyCapability[]],
 >(
-  capabilities: Caps,
-  options?: CodeModeOptions
-): CodeModeProjection<Caps> => {
+  capabilities: Caps
+) => {
   const catalog = toCatalog(capabilities);
   const declarations = toTypeScript(catalog);
-  const searchLimit = options?.searchLimit ?? 5;
   const byName = new Map(
     capabilities.map((capability) => [capability.name, capability] as const)
   );
 
-  const execute = Tool.make("execute", {
+  const capability = defineCapability("execute", {
+    annotations: {
+      destructive: capabilities.some((item) => item.annotations.destructive),
+      openWorld: capabilities.some((item) => item.annotations.openWorld),
+      readOnly: capabilities.every((item) => item.annotations.readOnly),
+    },
     description: executeDescription(declarations),
     failure: SandboxError,
-    parameters: Schema.Struct({ code: Schema.String }),
-    success: ExecuteResult,
-  })
-    .annotate(
-      Tool.Readonly,
-      capabilities.every((capability) => capability.annotations.readOnly)
-    )
-    .annotate(
-      Tool.Destructive,
-      capabilities.some((capability) => capability.annotations.destructive)
-    )
-    .annotate(
-      Tool.OpenWorld,
-      capabilities.some((capability) => capability.annotations.openWorld)
-    );
-
-  const toolkit = Toolkit.make(search, execute);
-
-  const layer = toolkit.toLayer(
-    Effect.gen(function* buildCodeModeHandlers() {
+    handler: Effect.fn("CodeMode.execute")(function* execute({ code }) {
       const context = yield* Effect.context<RequirementsOf<Caps>>();
       const sandbox = yield* Sandbox;
 
       const invoke: Invoke = (name, input) => {
-        const capability = byName.get(name);
-        if (capability === undefined) {
+        const item = byName.get(name);
+        if (item === undefined) {
           return Effect.succeed(
             failure("UnknownCapability", `No capability named ${name}`)
           );
@@ -140,12 +134,12 @@ export const toCodeMode = <
         // `AnyCapability` erased this capability's requirements to `unknown`;
         // they are a subset of `RequirementsOf<Caps>`, which `context` carries.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-        const run = capability.handler as (
+        const run = item.handler as (
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
-        const encodeOutput = Schema.encodeUnknownEffect(capability.output);
-        const encodeFailure = Schema.encodeUnknownEffect(capability.failure);
-        return Schema.decodeUnknownEffect(capability.input)(input).pipe(
+        const encodeOutput = Schema.encodeUnknownEffect(item.output);
+        const encodeFailure = Schema.encodeUnknownEffect(item.failure);
+        return Schema.decodeUnknownEffect(item.input)(input).pipe(
           Effect.matchEffect({
             onFailure: (error) =>
               Effect.succeed(failure("InvalidInput", error.message)),
@@ -179,16 +173,67 @@ export const toCodeMode = <
         );
       };
 
+      const run = yield* sandbox.run(code, invoke);
+      return {
+        logs: run.logs,
+        // Every Sandbox implementation must JSON-round-trip a successful
+        // result before crossing this boundary.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        result: run.result as typeof ExecuteResult.Type.result,
+      };
+    }),
+    input: ExecuteInput,
+    needsApproval: capabilities.some((item) => item.needsApproval),
+    output: ExecuteResult,
+  });
+
+  return { capability, catalog, declarations } as const;
+};
+
+export const toCodeMode = <
+  const Caps extends readonly [AnyCapability, ...AnyCapability[]],
+>(
+  capabilities: Caps,
+  options?: CodeModeOptions
+): CodeModeProjection<Caps> => {
+  const executeProjection = toExecuteCapability(capabilities);
+  const { catalog, declarations } = executeProjection;
+  const searchLimit = options?.searchLimit ?? 5;
+
+  const execute = Tool.make("execute", {
+    description: executeProjection.capability.description,
+    failure: SandboxError,
+    needsApproval: executeProjection.capability.needsApproval,
+    parameters: ExecuteInput,
+    success: ExecuteResult,
+  })
+    .annotate(
+      Tool.Readonly,
+      capabilities.every((capability) => capability.annotations.readOnly)
+    )
+    .annotate(
+      Tool.Destructive,
+      capabilities.some((capability) => capability.annotations.destructive)
+    )
+    .annotate(
+      Tool.OpenWorld,
+      capabilities.some((capability) => capability.annotations.openWorld)
+    );
+
+  const toolkit = Toolkit.make(search, execute);
+
+  const layer = toolkit.toLayer(
+    Effect.gen(function* buildCodeModeHandlers() {
+      const context = yield* Effect.context<RequirementsOf<Caps>>();
+      const sandbox = yield* Sandbox;
       return toolkit.of({
-        execute: ({ code }) =>
-          sandbox.run(code, invoke).pipe(
-            Effect.map((run) => ({
-              logs: run.logs,
-              // The child produced this with JSON.stringify, so it is JSON.
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-              result: run.result as typeof ExecuteResult.Type.result,
-            }))
-          ),
+        execute: (input) =>
+          executeProjection.capability
+            .handler(input)
+            .pipe(
+              Effect.provideService(Sandbox, sandbox),
+              Effect.provideContext(context)
+            ),
         search: ({ limit, query }) => {
           const matches = searchCatalog(catalog, query, limit ?? searchLimit);
           return Effect.succeed({

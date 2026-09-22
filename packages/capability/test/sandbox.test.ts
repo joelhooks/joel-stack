@@ -2,8 +2,9 @@ import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 
-import { Sandbox, layerSubprocess } from "../src/sandbox.js";
-import type { Invoke } from "../src/sandbox.js";
+import { Sandbox } from "../src/sandbox-service.js";
+import type { Invoke } from "../src/sandbox-service.js";
+import { layerSubprocess } from "../src/sandbox-subprocess.js";
 
 const TestLayer = Layer.provide(
   layerSubprocess({ timeout: "5 seconds" }),

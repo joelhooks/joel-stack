@@ -23,6 +23,21 @@
       "types": "./src/toolkit.ts",
       "import": "./dist/toolkit.js",
       "default": "./dist/toolkit.js"
+    },
+    "./http-api": {
+      "types": "./src/http-api.ts",
+      "import": "./dist/http-api.js",
+      "default": "./dist/http-api.js"
+    },
+    "./sandbox": {
+      "types": "./src/sandbox-service.ts",
+      "import": "./dist/sandbox-service.js",
+      "default": "./dist/sandbox-service.js"
+    },
+    "./code-mode": {
+      "types": "./src/code-mode.ts",
+      "import": "./dist/code-mode.js",
+      "default": "./dist/code-mode.js"
     }
   },
   "scripts": {
