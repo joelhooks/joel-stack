@@ -9,9 +9,15 @@ import {
 export {
   homeDocumentHtml,
   logoSvg,
+  ogImages,
   skillIndexDocumentHtml,
   staticContentVersion,
 } from "./bundled-content.generated.js";
+
+// Every page has a 1200x630 preview image built at generation time. The URL
+// is derived from the route so the shell and the router agree without a map.
+export const ogImagePath = (routePath: string): `/${string}` =>
+  `/og${routePath === "/" ? "/home" : routePath}.png`;
 
 export type ContentKind = "law" | "skill";
 

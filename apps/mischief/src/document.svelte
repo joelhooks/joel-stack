@@ -5,6 +5,7 @@
     breadcrumbLabel,
     breadcrumbName,
     description,
+    ogImageUrl,
     origin,
     path,
     title,
@@ -23,6 +24,16 @@
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:site_name" content="ratstack.sh" />
+  <meta property="og:image" content={ogImageUrl} />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:alt" content={description} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content={ogImageUrl} />
   <link rel="canonical" href={canonicalUrl} />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 </svelte:head>
@@ -74,13 +85,27 @@
   }
 
   :global(code) {
+    background: #eff1f5;
+    border: 1px solid #ccd0da;
     font: inherit;
+    padding: 0.1em 0.25em;
   }
 
   :global(pre) {
+    background: #eff1f5;
+    border: 1px solid #ccd0da;
     line-height: 1.25;
     max-width: 100%;
     overflow-x: auto;
+    padding: 0.75rem 1rem;
+    tab-size: 2;
+    white-space: pre;
+  }
+
+  :global(pre code) {
+    background: transparent;
+    border: 0;
+    padding: 0;
   }
 
   :global(table) {

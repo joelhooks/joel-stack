@@ -19,9 +19,12 @@
   "devDependencies": {
     "@effect/platform-node": "4.0.0-rc.116",
     "@effect/vitest": "4.0.0-rc.116",
+    "@resvg/resvg-js": "2.6.2",
     "@types/node": "24.13.6",
     "mdsvex": "0.12.8",
     "remark-gfm": "4.0.1",
+    "satori": "0.33.5",
+    "shiki": "3.23.0",
     "svelte": "5.57.1",
     "typescript": "7.0.2",
     "unified": "11.0.5",

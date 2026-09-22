@@ -27,6 +27,8 @@ import {
   markdownDocument,
   mcpServerCard,
   mcpVersionText,
+  ogImagePath,
+  ogImages,
   publicPaths,
   robotsText,
   sitemapXml,
@@ -108,7 +110,21 @@ export interface StaticResponseCache {
 
 // The favicon is cached like every other static file but stays out of the
 // sitemap and agent catalogue, so it is not a public content path.
-const staticPaths = new Set<string>([...publicPaths, "/favicon.svg"]);
+// Preview images are pure functions of the content version, so they ride the
+// same versioned edge cache as every other static file. Decoded once at
+// module load; the Worker never touches the base64 again.
+const ogImageBytes = ogImages.map((image) => ({
+  bytes: Uint8Array.from(
+    atob(image.pngBase64),
+    (character) => character.codePointAt(0) ?? 0
+  ),
+  path: ogImagePath(image.routePath),
+}));
+const staticPaths = new Set<string>([
+  ...publicPaths,
+  "/favicon.svg",
+  ...ogImageBytes.map((image) => image.path),
+]);
 const negotiatedHtmlPaths = new Set<string>([
   "/",
   "/skills",
@@ -284,6 +300,13 @@ const contentRoutes = Layer.mergeAll(
     HttpServerResponse.text(logoSvg, {
       contentType: "image/svg+xml; charset=utf-8",
     })
+  ),
+  ...ogImageBytes.map((image) =>
+    HttpRouter.add(
+      "GET",
+      image.path,
+      HttpServerResponse.uint8Array(image.bytes, { contentType: "image/png" })
+    )
   ),
   HttpRouter.add(
     "GET",

@@ -3,14 +3,20 @@
 import { createHash } from "node:crypto";
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { Resvg } from "@resvg/resvg-js";
 import { Effect, FileSystem, Option, Path, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { compile as compileMdsvex } from "mdsvex";
 import remarkGfm from "remark-gfm";
+import satori from "satori";
+import { createHighlighter } from "shiki";
+import type { Highlighter } from "shiki";
 import type { Component } from "svelte";
 import { compile as compileSvelte } from "svelte/compiler";
 import { render } from "svelte/server";
 import type { Plugin } from "unified";
+
+import { deriveAgentMarkdown, deriveHtmlMarkdown } from "./content-lib.ts";
 
 const originToken = "__RATSTACK_ORIGIN__";
 const repoUrl = "https://github.com/joelhooks/rat-stack";
@@ -71,7 +77,14 @@ interface SourceSpec {
 }
 
 interface PublicSpec extends SourceSpec {
+  readonly rawText: string;
   readonly text: string;
+}
+
+interface OgPage {
+  readonly description: string;
+  readonly routePath: `/${string}`;
+  readonly title: string;
 }
 
 interface DocumentProps {
@@ -81,6 +94,7 @@ interface DocumentProps {
   readonly breadcrumbName?: string;
   readonly description: string;
   readonly logoSvg: string;
+  readonly ogImageUrl: string;
   readonly origin: string;
   readonly path: string;
   readonly title: string;
@@ -343,6 +357,153 @@ const linkStackEntities: Plugin = () => {
 const compileName = (spec: SourceSpec) =>
   /\.(?:md|svx)$/u.test(spec.sourcePath) ? spec.sourcePath : spec.title;
 
+const ogImagePath = (routePath: string) =>
+  `/og${routePath === "/" ? "/home" : routePath}.png`;
+
+const syntaxLanguage = new Map<string, string>([
+  ["bash", "bash"],
+  ["css", "css"],
+  ["html", "html"],
+  ["js", "javascript"],
+  ["json", "json"],
+  ["sh", "bash"],
+  ["shell", "bash"],
+  ["sql", "sql"],
+  ["svelte", "svelte"],
+  ["toml", "toml"],
+  ["ts", "typescript"],
+  ["typescript", "typescript"],
+  ["text", "text"],
+  ["yaml", "yaml"],
+  ["yml", "yaml"],
+]);
+
+const escapeCodeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const escapeSvelteCodeHtml = (value: string) =>
+  value
+    .replaceAll("{", "&#123;")
+    .replaceAll("}", "&#125;")
+    .replaceAll("`", "&#96;");
+
+const makeCodeHighlighter =
+  (highlighter: Highlighter) =>
+  (code: string, lang: string | null | undefined) => {
+    const normalized = lang?.trim().toLowerCase() ?? "text";
+    const language = syntaxLanguage.get(normalized) ?? "text";
+    if (
+      language === "text" ||
+      !highlighter.getLoadedLanguages().includes(language)
+    ) {
+      return `<pre><code>${escapeCodeHtml(code)}</code></pre>`;
+    }
+    return escapeSvelteCodeHtml(
+      highlighter.codeToHtml(code, {
+        lang: language,
+        theme: "catppuccin-latte",
+      })
+    );
+  };
+
+const makeOgElement = (page: OgPage, logoDataUrl: string) => ({
+  props: {
+    children: [
+      {
+        props: {
+          height: 286,
+          src: logoDataUrl,
+          width: 420,
+        },
+        type: "img",
+      },
+      {
+        props: {
+          children: [
+            {
+              props: {
+                children: page.title,
+                style: {
+                  fontSize: 56,
+                  fontWeight: 700,
+                  lineHeight: 1.1,
+                },
+              },
+              type: "div",
+            },
+            {
+              props: {
+                children: page.description,
+                style: {
+                  fontSize: 28,
+                  lineHeight: 1.35,
+                  marginTop: 18,
+                },
+              },
+              type: "div",
+            },
+          ],
+          style: {
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+          },
+        },
+        type: "div",
+      },
+    ],
+    style: {
+      alignItems: "center",
+      backgroundColor: "#FAF5E9",
+      color: "#262829",
+      display: "flex",
+      gap: 72,
+      height: 630,
+      padding: 72,
+      width: 1200,
+    },
+  },
+  type: "div",
+});
+
+const renderOgImage = (
+  page: OgPage,
+  logoSvg: string,
+  regularFont: Buffer,
+  boldFont: Buffer
+) =>
+  Effect.tryPromise({
+    catch: (cause) => buildError("og image", page.routePath, cause),
+    // @effect-diagnostics-next-line asyncFunction:off -- satori and resvg own this Promise boundary.
+    try: async () => {
+      const svg = await satori(
+        makeOgElement(
+          page,
+          `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`
+        ),
+        {
+          embedFont: true,
+          fonts: [
+            { data: regularFont, name: "JetBrains Mono", weight: 400 },
+            { data: boldFont, name: "JetBrains Mono", weight: 700 },
+          ],
+          height: 630,
+          width: 1200,
+        }
+      );
+      return new Resvg(svg, {
+        font: { loadSystemFonts: false },
+      })
+        .render()
+        .asPng();
+    },
+  });
+
 const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
   function* loadCompiledComponent(source: string, sourcePath: string) {
     const compiled = yield* Effect.try({
@@ -384,6 +545,7 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
   function* compileMarkdownBody(
     source: string,
     sourcePath: string,
+    highlighter: Highlighter,
     targets: ReadonlyMap<string, string> = emptyTargets
   ) {
     const transformed: unknown = yield* Effect.tryPromise({
@@ -392,10 +554,13 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
       // Mapping the fulfilled value to unknown lets us validate the real boundary.
       // @effect-diagnostics-next-line asyncFunction:off -- mdsvex owns this Promise boundary.
       try: async () =>
-        await compileMdsvex(source, {
+        await compileMdsvex(deriveHtmlMarkdown(source), {
           extensions: [".md", ".svx"],
           filename: sourcePath,
-          highlight: false,
+          highlight: {
+            highlighter: makeCodeHighlighter(highlighter),
+            optimise: false,
+          },
           rehypePlugins: [
             stableHeadingIds,
             tableCellLabels,
@@ -547,6 +712,26 @@ const program = Effect.gen(function* generateContent() {
     root,
     "apps/mischief/src/bundled-content.generated.ts"
   );
+  const highlighter = yield* Effect.tryPromise({
+    catch: (cause) => buildError("Shiki highlighter", "shiki", cause),
+    // @effect-diagnostics-next-line asyncFunction:off -- Shiki owns this Promise boundary.
+    try: async () =>
+      await createHighlighter({
+        langs: [
+          "bash",
+          "css",
+          "html",
+          "javascript",
+          "json",
+          "svelte",
+          "sql",
+          "toml",
+          "typescript",
+          "yaml",
+        ],
+        themes: ["catppuccin-latte"],
+      }),
+  });
 
   const readText = (sourcePath: string) =>
     fileSystem
@@ -581,22 +766,52 @@ const program = Effect.gen(function* generateContent() {
   const logoSvg = (yield* readText("assets/ratstack-logo.svg"))
     .replaceAll(/<!--[\s\S]*?-->\s*/gu, "")
     .trim();
+  const regularFont = yield* fileSystem
+    .readFile(path.join(root, "assets/fonts/JetBrainsMono-Regular.ttf"))
+    .pipe(
+      Effect.mapError((cause) =>
+        buildError("og image", "assets/fonts/JetBrainsMono-Regular.ttf", cause)
+      )
+    );
+  const boldFont = yield* fileSystem
+    .readFile(path.join(root, "assets/fonts/JetBrainsMono-Bold.ttf"))
+    .pipe(
+      Effect.mapError((cause) =>
+        buildError("og image", "assets/fonts/JetBrainsMono-Bold.ttf", cause)
+      )
+    );
 
   const makeDocument = (
     bodyHtml: string,
-    metadata: Omit<DocumentProps, "bodyHtml" | "logoSvg" | "origin">,
-    sourcePath: string
+    metadata: Omit<
+      DocumentProps,
+      "bodyHtml" | "logoSvg" | "ogImageUrl" | "origin"
+    >,
+    sourcePath: string,
+    contentVersion: string
   ) =>
     renderDocument(
       shell,
-      { bodyHtml, logoSvg, origin: originToken, ...metadata },
+      {
+        bodyHtml,
+        logoSvg,
+        ogImageUrl: `${originToken}${ogImagePath(metadata.path)}?v=${contentVersion}`,
+        origin: originToken,
+        ...metadata,
+      },
       sourcePath
     );
 
   const lawTexts: readonly PublicSpec[] = yield* Effect.forEach(
     lawSpecs,
     (spec) =>
-      readText(spec.sourcePath).pipe(Effect.map((text) => ({ ...spec, text }))),
+      readText(spec.sourcePath).pipe(
+        Effect.map((rawText) => ({
+          ...spec,
+          rawText,
+          text: deriveAgentMarkdown(rawText),
+        }))
+      ),
     { concurrency: "unbounded" }
   );
 
@@ -725,6 +940,7 @@ const program = Effect.gen(function* generateContent() {
     {
       description:
         "Exact dependency values declared by every workspace package.",
+      rawText: pinsText,
       routePath: "/pins.md",
       sourcePath: "workspace package.json files",
       text: pinsText,
@@ -732,6 +948,7 @@ const program = Effect.gen(function* generateContent() {
     },
     {
       description: "What changed in the files served here, newest first.",
+      rawText: logText,
       routePath: "/log.md",
       sourcePath: "git history",
       text: logText,
@@ -751,7 +968,8 @@ const program = Effect.gen(function* generateContent() {
     (directoryName) =>
       Effect.gen(function* readSkill() {
         const sourcePath = `skills/${directoryName}/SKILL.md`;
-        const text = yield* readText(sourcePath);
+        const rawText = yield* readText(sourcePath);
+        const text = deriveAgentMarkdown(rawText);
         const name = yield* Effect.try({
           catch: (cause) => buildError("frontmatter", sourcePath, cause),
           try: () => frontmatterValue(text, "name"),
@@ -770,7 +988,7 @@ const program = Effect.gen(function* generateContent() {
           try: () => frontmatterValue(text, "description"),
         });
         const routePath = `/skills/${name}` as const;
-        return { description, name, routePath, sourcePath, text };
+        return { description, name, rawText, routePath, sourcePath, text };
       }),
     { concurrency: "unbounded" }
   );
@@ -939,75 +1157,43 @@ const program = Effect.gen(function* generateContent() {
     return lines.length === 0 ? "" : `<hr>${lines.join("")}`;
   };
 
-  const lawSources = yield* Effect.forEach(
+  const lawBodies = yield* Effect.forEach(
     publicSpecs.map((spec, index) => ({
       spec,
       targets: publicTargets[index] ?? emptyTargets,
     })),
     ({ spec, targets }) =>
-      Effect.gen(function* renderPublic() {
+      Effect.gen(function* renderPublicBody() {
         const bodyHtml = yield* compileMarkdownBody(
-          spec.text,
+          spec.rawText,
           compileName(spec),
+          highlighter,
           targets
         );
-        const documentHtml = yield* makeDocument(
-          `${bodyHtml}${pageFooterHtml(spec.routePath, spec.sourcePath)}`,
-          {
-            breadcrumbHref: "/",
-            breadcrumbLabel: "source files",
-            breadcrumbName: spec.title,
-            description: spec.description,
-            path: spec.routePath,
-            title: `${spec.title} | rat-stack`,
-          },
-          spec.sourcePath
-        );
         return {
-          description: spec.description,
-          digest: digest(spec.text),
-          documentHtml,
-          routePath: spec.routePath,
-          sourcePath: spec.sourcePath,
-          text: spec.text,
-          title: spec.title,
+          bodyHtml: `${bodyHtml}${pageFooterHtml(spec.routePath, spec.sourcePath)}`,
+          spec,
         };
       }),
     { concurrency: "unbounded" }
   );
 
-  const skillSources = yield* Effect.forEach(
+  const skillBodies = yield* Effect.forEach(
     skillTexts.map((skill, index) => ({
       skill,
       targets: skillTargets[index] ?? emptyTargets,
     })),
     ({ skill, targets }) =>
-      Effect.gen(function* renderSkill() {
+      Effect.gen(function* renderSkillBody() {
         const bodyHtml = yield* compileMarkdownBody(
-          skill.text,
+          skill.rawText,
           skill.sourcePath,
+          highlighter,
           targets
         );
-        const documentHtml = yield* makeDocument(
-          `${bodyHtml}${pageFooterHtml(skill.routePath, skill.sourcePath)}`,
-          {
-            breadcrumbHref: "/skills",
-            breadcrumbLabel: "skills",
-            breadcrumbName: skill.name,
-            description: skill.description,
-            path: skill.routePath,
-            title: `${skill.name} | rat-stack`,
-          },
-          skill.sourcePath
-        );
         return {
-          description: skill.description,
-          digest: digest(skill.text),
-          documentHtml,
-          name: skill.name,
-          routePath: skill.routePath,
-          sourcePath: skill.sourcePath,
-          text: skill.text,
+          bodyHtml: `${bodyHtml}${pageFooterHtml(skill.routePath, skill.sourcePath)}`,
+          skill,
         };
       }),
     { concurrency: "unbounded" }
@@ -1015,9 +1201,9 @@ const program = Effect.gen(function* generateContent() {
 
   const groupedSkills = skillGroups
     .map((group) => {
-      const members = skillSources.filter((skill) =>
-        group.names.some((name) => name === skill.name)
-      );
+      const members = skillBodies
+        .map(({ skill }) => skill)
+        .filter((skill) => group.names.some((name) => name === skill.name));
       return members.length === 0
         ? ""
         : `### ${group.title}\n\n${entryList(members)}`;
@@ -1060,7 +1246,7 @@ ${groupedSkills}
 
 ## Source files
 
-${entryList(lawSources)}
+${entryList(publicSpecs)}
 
 ## Connect an agent
 
@@ -1086,31 +1272,13 @@ ${groupedSkills}
 
   const homeBodyHtml = yield* compileMarkdownBody(
     homeMarkdownTemplate,
-    "ratstack-home.md"
-  );
-  const homeDocumentHtml = yield* makeDocument(
-    homeBodyHtml,
-    {
-      description:
-        "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces in one working app.",
-      path: "/",
-      title: "Rat Stack: learn the pieces in a working app",
-    },
-    "ratstack-home.md"
+    "ratstack-home.md",
+    highlighter
   );
   const skillIndexBodyHtml = yield* compileMarkdownBody(
     skillIndexMarkdown,
-    "ratstack-skills.md"
-  );
-  const skillIndexDocumentHtml = yield* makeDocument(
-    skillIndexBodyHtml,
-    {
-      description:
-        "Four hands-on guides to Effect actions, XState lifecycles, and the seams between stack pieces.",
-      path: "/skills",
-      title: "Learn the stack | rat-stack",
-    },
-    "ratstack-skills.md"
+    "ratstack-skills.md",
+    highlighter
   );
 
   const staticSourcePathGroups = yield* Effect.forEach(
@@ -1139,25 +1307,148 @@ ${groupedSkills}
   const staticSourceText = yield* Effect.forEach(staticSourcePaths, readText, {
     concurrency: "unbounded",
   });
-  // The edge cache key is this version, so it must follow the rendered
-  // output, not only the inputs: a change to the compiler alone (a new rehype
-  // plugin, a shell tweak) would otherwise serve the old HTML for a year.
-  const staticContentVersion = digest(
+  // Compute the cache version from rendered bodies before wrapping them in the
+  // shell. The shell receives this version in its og:image URL, so including
+  // complete documents here would create a digest cycle.
+  const contentVersion = digest(
     [
       homeMarkdownTemplate,
-      homeDocumentHtml,
+      homeBodyHtml,
       skillIndexMarkdown,
-      skillIndexDocumentHtml,
+      skillIndexBodyHtml,
       logoSvg,
-      ...lawSources.map((resource) => resource.digest),
-      ...lawSources.map((resource) => resource.documentHtml),
-      ...skillSources.map((skill) => skill.digest),
-      ...skillSources.map((skill) => skill.documentHtml),
+      ...publicSpecs.map((spec) => spec.text),
+      ...lawBodies.map(({ bodyHtml }) => bodyHtml),
+      ...skillTexts.map((skill) => skill.text),
+      ...skillBodies.map(({ bodyHtml }) => bodyHtml),
       ...staticSourceText,
     ].join("\u0000")
   ).slice(0, 16);
 
-  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const logoSvg = ${sourceLiteral(logoSvg)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
+  const homeMetadata = {
+    description:
+      "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces in one working app.",
+    path: "/",
+    title: "Rat Stack: learn the pieces in a working app",
+  } as const;
+  const skillIndexMetadata = {
+    description:
+      "Four hands-on guides to Effect actions, XState lifecycles, and the seams between stack pieces.",
+    path: "/skills",
+    title: "Learn the stack | rat-stack",
+  } as const;
+  const ogPages: readonly OgPage[] = [
+    {
+      description: homeMetadata.description,
+      routePath: "/",
+      title: "ratstack.sh",
+    },
+    {
+      description: skillIndexMetadata.description,
+      routePath: "/skills",
+      title: "Learn the stack",
+    },
+    ...publicSpecs.map(({ description, routePath, title }) => ({
+      description,
+      routePath,
+      title,
+    })),
+    ...skillTexts.map(({ description, name, routePath }) => ({
+      description,
+      routePath,
+      title: name,
+    })),
+  ];
+  const ogImages = yield* Effect.forEach(
+    ogPages,
+    (page) =>
+      renderOgImage(
+        page,
+        logoSvg,
+        Buffer.from(regularFont),
+        Buffer.from(boldFont)
+      ).pipe(
+        Effect.map((png) => ({
+          pngBase64: Buffer.from(png).toString("base64"),
+          routePath: page.routePath,
+        }))
+      ),
+    { concurrency: 4 }
+  );
+
+  const lawSources = yield* Effect.forEach(
+    lawBodies,
+    ({ bodyHtml, spec }) =>
+      Effect.gen(function* renderPublic() {
+        const documentHtml = yield* makeDocument(
+          bodyHtml,
+          {
+            breadcrumbHref: "/",
+            breadcrumbLabel: "source files",
+            breadcrumbName: spec.title,
+            description: spec.description,
+            path: spec.routePath,
+            title: `${spec.title} | rat-stack`,
+          },
+          spec.sourcePath,
+          contentVersion
+        );
+        return {
+          description: spec.description,
+          digest: digest(spec.text),
+          documentHtml,
+          routePath: spec.routePath,
+          sourcePath: spec.sourcePath,
+          text: spec.text,
+          title: spec.title,
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+  const skillSources = yield* Effect.forEach(
+    skillBodies,
+    ({ bodyHtml, skill }) =>
+      Effect.gen(function* renderSkill() {
+        const documentHtml = yield* makeDocument(
+          bodyHtml,
+          {
+            breadcrumbHref: "/skills",
+            breadcrumbLabel: "skills",
+            breadcrumbName: skill.name,
+            description: skill.description,
+            path: skill.routePath,
+            title: `${skill.name} | rat-stack`,
+          },
+          skill.sourcePath,
+          contentVersion
+        );
+        return {
+          description: skill.description,
+          digest: digest(skill.text),
+          documentHtml,
+          name: skill.name,
+          routePath: skill.routePath,
+          sourcePath: skill.sourcePath,
+          text: skill.text,
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+  const homeDocumentHtml = yield* makeDocument(
+    homeBodyHtml,
+    homeMetadata,
+    "ratstack-home.md",
+    contentVersion
+  );
+  const skillIndexDocumentHtml = yield* makeDocument(
+    skillIndexBodyHtml,
+    skillIndexMetadata,
+    "ratstack-skills.md",
+    contentVersion
+  );
+  const staticContentVersion = contentVersion;
+
+  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const logoSvg = ${sourceLiteral(logoSvg)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
   const temporaryOutput = yield* fileSystem
     .makeTempFile({
       directory: path.dirname(output),

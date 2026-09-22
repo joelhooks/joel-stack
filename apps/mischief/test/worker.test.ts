@@ -461,11 +461,17 @@ it.effect(
         expect(html).not.toContain("<strong>🐀 Rat Stack</strong>");
         expect(skillHtml).toContain("<strong>🐀 Rat Stack</strong>");
         expect(skillHtml.match(/<h1\b/gu)).toHaveLength(1);
-        expect(html).toContain('<code class="language-text">');
+        // Diagrams stay plain; code gets Shiki with the Catppuccin Latte
+        // theme, inline styles only, no runtime CSS classes to resolve.
+        expect(html).toContain("<pre><code>");
+        expect(skillHtml).toContain('<pre class="shiki catppuccin-latte"');
+        expect(skillHtml).not.toContain('<link rel="stylesheet"');
         expect(html).toContain("│  defineCapability");
         expect(html).not.toContain("<svg");
         expect(html).not.toContain("prefers-color-scheme");
-        expect(html).not.toContain("background");
+        // Light only: no page background. Code boxes carry the Catppuccin
+        // Latte box colour inline, which is allowed.
+        expect(html).not.toMatch(/(?:html|body)\s*\{[^}]*background/u);
         expect(html).toContain('href="/favicon.svg"');
         expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
         expect(html).toContain("max-width:80ch");
@@ -476,7 +482,15 @@ it.effect(
         );
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");
-        expect(html).not.toContain('property="og:image"');
+        expect(html).toMatch(
+          /<meta property="og:image" content="https:\/\/ratstack\.sh\/og\/[\w./-]+\.png\?v=[0-9a-f]+"/u
+        );
+        expect(html).toContain(
+          '<meta property="og:site_name" content="ratstack.sh"'
+        );
+        expect(html).toContain(
+          '<meta name="twitter:card" content="summary_large_image"'
+        );
         expect(html).not.toContain("<script");
         expect(skillsHtmlResponse.headers.get("content-type")).toContain(
           "text/html"
@@ -580,6 +594,32 @@ it.effect(
         expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
         expect(faviconBody).toMatch(/^<svg /u);
         expect(faviconBody).not.toContain("<!--");
+
+        // Every page has a preview image, served from the versioned edge
+        // cache, 1200x630 PNG (magic bytes, then IHDR width and height).
+        for (const route of [
+          "/",
+          "/skills",
+          "/skills/learn-rat-stack",
+          "/AGENTS.md",
+          "/log.md",
+        ]) {
+          const imagePath = `/og${route === "/" ? "/home" : route}.png`;
+          const image = yield* Effect.promise(
+            handler.bind(undefined, new Request(`http://localhost${imagePath}`))
+          );
+          const bytes = new Uint8Array(
+            yield* Effect.promise(image.arrayBuffer.bind(image))
+          );
+          expect(image.status).toBe(200);
+          expect(image.headers.get("content-type")).toBe("image/png");
+          expect(bytes.subarray(0, 8)).toEqual(
+            new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+          );
+          const view = new DataView(bytes.buffer);
+          expect(view.getUint32(16)).toBe(1200);
+          expect(view.getUint32(20)).toBe(630);
+        }
       })
     )
 );
