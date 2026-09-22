@@ -66,10 +66,24 @@ it.layer(NodeServices.layer)("generated content", (test) => {
   test.effect("uses Shiki for code and leaves text diagrams uncoloured", () =>
     Effect.sync(() => {
       expect(homeDocumentHtml).toContain('class="shiki catppuccin-latte"');
-      expect(homeDocumentHtml).toMatch(/<figure role="img"[^>]*><pre><code>/u);
-      expect(homeDocumentHtml).not.toMatch(
-        /<figure role="img"[^>]*><pre[^>]*style=/u
+      expect(homeDocumentHtml).toMatch(
+        /<figure role="img"[^>]*>\s*<pre><code>/u
       );
+      expect(homeDocumentHtml).not.toMatch(
+        /<figure role="img"[^>]*>\s*<pre[^>]*style=/u
+      );
+    })
+  );
+
+  test.effect("keeps the line breaks in a text diagram", () =>
+    Effect.sync(() => {
+      const figures = homeDocumentHtml.match(
+        /<figure role="img"[\s\S]*?<\/figure>/gu
+      );
+      expect(figures?.length).toBeGreaterThan(0);
+      for (const figure of figures ?? []) {
+        expect(figure).toMatch(/┐\n/u);
+      }
     })
   );
 

@@ -1247,10 +1247,10 @@ Vendor it like a library. Keep the bins you need and pull the rest.
 
 ## Four ideas
 
-- **Pieces.** An Alchemy Layer carries its own infrastructure. A service tag is the product's API, a Layer is one vendor's implementation, and swapping vendors is a one-line change.
+- **Pieces.** An Alchemy Layer carries its own infrastructure. A service tag is the product's API. A Layer is one vendor's implementation. Swapping vendors is a one-line change.
 - **Trust.** Make the easy path the right path. The codebase and the compiler stop mistakes that rules and style guides can only ask about. Remove a binding and the code that uses it stops compiling.
-- **Floor.** Raise the worst case, not the best one. Small cuts to failure rates multiply how long an agent can run unattended.
-- **Range.** Think wider. Building got fast and deploying did not. Layers that carry their own infrastructure close that gap: if it compiles, it deploys.
+- **Floor.** Raise the worst case. Small cuts to failure rates multiply how long an agent can run unattended.
+- **Range.** Think wider. Building got fast and deploying did not. Layers that carry their own infrastructure close that gap. If it compiles, it deploys.
 
 The [vision](${originToken}/VISION.md) has the sources and the reasoning.
 
@@ -1261,21 +1261,21 @@ Every piece is a bin you can push in or pull out.
 <Diagram alt="A shelf of labeled bins. In today: capability, projections, fence, and stack. Next: a database bin with D1 or PlanetScale. Coming: the agent front door.">
 
 \`\`\`text
-  every bin: labeled · push in · pull out · self-contained · easy to trash
+  labeled · push in · pull out · self-contained · easy to trash
 
-  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-  │ capability   │ │ projections  │ │ fence        │ │ stack        │
-  │ one schema,  │ │ CLI · HTTP   │ │ types · lint │ │ Alchemy →    │
-  │ one handler  │ │ MCP · sandbox│ │ hooks · CI   │ │ Cloudflare   │
-  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
-        in               in               in               in
+  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+  │ capability  │ │ projections │ │ fence       │ │ stack       │
+  │ one schema  │ │ CLI · HTTP  │ │ types · lint│ │ Alchemy →   │
+  │ one handler │ │ MCP · code  │ │ hooks · CI  │ │ Cloudflare  │
+  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
+         in              in              in              in
 
-  ┌──────────────┐ ┌──────────────┐
-  │ database     │ │ front door   │
-  │ D1 (free) or │ │ REST · MCP   │
-  │ PlanetScale  │ │ A2A · sandbox│
-  └──────────────┘ └──────────────┘
-       next            coming
+  ┌─────────────┐ ┌─────────────┐
+  │ database    │ │ front door  │
+  │ D1 or       │ │ REST · MCP  │
+  │ PlanetScale │ │ A2A, sandbox│
+  └─────────────┘ └─────────────┘
+        next           coming
 \`\`\`
 </Diagram>
 

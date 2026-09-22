@@ -444,7 +444,7 @@ it.effect(
         expect(markdown).toBe(markdownDocument("https://ratstack.sh"));
         expect(markdown).toContain("an app and its cloud as one typed program");
         expect(markdown).toContain("## Four ideas");
-        expect(markdown).toContain("every bin: labeled · push in · pull out");
+        expect(markdown).toContain("labeled · push in · pull out");
         expect(markdown).toContain("│  defineCapability");
         expect(markdown).toContain("What to notice:");
         expect(markdown).toContain("npx skills add joelhooks/rat-stack");

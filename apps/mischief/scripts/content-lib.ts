@@ -6,7 +6,6 @@ const humanBlock =
   /<HumanOnly>\s*\r?\n(?<content>[\s\S]*?)\r?\n\s*<\/HumanOnly>/gu;
 const diagramBlock =
   /<Diagram\s+alt="(?<alt>[^"]*)">\s*\r?\n(?<fence>```text\r?\n[\s\S]*?\r?\n```)\s*\r?\n<\/Diagram>/gu;
-const diagramFence = /```text\r?\n(?<body>[\s\S]*?)\r?\n```/u;
 
 const escapeHtml = (value: string) =>
   value
@@ -62,9 +61,10 @@ export const deriveHtmlMarkdown = (source: string): string => {
           : {};
       const alt = record.alt ?? "Diagram";
       const fence = record.fence ?? "```text\n\n```";
-      const body = diagramFence.exec(fence)?.groups?.body ?? fence;
-      const encodedBody = escapeHtml(body).replaceAll("\n", "&#10;");
-      return `<figure role="img" aria-label="${escapeHtml(alt)}"><pre><code>${encodedBody}</code></pre><figcaption>${escapeHtml(alt)}</figcaption></figure>`;
+      // The fence stays Markdown so it takes the same code path as every other
+      // block. Raw HTML must fit one Markdown block, and folding the diagram
+      // into it lost its line breaks.
+      return `<figure role="img" aria-label="${escapeHtml(alt)}">\n\n${fence}\n\n<figcaption>${escapeHtml(alt)}</figcaption></figure>`;
     }
   );
   const withoutAgent = withDiagrams.replaceAll(agentBlock, "");
