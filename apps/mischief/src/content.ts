@@ -126,6 +126,9 @@ export const htmlDocument = (origin: string) => `<!doctype html>
 <body><main><pre>${escapeHtml(markdownDocument(origin))}</pre></main></body>
 </html>`;
 
+export const mcpVersionText = (origin: string) =>
+  `ratstack.sh MCP supports protocol 2026-07-28 only.\nSee ${origin}/llms.txt for connection details.\n`;
+
 export const llmsText = (origin: string) => `# ratstack.sh
 
 > Effect-native TypeScript capabilities with CLI, HTTP, MCP, and sandboxed code-mode projections.
@@ -135,7 +138,13 @@ export const llmsText = (origin: string) => `# ratstack.sh
 - [Repository map](${origin}/): concise human and agent overview
 - [Full corpus](${origin}/llms-full.txt): all public law and skill documents in one response
 - [OpenAPI](${origin}/openapi.json): generated HTTP capability contract
-- [MCP](${origin}/mcp): stateless MCP 2026-07-28 endpoint
+- [MCP](${origin}/mcp): stateless MCP endpoint
+
+## MCP
+
+Protocol 2026-07-28 only. Legacy clients should read [this file](${origin}/llms.txt) and upgrade before connecting.
+
+Rate limits: 120 API or MCP requests per IP per 60 seconds; \`execute\` is additionally limited to 6 per IP and 300 total per 60 seconds. Cloudflare counts approximately per location.
 
 ## Law
 

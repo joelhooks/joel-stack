@@ -13,6 +13,7 @@
     "env:check": "varlock load",
     "fix": "ultracite fix && oxfmt .",
     "lint": "ultracite check && oxfmt --check .",
+    "mischief:smoke": "bash apps/mischief/scripts/smoke.sh",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "infra:deploy": "pnpm --filter @rat-stack/infra deploy",

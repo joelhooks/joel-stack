@@ -63,7 +63,7 @@ Chartered 2026-09-21 from Joel's grilling in the rat-stack session. The template
 - Content freshness: the site reads repo files at bundle time, so every doc change needs a redeploy until CI deploys.
 - A human-facing website (`Cloudflare.Website.*`) beside the Worker, later.
 - `capnp-es` under alchemy wants TypeScript 5 or 6; harmless so far.
-- Spend ceiling for `execute`: the rate limits below cap it at roughly 300 programs a minute per colo in the worst case; Joel to name a monthly number if he wants a hard budget alarm (Cloudflare notifications can do it).
+- Spend alarm (2026-09-22, Joel: "don't need a spend limit but if you can set"): Cloudflare `billing_budget_alert` policy `f7f7ce9fd31f4e6e9dd4bb3b8f087ea2`, "ratstack.sh spend alarm (25 USD)", emailing the same address as the account's auto-created 10 USD alert, created through Executor's saved Cloudflare connection and read back. The 10 USD default policy stays and will fire on Workers Paid alone.
 - Legacy-protocol sunset: when the hybrid exists, the evidence to drop the Durable Object is a client matrix where every likely client defaults to `2026-07-28`.
 - Whether `apps/mischief` also gets a CLI projection (`pnpm mischief search ...`) for local use of the same capabilities.
 

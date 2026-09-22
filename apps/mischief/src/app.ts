@@ -1,11 +1,11 @@
 import { toHttpApi } from "@rat-stack/capability/http-api";
 import { toToolkit } from "@rat-stack/capability/toolkit";
 import * as AlchemyHttp from "alchemy/Http";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import * as McpProtocol from "effect/unstable/ai/McpProtocol";
 import * as McpServer from "effect/unstable/ai/McpServer";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
-import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
@@ -21,11 +21,13 @@ import {
   llmsText,
   markdownDocument,
   mcpServerCard,
+  mcpVersionText,
   robotsText,
   sitemapXml,
   skillIndex,
   skills,
 } from "./content.js";
+import type { RateLimitName, RateLimits } from "./rate-limits.js";
 
 const markdown = (body: string) =>
   HttpServerResponse.text(body, {
@@ -141,6 +143,126 @@ const contentRoutes = Layer.mergeAll(
   ])
 );
 
+const JsonRpcEnvelope = Schema.Struct({
+  id: Schema.optional(
+    Schema.Union([Schema.String, Schema.Finite, Schema.Null])
+  ),
+  method: Schema.optional(Schema.String),
+});
+
+const inspectMcpRequest = (request: HttpServerRequest.HttpServerRequest) =>
+  Effect.gen(function* inspectRequest() {
+    const { source } = request;
+    const body: unknown =
+      source instanceof Request
+        ? yield* Effect.tryPromise(
+            // The Fetch Request owns this Promise-returning boundary.
+            // oxlint-disable-next-line typescript/promise-function-async
+            () => source.clone().json()
+          )
+        : yield* request.json;
+    return yield* Schema.decodeUnknownEffect(JsonRpcEnvelope)(body);
+  }).pipe(Effect.orElseSucceed(() => null));
+
+const exceededMessage = (name: RateLimitName) =>
+  `${name} rate limit exceeded; retry after 60 seconds.`;
+
+const rateLimitResponse = (
+  request: HttpServerRequest.HttpServerRequest,
+  name: RateLimitName,
+  mcpToolCall: boolean
+) => {
+  const message = exceededMessage(name);
+  if (!request.url.startsWith("/mcp")) {
+    return Effect.succeed(
+      HttpServerResponse.text(message, {
+        headers: { "retry-after": "60" },
+        status: 429,
+      })
+    );
+  }
+
+  return inspectMcpRequest(request).pipe(
+    Effect.map((envelope) =>
+      HttpServerResponse.jsonUnsafe(
+        mcpToolCall
+          ? {
+              id: envelope?.id ?? null,
+              jsonrpc: "2.0",
+              result: {
+                content: [{ text: message, type: "text" }],
+                isError: true,
+              },
+            }
+          : {
+              error: { code: -32_000, message },
+              id: envelope?.id ?? null,
+              jsonrpc: "2.0",
+            },
+        { headers: { "retry-after": "60" } }
+      )
+    )
+  );
+};
+
+const requestProtection = (rateLimits: RateLimits) =>
+  HttpRouter.middleware(
+    (httpEffect) =>
+      Effect.gen(function* protectRequest() {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const path = new URL(request.url, "https://ratstack.sh").pathname;
+        const isMcp = path === "/mcp";
+        const isApi = path === "/api" || path.startsWith("/api/");
+        const mcpToolCall =
+          isMcp && request.headers["mcp-method"] === "tools/call";
+        const isExecute =
+          path === "/api/execute" ||
+          (mcpToolCall && request.headers["mcp-name"] === "execute");
+
+        if (isMcp || isApi) {
+          const clientIp = request.headers["cf-connecting-ip"] ?? "unknown";
+          const checks: readonly (readonly [RateLimitName, string])[] = [
+            ["API_PER_IP", clientIp],
+            ...(isExecute
+              ? ([
+                  ["EXECUTE_PER_IP", clientIp],
+                  ["EXECUTE_GLOBAL", "global"],
+                ] as const)
+              : []),
+          ];
+
+          for (const [name, key] of checks) {
+            if (!(yield* rateLimits.limit(name, key))) {
+              return yield* rateLimitResponse(request, name, mcpToolCall);
+            }
+          }
+        }
+
+        if (isMcp && request.method === "GET") {
+          return HttpServerResponse.text(mcpVersionText(originOf(request)), {
+            contentType: "text/plain; charset=utf-8",
+          });
+        }
+
+        if (
+          isMcp &&
+          request.method === "POST" &&
+          request.headers["mcp-protocol-version"] === undefined
+        ) {
+          const envelope = yield* inspectMcpRequest(request);
+          if (envelope?.method === "initialize") {
+            return HttpServerResponse.text(mcpVersionText(originOf(request)), {
+              contentType: "text/plain; charset=utf-8",
+              status: 400,
+            });
+          }
+        }
+
+        return yield* httpEffect;
+      }),
+    { global: true }
+  );
+
 const linkHeaders = HttpRouter.middleware(
   (httpEffect) =>
     httpEffect.pipe(
@@ -149,9 +271,11 @@ const linkHeaders = HttpRouter.middleware(
   { global: true }
 );
 
-export const routes = Layer.mergeAll(
-  contentRoutes,
-  apiRoutes,
-  mcp,
-  linkHeaders
-);
+export const makeRoutes = (rateLimits: RateLimits) =>
+  Layer.mergeAll(
+    contentRoutes,
+    apiRoutes,
+    mcp,
+    requestProtection(rateLimits),
+    linkHeaders
+  );

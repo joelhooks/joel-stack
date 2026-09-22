@@ -3,7 +3,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { routes } from "./app.js";
+import { makeRoutes } from "./app.js";
+import { makeRateLimits, rateLimitDeclarations } from "./rate-limits.js";
+import type { RateLimitBindings } from "./rate-limits.js";
 import { layerWorkerLoader } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
 
@@ -20,11 +22,29 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
   },
   Effect.gen(function* makeMischief() {
     yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
+    yield* Cloudflare.RateLimit("API_PER_IP", rateLimitDeclarations.API_PER_IP);
+    yield* Cloudflare.RateLimit(
+      "EXECUTE_GLOBAL",
+      rateLimitDeclarations.EXECUTE_GLOBAL
+    );
+    yield* Cloudflare.RateLimit(
+      "EXECUTE_PER_IP",
+      rateLimitDeclarations.EXECUTE_PER_IP
+    );
     const environment = yield* Cloudflare.WorkerEnvironment;
-    // This is the native runtime binding declared by WorkerLoader above.
+    // These are the native runtime bindings declared above. Alchemy's typed
+    // environment is populated dynamically, so this is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const loader = environment.CODE_SANDBOX as WorkerLoaderBinding;
-    const workerRoutes = routes.pipe(
+    const bindings = environment as unknown as RateLimitBindings & {
+      readonly CODE_SANDBOX: WorkerLoaderBinding;
+    };
+    const loader = bindings.CODE_SANDBOX;
+    const rateLimits = makeRateLimits({
+      API_PER_IP: bindings.API_PER_IP,
+      EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL,
+      EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
+    });
+    const workerRoutes = makeRoutes(rateLimits).pipe(
       Layer.provide(
         layerWorkerLoader(loader, {
           compatibilityDate: "2026-05-28",
@@ -38,5 +58,5 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
     return {
       fetch: yield* HttpRouter.toHttpEffect(workerRoutes).pipe(Effect.orDie),
     };
-  })
+  }).pipe(Effect.provide(Cloudflare.Workers.RateLimitBinding))
 ) {}

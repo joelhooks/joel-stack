@@ -5,6 +5,7 @@ coverage/
 **/.alchemy/bundles/
 **/.alchemy/local/
 **/.alchemy/log/
+**/.alchemy/version-check.json
 .pi/notes-bridge/
 # pi-notes regenerates this default on startup; canonical Brain procedures
 # live in .pi/APPEND_SYSTEM.md

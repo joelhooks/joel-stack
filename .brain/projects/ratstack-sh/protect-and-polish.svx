@@ -3,8 +3,9 @@ title: "Rate-limit execute and the MCP surface; polish what v0.1 taught"
 type: "step"
 kind: "build"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-22)"
+closed_at: "2026-09-22"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-22"
@@ -19,3 +20,21 @@ Every `execute` call bills one Dynamic Worker, so abuse is a cost problem before
 Polish, from the v0.1 receipts: the `execute` tool description names its argument `code` and shows a two-line example; `GET /mcp` and a legacy `initialize` without the version header get a plain answer that names `2026-07-28` and points at `llms.txt`; `llms.txt` says the same under its MCP heading and states the rate limits in one line; `apps/infra/.alchemy/version-check.json` leaves git (`git rm --cached`, ignore pattern) since every Alchemy run rewrites it; add `pnpm mischief:smoke` (curl the routes, one MCP `tools/list`, then `POST https://isitagentready.com/api/scan` and print the level). Tests: the limiter path with a fake binding over `toWebHandler` (allowed, then denied), and the polish routes.
 
 Resolved when `pnpm turbo run check test build` is green, the limits are declared on the Worker, the tests prove allow and deny, and `pnpm mischief:smoke` runs against the live site and prints a level.
+
+## Result (2026-09-22)
+
+The Mischief Worker now declares three Alchemy `Cloudflare.RateLimit` bindings and provides `Cloudflare.Workers.RateLimitBinding`:
+
+- `EXECUTE_PER_IP`: namespace `ratstack-execute-per-ip-v1`, 6 requests per 60 seconds, keyed by `CF-Connecting-IP`.
+- `EXECUTE_GLOBAL`: namespace `ratstack-execute-global-v1`, 300 requests per 60 seconds, keyed by the constant `global`.
+- `API_PER_IP`: namespace `ratstack-api-per-ip-v1`, 120 requests per 60 seconds, keyed by `CF-Connecting-IP` for every `/api` and `/mcp` request.
+
+HTTP API denials return 429 with `Retry-After: 60` and name the exceeded binding. MCP `tools/call` denials return a protocol-level tool result with `isError: true`, the binding name, the retry delay, and `Retry-After: 60`. Limiter runtime failures do not fail open and create a billable Dynamic Worker.
+
+The first-class Alchemy local provider in beta.79 honors these bindings, so no `alchemy dev` skip was needed. A local run planned all three bindings, then 121 `/api/search` requests from one test IP returned exactly 120 HTTP 200 responses and one HTTP 429 with `API_PER_IP rate limit exceeded; retry after 60 seconds.`
+
+Polish shipped in the same slice: the `execute` tool description names the `code` argument and includes the two-line search/read example; `GET /mcp` returns a plain protocol note; a legacy `initialize` without `MCP-Protocol-Version` returns the same note with HTTP 400; both name `2026-07-28` and link `llms.txt`; `llms.txt` repeats the protocol and limits; Alchemy's rewritten `version-check.json` is removed from git and ignored; `pnpm mischief:smoke` curls the live routes, verifies MCP `tools/list`, scans `isitagentready.com`, and printed `4/5 (Agent-Integrated)` against the undeployed v0.1 site.
+
+Verification: ten Mischief tests pass, including fake-binding allow/deny paths for `API_PER_IP`, `EXECUTE_PER_IP`, and `EXECUTE_GLOBAL`; `pnpm lint` passes; `pnpm turbo run check test build` passes 20/20 tasks; `git diff --check` passes; Brain validation passes 41 pages.
+
+What felt forced: Cloudflare documents these counters as approximate and per-colo. `EXECUTE_GLOBAL` is therefore one constant key in each Cloudflare location, not a globally consistent account-wide ceiling. A true global budget would need a Durable Object or billing alert. No deploy ran, so the live smoke proved the script and current v0.1 surface, not these unshipped limiters.

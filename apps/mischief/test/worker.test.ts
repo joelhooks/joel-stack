@@ -4,7 +4,7 @@ import { Effect, Layer, Schema } from "effect";
 import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { routes } from "../src/app.js";
+import { makeRoutes } from "../src/app.js";
 import { ReadOutput, SearchOutput } from "../src/capabilities/schemas.js";
 import {
   agentSkillPath,
@@ -12,15 +12,43 @@ import {
   linkHeader,
   llmsText,
   markdownDocument,
+  mcpVersionText,
   publicPaths,
   robotsText,
   skills,
 } from "../src/content.js";
+import { makeRateLimits } from "../src/rate-limits.js";
+import type {
+  NativeRateLimitBinding,
+  RateLimitBindings,
+} from "../src/rate-limits.js";
 import { TestSandbox } from "./test-sandbox.js";
 
 type WebHandler = (request: Request) => Promise<Response>;
 
-const testRoutes = routes.pipe(Layer.provide(TestSandbox));
+class FakeRateLimitBinding implements NativeRateLimitBinding {
+  readonly keys: string[] = [];
+  readonly #results: boolean[];
+
+  constructor(results: readonly boolean[] = []) {
+    this.#results = [...results];
+  }
+
+  // The fake deliberately matches Cloudflare's Promise-returning binding.
+  // oxlint-disable-next-line typescript/promise-function-async
+  limit(options: { readonly key: string }) {
+    this.keys.push(options.key);
+    return Promise.resolve({ success: this.#results.shift() ?? true });
+  }
+}
+
+const fakeRateLimitBindings = (
+  overrides: Partial<RateLimitBindings> = {}
+): RateLimitBindings => ({
+  API_PER_IP: overrides.API_PER_IP ?? new FakeRateLimitBinding(),
+  EXECUTE_GLOBAL: overrides.EXECUTE_GLOBAL ?? new FakeRateLimitBinding(),
+  EXECUTE_PER_IP: overrides.EXECUTE_PER_IP ?? new FakeRateLimitBinding(),
+});
 
 const sha256 = (text: string) =>
   Effect.promise(
@@ -99,11 +127,15 @@ const postJson = Effect.fnUntraced(function* postJsonRequest(
 });
 
 const withHandler = <A, E, R>(
-  use: (handler: WebHandler) => Effect.Effect<A, E, R>
+  use: (handler: WebHandler) => Effect.Effect<A, E, R>,
+  rateLimits: RateLimitBindings = fakeRateLimitBindings()
 ) =>
   Effect.acquireUseRelease(
     Effect.sync(() =>
-      HttpRouter.toWebHandler(testRoutes, { disableLogger: true })
+      HttpRouter.toWebHandler(
+        makeRoutes(makeRateLimits(rateLimits)).pipe(Layer.provide(TestSandbox)),
+        { disableLogger: true }
+      )
     ),
     ({ handler }) => use(handler),
     ({ dispose }) => Effect.promise(dispose)
@@ -134,7 +166,12 @@ const NamedListResponse = Schema.Struct({
       Schema.Array(Schema.Struct({ name: Schema.String, uri: Schema.String }))
     ),
     tools: Schema.optional(
-      Schema.Array(Schema.Struct({ name: Schema.String }))
+      Schema.Array(
+        Schema.Struct({
+          description: Schema.optional(Schema.String),
+          name: Schema.String,
+        })
+      )
     ),
   }),
 });
@@ -143,6 +180,15 @@ const ToolCallResponse = Schema.Struct({
   result: Schema.Struct({
     isError: Schema.optional(Schema.Boolean),
     structuredContent: Schema.Unknown,
+  }),
+});
+
+const ToolErrorResponse = Schema.Struct({
+  result: Schema.Struct({
+    content: Schema.Array(
+      Schema.Struct({ text: Schema.String, type: Schema.Literal("text") })
+    ),
+    isError: Schema.Literal(true),
   }),
 });
 
@@ -261,9 +307,11 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
         handler.bind(undefined, new Request("http://localhost/openapi.json"))
       );
 
-      expect(yield* Effect.promise(llms.text.bind(llms))).toBe(
-        llmsText("https://ratstack.sh")
-      );
+      const llmsBody = yield* Effect.promise(llms.text.bind(llms));
+      expect(llmsBody).toBe(llmsText("https://ratstack.sh"));
+      expect(llmsBody).toContain("## MCP");
+      expect(llmsBody).toContain("Protocol 2026-07-28 only");
+      expect(llmsBody).toContain("6 per IP and 300 total per 60 seconds");
       expect(yield* Effect.promise(robots.text.bind(robots))).toBe(robotsText);
       expect(robotsText).toContain(
         "Content-Signal: ai-train=no, search=yes, ai-input=yes"
@@ -324,6 +372,176 @@ it.effect("projects search, read, and execute through HTTP", () =>
   )
 );
 
+it.effect("returns 429 after API_PER_IP denies a client IP", () => {
+  const apiPerIp = new FakeRateLimitBinding([true, false]);
+  const bindings = fakeRateLimitBindings({ API_PER_IP: apiPerIp });
+
+  return withHandler(
+    (handler) =>
+      Effect.gen(function* testApiPerIpLimit() {
+        // Fetch owns this Promise-returning test boundary.
+        // oxlint-disable-next-line typescript/promise-function-async
+        const request = () =>
+          handler(
+            new Request("http://localhost/api/search", {
+              body: JSON.stringify({ limit: 1, query: "capability" }),
+              headers: {
+                "cf-connecting-ip": "192.0.2.10",
+                "content-type": "application/json",
+              },
+              method: "POST",
+            })
+          );
+        const allowed = yield* Effect.promise(request);
+        const denied = yield* Effect.promise(request);
+
+        expect(allowed.status).toBe(200);
+        expect(denied.status).toBe(429);
+        expect(denied.headers.get("retry-after")).toBe("60");
+        expect(yield* Effect.promise(denied.text.bind(denied))).toContain(
+          "API_PER_IP rate limit exceeded; retry after 60 seconds"
+        );
+        expect(apiPerIp.keys).toEqual(["192.0.2.10", "192.0.2.10"]);
+      }),
+    bindings
+  );
+});
+
+it.effect("returns 429 before a second execute worker is created", () => {
+  const executePerIp = new FakeRateLimitBinding([true, false]);
+  const executeGlobal = new FakeRateLimitBinding();
+  const bindings = fakeRateLimitBindings({
+    EXECUTE_GLOBAL: executeGlobal,
+    EXECUTE_PER_IP: executePerIp,
+  });
+
+  return withHandler(
+    (handler) =>
+      Effect.gen(function* testExecutePerIpLimit() {
+        // Fetch owns this Promise-returning test boundary.
+        // oxlint-disable-next-line typescript/promise-function-async
+        const request = () =>
+          handler(
+            new Request("http://localhost/api/execute", {
+              body: JSON.stringify({
+                code: [
+                  "const found = await tools.search({ query: 'capability', limit: 1 });",
+                  "return await tools.read({ id: found.matches[0].id });",
+                ].join("\n"),
+              }),
+              headers: {
+                "cf-connecting-ip": "192.0.2.20",
+                "content-type": "application/json",
+              },
+              method: "POST",
+            })
+          );
+        const allowed = yield* Effect.promise(request);
+        const denied = yield* Effect.promise(request);
+
+        expect(allowed.status).toBe(200);
+        expect(denied.status).toBe(429);
+        expect(yield* Effect.promise(denied.text.bind(denied))).toContain(
+          "EXECUTE_PER_IP rate limit exceeded; retry after 60 seconds"
+        );
+        expect(executePerIp.keys).toEqual(["192.0.2.20", "192.0.2.20"]);
+        expect(executeGlobal.keys).toEqual(["global"]);
+      }),
+    bindings
+  );
+});
+
+it.effect("returns an MCP tool error when EXECUTE_GLOBAL denies", () => {
+  const executeGlobal = new FakeRateLimitBinding([true, false]);
+  const bindings = fakeRateLimitBindings({ EXECUTE_GLOBAL: executeGlobal });
+
+  return withHandler(
+    (handler) =>
+      Effect.gen(function* testExecuteGlobalLimit() {
+        const code = [
+          "const found = await tools.search({ query: 'capability', limit: 1 });",
+          "return await tools.read({ id: found.matches[0].id });",
+        ].join("\n");
+        const allowed = yield* postMcp(
+          handler,
+          "allowed-execute",
+          "tools/call",
+          {
+            arguments: { code },
+            name: "execute",
+          },
+          "execute"
+        );
+        const denied = yield* postMcp(
+          handler,
+          "denied-execute",
+          "tools/call",
+          {
+            arguments: { code },
+            name: "execute",
+          },
+          "execute"
+        );
+        const allowedResult = yield* Schema.decodeUnknownEffect(
+          ToolCallResponse
+        )(yield* readJson(allowed));
+        const error = yield* Schema.decodeUnknownEffect(ToolErrorResponse)(
+          yield* readJson(denied)
+        );
+
+        expect(allowed.status).toBe(200);
+        expect(allowedResult.result.isError).not.toBe(true);
+        expect(denied.status).toBe(200);
+        expect(denied.headers.get("retry-after")).toBe("60");
+        expect(error.result.isError).toBe(true);
+        expect(error.result.content[0]?.text).toContain(
+          "EXECUTE_GLOBAL rate limit exceeded; retry after 60 seconds"
+        );
+        expect(executeGlobal.keys).toEqual(["global", "global"]);
+      }),
+    bindings
+  );
+});
+
+it.effect("explains the required MCP version in plain text", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testMcpVersionHelp() {
+      const getResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/mcp"))
+      );
+      const legacyResponse = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/mcp", {
+            body: JSON.stringify({
+              id: "legacy",
+              jsonrpc: "2.0",
+              method: "initialize",
+              params: {},
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          })
+        )
+      );
+      const expected = mcpVersionText("https://ratstack.sh");
+
+      expect(getResponse.status).toBe(200);
+      expect(getResponse.headers.get("content-type")).toContain("text/plain");
+      expect(yield* Effect.promise(getResponse.text.bind(getResponse))).toBe(
+        expected
+      );
+      expect(legacyResponse.status).toBe(400);
+      expect(legacyResponse.headers.get("content-type")).toContain(
+        "text/plain"
+      );
+      expect(
+        yield* Effect.promise(legacyResponse.text.bind(legacyResponse))
+      ).toBe(expected);
+    })
+  )
+);
+
 it.effect(
   "exposes all tools, law resources, and skill prompts over modern MCP",
   () =>
@@ -359,9 +577,10 @@ it.effect(
           "resources/list"
         );
         const promptsList = yield* postMcp(handler, "prompts", "prompts/list");
-        const toolNames = (yield* Schema.decodeUnknownEffect(NamedListResponse)(
+        const { tools } = (yield* Schema.decodeUnknownEffect(NamedListResponse)(
           yield* readJson(toolsList)
-        )).result.tools?.map((tool) => tool.name);
+        )).result;
+        const toolNames = tools?.map((tool) => tool.name);
         const resourceNames = (yield* Schema.decodeUnknownEffect(
           NamedListResponse
         )(yield* readJson(resourcesList))).result.resources?.map(
@@ -374,6 +593,13 @@ it.effect(
         );
 
         expect(toolNames?.toSorted()).toEqual(["execute", "read", "search"]);
+        const executeDescription = tools?.find(
+          (tool) => tool.name === "execute"
+        )?.description;
+        expect(executeDescription).toContain("`code` argument");
+        expect(executeDescription).toContain(
+          'const found = await tools.search({ query: "capability", limit: 1 });\nreturn await tools.read({ id: found.matches[0].id });'
+        );
         expect(resourceNames?.toSorted()).toEqual(
           lawResources.map((resource) => resource.name).toSorted()
         );
