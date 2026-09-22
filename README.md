@@ -129,6 +129,12 @@ Rename the `bin` entry in `apps/cli/package.json`, the root command in `apps/cli
 rg -n '@rat-stack/' --glob '*.json' --glob '*.ts' -l
 ```
 
+A new scope changes line lengths, so run the formatter once after the rename:
+
+```sh
+pnpm fix
+```
+
 Replace `inspectFile` in `packages/core` with one useful capability. Add it to `capabilities`, then verify each surface you keep. Rewrite the Project law, Architecture, and Boundaries sections of `AGENTS.md` and the top of `.pi/APPEND_SYSTEM.md`; they describe rat-stack until you do. Keep expected failures typed and map them to deliberate exit codes.
 
 `apps/mischief` is the public site and Worker. `apps/infra` is its Alchemy Stack. Delete both if you do not want a public site. If you keep them, change the Cloudflare Zone name and the DNS names and targets derived from it in `apps/infra/alchemy.run.ts`. Change the Worker domain and redirects in `apps/mischief/src/worker.ts`. Choose an Alchemy stage for each plan or deploy. The stage is a command-line choice, for example `--stage <stage>`. Configure credentials with:

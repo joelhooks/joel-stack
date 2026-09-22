@@ -76,6 +76,13 @@ if ! pnpm install --frozen-lockfile; then
   fail "pnpm install --frozen-lockfile failed after the workspace rename"
 fi
 
+# A longer or shorter scope changes line lengths, so the formatter rewraps.
+# README's Make it yours path tells a clone to run the same command.
+step="post-rename format"
+if ! pnpm fix; then
+  fail "pnpm fix failed after the workspace rename"
+fi
+
 step="add throwaway capability"
 cat > packages/core/src/acceptance-probe.ts <<EOF
 import { defineCapability } from "${acceptance_scope}/capability";
