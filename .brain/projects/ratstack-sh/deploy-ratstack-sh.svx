@@ -27,3 +27,5 @@ Verified live over TLS: `/` 200 `text/markdown`; `Accept: text/html` gets the sh
 Second deploy in the same session: `/og.png` was 404 because the prototype never wired `apps/mischief/public`; added `assets: { directory: "../mischief/public" }` (cwd-relative to `apps/infra`, the Alchemy convention), 3 assets uploaded, all three images 200.
 
 Still open on this step: `pnpm mischief:smoke` (the curls plus the isitagentready scan printing the level). The tools, catalogue, skills, and well-known documents are v0.1, in [build-mischief-tools](./build-mischief-tools.svx).
+
+First live scan (`POST https://isitagentready.com/api/scan`, format `agent`), same day: **0/5**. Expected for v0: Level 1 needs two of `robotsTxt`, `sitemap`, `linkHeaders`, and v0 has only robots. Everything the scan lists (sitemap, Link headers, API catalog, MCP server card, agent-skills index, DNS-AID, the auth trio, A2A) is either in [build-mischief-tools](./build-mischief-tools.svx) or the two remaining decisions.

@@ -3,8 +3,9 @@ title: "Write the four skills ratstack.sh ships"
 type: "step"
 kind: "build"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane w9M:p4, 2026-09-21)"
+closed_at: "2026-09-21"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
@@ -17,3 +18,9 @@ created_at: "2026-09-21"
 Write the four skills the site ships, each as `skills/<name>/SKILL.md` in the repo root, in the shape the `skills` CLI and Claude Code read (frontmatter `name` and `description`, then the body): `learn-rat-stack` (replace the stub: what the stack is, the four projections, where law and intent live, the gate command, and which skill to reach for next), `add-a-capability` (the exact moves from `defineCapability` in `packages/core` through registering in `capabilities` to seeing it on CLI, HTTP, MCP, and code mode, with the file paths and the test shape), `add-a-lifecycle-machine` (the `inspect-machine.ts` shape: `setupEffect`, `fromEffect` actors, `createEffectActor`, `join` plus `Effect.orDie`, the lint rule that guards it), `keep-or-cut` (the README table as a procedure: what to delete per surface and what the minimum is). Source-grounded: every claim comes from `AGENTS.md`, `README.md`, `VISION.md`, `packages/*/src`, or the `.brain/resources` notes; reorganize, do not invent. Voice: plain, short, written for an agent; use the `writing-for-agents` skill if installed. Each skill under 120 lines.
 
 Resolved when the four `SKILL.md` files exist, `pnpm lint` passes (oxfmt checks Markdown), and a fresh agent could follow `add-a-capability` without opening the README.
+
+## Result (2026-09-21)
+
+Created `skills/add-a-capability/SKILL.md`, `skills/add-a-lifecycle-machine/SKILL.md`, and `skills/keep-or-cut/SKILL.md`; replaced the `skills/learn-rat-stack/SKILL.md` stub. The four skills are 85, 118, 99, and 55 lines respectively. `add-a-capability` names the current source, registry, composition, CLI, and test paths so it stands alone.
+
+Verified with `pnpm lint` and `pnpm turbo run check test build` (19/19 tasks successful). Oxfmt checked all four Markdown files. The only forced part is the current registry location: the shared `capabilities` tuple still lives in `packages/core/src/inspect-file.ts`, so the capability skill points there rather than inventing a cleaner registry module that does not exist.

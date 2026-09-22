@@ -3,11 +3,12 @@ title: "Build the tools, catalogue, and well-known documents into the Mischief W
 type: "step"
 kind: "build"
 interaction: "AFK"
-status: "open"
+status: "closed"
 assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-21)"
 parent: "./ratstack-sh-brief.svx"
 blockers: []
 created_at: "2026-09-21"
+closed_at: "2026-09-21"
 ---
 
 # Build the tools, catalogue, and well-known documents into the Mischief Worker
@@ -22,3 +23,98 @@ Grow `apps/mischief` from the prototype into the decided shape, in this order an
 4. Tests for each route and each tool over `HttpRouter.toWebHandler`; an `execute` test that runs a program calling `search` then `read`. Note `alchemy dev` compatibility-date limits from the research asset.
 
 Resolved when `pnpm turbo run check test build` is green, `pnpm infra:dev` answers on `:1337` for `/`, `/skills/add-a-capability`, `/.well-known/agent-skills/index.json`, and an MCP `tools/list` shows `search`, `read`, `execute`, with the curl outputs in the step's Result.
+
+## Result
+
+Closed on 2026-09-21. The sandbox seam, Mischief capabilities, HTTP/MCP projections, generated catalogue, discovery documents, and route/tool tests are implemented.
+
+### Verification
+
+- `pnpm turbo run check test build`: **19/19 tasks passed**. Mischief: **6/6 tests passed**.
+- `pnpm infra:dev`: Alchemy created the local `Mischief/CODE_SANDBOX` binding and started the Worker at `http://localhost:1337` without Cloudflare authentication or deployment.
+- The parent Worker and every Dynamic Worker use compatibility date `2026-05-28`, the latest date accepted by Alchemy beta.79's bundled local workerd.
+- A real Dynamic Worker `execute` call ran a program that called `search` and then `read`; MCP returned `isError: false` and resource id `ratstack://skills/add-a-capability`.
+- `pi-notes brain check`: **passed** across 35 Brain pages.
+
+### Curl receipts
+
+```text
+$ curl -i http://localhost:1337/
+HTTP/1.1 200 OK
+Content-Type: text/markdown; charset=utf-8
+Link: </.well-known/api-catalog>; rel="api-catalog", </.well-known/mcp.json>; rel="service-desc"; type="application/json", </.well-known/agent-skills/index.json>; rel="describedby"; type="application/json", </llms.txt>; rel="describedby"; type="text/markdown", </>; rel="alternate"; type="text/markdown"
+
+# ratstack.sh
+
+> A source-first TypeScript scaffold where one schema-typed capability projects to CLI, HTTP, MCP, and sandboxed code mode.
+
+`npx skills add joelhooks/rat-stack`
+
+## Skills
+...
+## Law
+...
+## MCP
+```
+
+```text
+$ curl -i http://localhost:1337/skills/add-a-capability
+HTTP/1.1 200 OK
+Content-Type: text/markdown; charset=utf-8
+
+---
+name: add-a-capability
+description: Add one schema-typed behavior to rat-stack and project it through CLI, HTTP, MCP, and code mode without duplicating handlers.
+---
+
+# Add a capability
+```
+
+```json
+$ curl http://localhost:1337/.well-known/agent-skills/index.json
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    { "name": "add-a-capability", "type": "skill-md", "digest": "sha256:6237c9e29fde6bceaa4a3587fd7a7f10f1eea5b38f2c588ea26d57fc894803ad" },
+    { "name": "add-a-lifecycle-machine", "type": "skill-md", "digest": "sha256:a0bf8e2b8460bd7f20d01ea0cc225b3a61a4dd80638f509acc588fc2651b5865" },
+    { "name": "keep-or-cut", "type": "skill-md", "digest": "sha256:a766e47332c8f20c63ae80decfcc9e5659257b174a655e10c5918a1d51b2e0e6" },
+    { "name": "learn-rat-stack", "type": "skill-md", "digest": "sha256:8c6b01b9a4e5122bdcc3fbef4d82bea410ca6c1388a6e2c8ba14dd488c9edc46" }
+  ]
+}
+```
+
+```json
+$ curl -X POST http://localhost:1337/mcp # tools/list, MCP 2026-07-28 headers and metadata
+{
+  "resultType": "complete",
+  "tools": ["search", "read", "execute"]
+}
+```
+
+```json
+$ curl -X POST http://localhost:1337/mcp # tools/call execute(search -> read)
+{
+  "id": "execute",
+  "resultType": "complete",
+  "isError": false,
+  "structuredContent": {
+    "logs": [],
+    "result": {
+      "id": "ratstack://skills/add-a-capability",
+      "kind": "skill",
+      "routePath": "/skills/add-a-capability"
+    }
+  }
+}
+```
+
+### Implementation notes
+
+- `@rat-stack/capability/sandbox` exports only the Worker-safe service contract; the root barrel keeps the Node subprocess implementation for unchanged CLI behavior.
+- `@rat-stack/capability/code-mode`, `/toolkit`, `/define`, and `/http-api` keep the Worker bundle off the Node subprocess barrel.
+- `toHttpApi` now accepts an optional path prefix so handler registration and generated OpenAPI agree on `/api/*`.
+- Worker Loader receives generated ES modules, not `eval` or `new Function`; each call gets a fresh isolate, `globalOutbound: null`, CPU/subrequest limits, cooperative and host timeouts, narrow RPC, JSON round-tripping, and eager disposal.
+- The `cloudflare:workers` runtime import stays lazy. A static import makes Alchemy's Node Stack loader reject the special `cloudflare:` URL before bundling.
+- The generator reads every `skills/*/SKILL.md` and all seven law sources at build time. Request handling never reads the filesystem.
+- `apps/mischief/public/{favicon-32.png,icon-512.png,og.png}` were preserved untouched. The shipped `domain` and `assets` Worker properties were retained.
+- No Cloudflare authentication, deployment, commit, or production mutation occurred.
