@@ -1255,6 +1255,37 @@ The reference for building an app and its cloud as one typed program. Effect own
 
 Vendor it like a library. Keep the bins you need and pull the rest.
 
+## Connect an agent
+
+Paste this into your coding agent:
+
+\`\`\`text
+Read ${originToken}/llms.txt and use rat-stack as the reference
+for how we build: Effect for the hard parts, Alchemy for the
+infrastructure, and a fence that makes the easy path the right
+one. Search its rules and skills before you write code, follow
+its patterns, and tell me when my code breaks them.
+\`\`\`
+
+Claude Code can also connect to the MCP server:
+
+\`\`\`sh
+claude mcp add --transport http rat-stack ${originToken}/mcp
+\`\`\`
+
+Install the skills into any agent that reads a skills folder:
+
+\`\`\`sh
+npx skills add joelhooks/rat-stack
+\`\`\`
+
+The MCP server speaks protocol 2026-07-28. Claude Code supports it today. Cursor and Codex still use older versions, so use the prompt above; everything the server knows is also plain Markdown over HTTP.
+
+- [MCP connection details](${originToken}/.well-known/mcp.json)
+- [HTTP API docs](${originToken}/openapi.json)
+- [Short agent guide](${originToken}/llms.txt)
+- [All public agent docs](${originToken}/llms-full.txt)
+
 ## Four ideas
 
 - **Pieces.** An Alchemy Layer carries its own infrastructure. A service tag is the product's API. A Layer is one vendor's implementation. Swapping vendors is a one-line change.
@@ -1329,9 +1360,7 @@ What to notice: the schemas and handler live together, so the command line, HTTP
 
 ## Learn the stack
 
-Skills are short, agent-installable guides. \`npx skills add\` copies them into your agent's skills folder; you can also just read them here.
-
-\`npx skills add joelhooks/rat-stack\`
+Skills are short guides your agent can install (see above). You can also just read them here.
 
 ${groupedSkills}
 
@@ -1341,16 +1370,6 @@ These pieces are pre-release (Effect 4 rc, XState 6 alpha, TypeScript 7, Alchemy
 
 ${entryList(publicSpecs)}
 
-## Connect an agent
-
-Point an MCP client at the [MCP endpoint](${originToken}/mcp).
-
-The server can search the public rat-stack files, read an exact file, and run a short program in a locked-down sandbox.
-
-- [MCP connection details](${originToken}/.well-known/mcp.json)
-- [HTTP API docs](${originToken}/openapi.json)
-- [Short agent guide](${originToken}/llms.txt)
-- [All public agent docs](${originToken}/llms-full.txt)
 `;
   const homeMarkdownTemplate = deriveAgentMarkdown(homeMarkdownSource);
   const skillIndexMarkdown = `# Learn the stack

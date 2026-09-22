@@ -444,6 +444,16 @@ it.effect(
         expect(markdown).toBe(markdownDocument("https://ratstack.sh"));
         expect(markdown).toContain("an app and its cloud as one typed program");
         expect(markdown).toContain("## Four ideas");
+        // A human lands and connects an agent before reading anything else.
+        expect(markdown.indexOf("## Connect an agent")).toBeLessThan(
+          markdown.indexOf("## Four ideas")
+        );
+        expect(markdown).toContain(
+          "Read https://ratstack.sh/llms.txt and use rat-stack as the reference\n"
+        );
+        expect(markdown).toContain(
+          "claude mcp add --transport http rat-stack https://ratstack.sh/mcp"
+        );
         expect(markdown).toContain("labeled · push in · pull out");
         expect(markdown).toContain("│  defineCapability");
         expect(markdown).toContain("What to notice:");

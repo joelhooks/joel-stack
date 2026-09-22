@@ -106,7 +106,7 @@ export const mcpVersionText = (origin: string) =>
 
 export const llmsText = (origin: string) => `# ratstack.sh
 
-Use this working app to learn Effect, XState, TypeScript, Alchemy, and agent interfaces together.
+The reference for building an app and its cloud as one typed program: Effect, Alchemy, and a fence that makes the easy path the right one.
 
 ## Read this repo
 
