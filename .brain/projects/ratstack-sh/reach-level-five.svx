@@ -4,7 +4,7 @@ type: "step"
 kind: "task"
 interaction: "AFK"
 status: "open"
-assignee: ""
+assignee: "pi (flagg, herdr pane in rift level-five, 2026-09-22)"
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./deploy-ratstack-sh.svx", "./decide-not-applicable-checks.svx"]
 created_at: "2026-09-21"
@@ -15,5 +15,9 @@ created_at: "2026-09-21"
 ## Step
 
 Run `POST https://isitagentready.com/api/scan` with `format: "agent"` against `https://ratstack.sh`, fix failing applicable checks in `apps/mischief` (paths, headers, Link headers, well-known documents), redeploy, rescan; stop at Level 5 or when the only failures are the not-applicable set with their documented treatment.
+
+Build half (worker, in the `level-five` rift, no deploy): from the [not-applicable decision](./decide-not-applicable-checks.svx) and the [checks asset](./research-agent-ready-checks-asset.svx) rows for `a2aAgentCard`, `ard`, `authMd`, `dnsAid`, `webBotAuth`: a minimal real A2A endpoint at `/a2a` (JSON-RPC over HTTP per the A2A spec, one skill that answers a question with the same `search` and `read` capabilities) with its agent card at every path the scanner tries; the ARD manifest; an honest `/auth.md` (H1 contains `auth.md`; access is anonymous; no registration; no OAuth server); DNS-AID SVCB and TXT records declared in the Stack under `_agents` with `Cloudflare.DNS.Record`, and whatever Alchemy offers for DNSSEC on the adopted zone (if nothing, say so and the owner enables it once); a Web Bot Auth key directory behind a flag that defaults off, with the key read from a Worker secret binding, ready if `auth.md` does not count. Each document tested over `toWebHandler` against the asset's probes.
+
+Scan half (owner): deploy, run `pnpm mischief:smoke`, save the scan output as `reach-level-five-asset.svx`, flip the Web Bot Auth flag only if needed, repeat.
 
 Resolved when the smoke script prints Level 5 and the scan output is saved as an asset.
