@@ -4,7 +4,7 @@ type: "step"
 kind: "build"
 interaction: "AFK"
 status: "open"
-assignee: ""
+assignee: "pi (flagg, herdr pane w9M:p5, 2026-09-22)"
 parent: "./ratstack-sh-brief.svx"
 blockers: ["./research-sveltekit-shell.svx", "./protect-and-polish.svx", "./reach-level-five.svx"]
 created_at: "2026-09-22"

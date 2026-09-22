@@ -1,0 +1,601 @@
+---
+title: "Research asset: SvelteKit shell on the Effect Worker"
+type: "asset"
+parent: "./research-sveltekit-shell.svx"
+created_at: "2026-09-22"
+privacy: "public"
+---
+
+# SvelteKit shell on the Effect Worker
+
+## Verdict
+
+Use **one `Cloudflare.Website.SvelteKit` Worker**. Put the human HTML routes in SvelteKit and hand requests to the existing Effect `HttpRouter` from one `hooks.server.ts` hook.
+
+The hook is the seam:
+
+- `Accept: text/html` on `/`, `/skills`, and `/skills/<name>` goes to SvelteKit.
+- Non-HTML requests on those same paths go to Effect.
+- `/mcp`, `/api/*`, `/.well-known/*`, `/openapi.json`, `/llms*.txt`, `/robots.txt`, `/sitemap.xml`, and the generated law-resource paths always go to Effect.
+- SvelteKit assets and internal paths stay with SvelteKit.
+
+Do not put a second Worker in front of SvelteKit. Do not rebuild the MCP and API routes as SvelteKit `+server.ts` files. The hook passes the original Web `Request` to the Effect handler and returns its `Response` unchanged.
+
+Alchemy's current prop is named **`env`**, not `bindings`. `Cloudflare.Website.SvelteKit` inherits the Worker binding vocabulary through `env`, and `Cloudflare.InferEnv<typeof Mischief>` gives the runtime binding shape used by `event.platform.env`. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Website/SvelteKit.ts`, `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/frontend/sveltekit.mdx`)
+
+## 1. One Worker, one request handoff
+
+### Recommended ownership
+
+| Request | Owner | Reason |
+| --- | --- | --- |
+| `GET /` with `Accept: text/html` | SvelteKit | Human catalogue page |
+| `GET /` with Markdown, JSON, `*/*`, or no `Accept` | Effect | Preserve the agent-first document |
+| `GET /skills[/<name>]` with `Accept: text/html` | SvelteKit | Human catalogue and rendered skill page |
+| `GET /skills[/<name>]` otherwise | Effect | Preserve raw Markdown |
+| `/mcp`, `/api/*`, `/.well-known/*` | Effect | Existing protocol implementations and rate limits |
+| Agent files listed in `publicPaths` | Effect | One generated route inventory remains authoritative |
+| `/_app/*`, images, fonts, favicons | SvelteKit/assets | Never send browser assets to the Effect router |
+| Unknown paths | SvelteKit | Normal HTML 404 behavior; do not let a broad non-HTML check steal Svelte internals or future remote-function requests |
+
+A blanket rule such as `if (!acceptsHtml) return effect(request)` is wrong. Browser CSS, JavaScript, images, and SvelteKit's own data requests are non-HTML. Route by **known representation paths plus known agent paths**.
+
+### `src/lib/server/effect-handler.ts`
+
+Build the Effect app once per SvelteKit server module. The first delegated request supplies `platform.env`; Cloudflare bindings are immutable for the life of an isolate. Vite HMR reloads the module during development.
+
+```ts
+import * as Layer from "effect/Layer";
+import * as HttpRouter from "effect/unstable/http/HttpRouter";
+
+import type { MischiefEnv } from "../../../alchemy.site.js";
+import { makeRoutes } from "../../app.js";
+import { makeRateLimits } from "../../rate-limits.js";
+import { layerWorkerLoader } from "../../sandbox-worker-loader.js";
+
+export const makeEffectWebApp = (env: MischiefEnv) => {
+  const privateJwk =
+    "WEB_BOT_AUTH_PRIVATE_JWK" in env &&
+    typeof env.WEB_BOT_AUTH_PRIVATE_JWK === "string"
+      ? env.WEB_BOT_AUTH_PRIVATE_JWK
+      : undefined;
+
+  const routes = makeRoutes({
+    rateLimits: makeRateLimits({
+      API_PER_IP: env.API_PER_IP,
+      EXECUTE_GLOBAL: env.EXECUTE_GLOBAL,
+      EXECUTE_PER_IP: env.EXECUTE_PER_IP,
+    }),
+    webBotAuth: {
+      enabled: env.WEB_BOT_AUTH_ENABLED,
+      ...(privateJwk === undefined ? {} : { privateJwk }),
+    },
+  }).pipe(
+    Layer.provide(
+      layerWorkerLoader(env.CODE_SANDBOX, {
+        compatibilityDate: "2026-05-28",
+        cpuMs: 100,
+        subRequests: 5,
+        timeout: "10 seconds",
+      }),
+    ),
+  );
+
+  return HttpRouter.toWebHandler(routes);
+};
+
+export type EffectWebApp = ReturnType<typeof makeEffectWebApp>;
+```
+
+This keeps the current route construction and binding-backed layers. `HttpRouter.toWebHandler` returns `{ handler, dispose }`; Effect builds the layer immediately and every request waits for that one build if it is still in progress. (`.agent_sources/github.com/Effect-TS/effect/packages/effect/src/unstable/http/HttpRouter.ts`)
+
+There is no SvelteKit server-module shutdown hook for calling `dispose`. Treat the handler scope as isolate-scoped. If a later layer opens resources that require eager HMR cleanup, add a development-only Vite disposal hook rather than rebuilding the handler per request.
+
+### `src/hooks.server.ts`
+
+Kit v3 moved `Handle` to `@sveltejs/kit/hooks`. Kit v3 also requires `#lib` package imports with explicit extensions; `$lib` is no longer generated. ([Kit v3 migration](https://github.com/sveltejs/kit/blob/090d77ff289bf844cf65403f8f5e7eec8a7bb902/documentation/docs/60-appendix/35-migrating-to-sveltekit-3.md))
+
+```ts
+import type { Handle } from "@sveltejs/kit/hooks";
+
+import type { MischiefEnv } from "../alchemy.site.js";
+import { publicPaths, skills } from "./content.js";
+import {
+  type EffectWebApp,
+  makeEffectWebApp,
+} from "#lib/server/effect-handler.js";
+
+let effectWebApp: EffectWebApp | undefined;
+
+const normalizedPath = (path: string) =>
+  path === "/" ? path : path.replace(/\/+$/u, "");
+
+const acceptsHtml = (request: Request) =>
+  request.headers
+    .get("accept")
+    ?.split(",")
+    .some((entry) => {
+      const [mediaType, ...parameters] = entry
+        .trim()
+        .toLowerCase()
+        .split(";");
+      const quality = parameters
+        .map((parameter) => parameter.trim())
+        .find((parameter) => parameter.startsWith("q="));
+      return mediaType === "text/html" && quality !== "q=0";
+    }) === true;
+
+const isHumanPath = (path: string) =>
+  path === "/" ||
+  path === "/skills" ||
+  skills.some((skill) => normalizedPath(skill.routePath) === path);
+
+const isEffectOnlyPath = (path: string) =>
+  path === "/mcp" ||
+  path.startsWith("/mcp/") ||
+  path === "/api" ||
+  path.startsWith("/api/") ||
+  path.startsWith("/.well-known/") ||
+  publicPaths.some(
+    (publicPath) =>
+      normalizedPath(publicPath) === path && !isHumanPath(path),
+  );
+
+const effectOwns = (request: Request, path: string) =>
+  isEffectOnlyPath(path) || (isHumanPath(path) && !acceptsHtml(request));
+
+const webAppFor = (env: MischiefEnv) =>
+  (effectWebApp ??= makeEffectWebApp(env));
+
+export const handle: Handle = ({ event, resolve }) => {
+  const path = normalizedPath(event.url.pathname);
+  if (!effectOwns(event.request, path)) return resolve(event);
+
+  const env = event.platform?.env;
+  if (env === undefined) {
+    return new Response("Worker bindings are unavailable.\n", { status: 503 });
+  }
+
+  return webAppFor(env).handler(event.request);
+};
+```
+
+`Accept: */*` intentionally stays agent-first on negotiated paths. Only an explicit positive `text/html` media type selects SvelteKit.
+
+### Why not mirror Effect routes as SvelteKit routes?
+
+SvelteKit can colocate a `+page.svelte` and `+server.ts` and negotiate between them. That is useful for a small endpoint. It is the worse boundary here:
+
+- MCP needs the original methods, body, headers, status, and streaming response.
+- A catch-all `+server.ts` must export every supported verb and track new verbs.
+- Individual route files duplicate the Effect route inventory and can drift from `makeRoutes`.
+- A catch-all can accidentally capture SvelteKit data, asset, or future remote-function requests.
+- The hook performs one checked handoff and leaves the Effect router authoritative.
+
+Use SvelteKit server routes only for HTML-shell concerns that do not belong to a capability or the Effect protocol surface.
+
+## 2. Binding declaration moves to the SvelteKit Website
+
+The existing `Cloudflare.Worker<T>()` class owns the entry module. SvelteKit's generated Worker also needs to own the entry module. They cannot both own one deployed script.
+
+Replace the raw Worker class with the **class form of `Cloudflare.Website.SvelteKit`** if preserving the current default class import is useful. The generic class form is still a Worker resource, but SvelteKit owns the source/build pipeline.
+
+### `apps/mischief/alchemy.site.ts`
+
+```ts
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+
+import { rateLimitDeclarations } from "./src/rate-limits.js";
+
+const websiteProps = Effect.gen(function* () {
+  const webBotAuthEnabled = yield* Config.Boolean(
+    "WEB_BOT_AUTH_ENABLED",
+  ).pipe(Config.withDefault(false));
+  const webBotAuthPrivateJwk = yield* Config.option(
+    Config.Redacted("WEB_BOT_AUTH_PRIVATE_JWK"),
+  );
+
+  return {
+    compatibility: { date: "2026-05-28" },
+    dev: { port: 1337 },
+    domain: { name: "ratstack.sh", redirects: ["www.ratstack.sh"] },
+    rootDir: import.meta.dirname,
+    memo: {
+      include: [
+        "alchemy.site.ts",
+        "package.json",
+        "public/**",
+        "scripts/**",
+        "src/**",
+        "tsconfig*.json",
+        "vite.config.ts",
+      ],
+    },
+    env: {
+      API_PER_IP: Cloudflare.RateLimit(
+        "API_PER_IP",
+        rateLimitDeclarations.API_PER_IP,
+      ),
+      CODE_SANDBOX: Cloudflare.WorkerLoader("CODE_SANDBOX"),
+      EXECUTE_GLOBAL: Cloudflare.RateLimit(
+        "EXECUTE_GLOBAL",
+        rateLimitDeclarations.EXECUTE_GLOBAL,
+      ),
+      EXECUTE_PER_IP: Cloudflare.RateLimit(
+        "EXECUTE_PER_IP",
+        rateLimitDeclarations.EXECUTE_PER_IP,
+      ),
+      WEB_BOT_AUTH_ENABLED: webBotAuthEnabled,
+      ...(Option.isSome(webBotAuthPrivateJwk)
+        ? { WEB_BOT_AUTH_PRIVATE_JWK: webBotAuthPrivateJwk.value }
+        : {}),
+    },
+  } as const;
+});
+
+export default class Mischief extends Cloudflare.Website.SvelteKit<Mischief>()(
+  "Mischief",
+  websiteProps,
+) {}
+
+export type MischiefEnv = Cloudflare.InferEnv<typeof Mischief>;
+```
+
+The declaration forms are source-backed:
+
+- `WorkerLoader` is deliberately both an Effect and an `env` binding marker. Alchemy's source documents `env: { LOADER: Cloudflare.WorkerLoader() }`. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Workers/WorkerLoader.ts`)
+- `RateLimit` documents the same async-Worker `env` form and infers native `RateLimit` bindings. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Workers/RateLimit.ts`)
+- The Website resource returns a plain Worker and accepts the complete Worker `env` vocabulary. (`.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Website/SvelteKit.ts`)
+
+`apps/infra/alchemy.run.ts` can keep `const mischief = yield* Mischief`. It should import the new `alchemy.site.ts` class rather than the old Effect-native Worker entry.
+
+### `src/app.d.ts`
+
+```ts
+import type { MischiefEnv } from "../alchemy.site.js";
+
+declare global {
+  namespace App {
+    interface Platform {
+      env: MischiefEnv;
+    }
+  }
+}
+
+export {};
+```
+
+Alchemy injects its adapter. Do not install `@sveltejs/adapter-cloudflare`, add Wrangler configuration, or add `svelte.config.js`. Bindings appear on `platform.env` in production and through Alchemy's local platform proxy in `alchemy dev`. (`.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/frontend/sveltekit.mdx`)
+
+## 3. Render Markdown during content generation
+
+Extend `scripts/generate-content.ts` so the generated Worker-safe module contains both the exact Markdown and trusted rendered HTML.
+
+Do **not** call `marked` inside `+page.server.ts`:
+
+- the same four checked-in skills do not need reparsing on every request;
+- `marked` stays out of the Worker request path;
+- generation fails early on malformed content;
+- the raw Markdown remains unchanged for Effect, MCP, and agent routes.
+
+Use `marked@18.0.13` only on checked-in repository content. `{@html ...}` does not sanitize. That is acceptable at this boundary because `scripts/generate-content.ts` reads trusted files from this repository. If content ever comes from users, a database, or an external feed, sanitize during generation before it reaches `{@html}`.
+
+Copy-ready generation shape:
+
+```ts
+import { Marked, Renderer } from "marked";
+
+const stripFrontmatter = (source: string) =>
+  source.replace(/^---\n[\s\S]*?\n---\n/u, "");
+
+const slug = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/<[^>]*>/gu, "")
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-|-$/gu, "");
+
+const renderMarkdown = (source: string) => {
+  const headings: Array<{ depth: number; id: string; text: string }> = [];
+  const used = new Map<string, number>();
+  const renderer = new Renderer();
+
+  renderer.heading = ({ depth, text, tokens }) => {
+    const base = slug(text) || "section";
+    const count = used.get(base) ?? 0;
+    used.set(base, count + 1);
+    const id = count === 0 ? base : `${base}-${count + 1}`;
+    headings.push({ depth, id, text });
+    return `<h${depth} id="${id}">${renderer.parser.parseInline(tokens)}</h${depth}>`;
+  };
+
+  const marked = new Marked({ gfm: true, renderer });
+  const html = marked.parse(stripFrontmatter(source), { async: false });
+  if (typeof html !== "string") throw new Error("Expected synchronous Markdown");
+  return { headings, html };
+};
+```
+
+Add `html` and `headings` to each generated skill while retaining `text`, `digest`, and `routePath`. The page server load should return one skill:
+
+```ts
+import { error } from "@sveltejs/kit";
+import type { PageServerLoad } from "./$types";
+import { skills } from "../../../content.js";
+
+export const load: PageServerLoad = ({ params, url }) => {
+  const skill = skills.find((candidate) => candidate.name === params.name);
+  if (skill === undefined) error(404, "Skill not found");
+  return { origin: url.origin, skill };
+};
+```
+
+Keep these pages SSR, not prerendered. A prerendered `/` or `/skills/<name>` becomes a static asset and can bypass the hook, breaking same-URL content negotiation.
+
+## 4. Page shape
+
+### Routes
+
+```text
+src/routes/
+  +layout.svelte
+  +page.server.ts
+  +page.svelte
+  skills/
+    +page.server.ts
+    +page.svelte
+    [name]/
+      +page.server.ts
+      +page.svelte
+```
+
+Keep an explicit root `+layout.svelte`. The Alchemy dev spike returned HTTP 500 with `Cannot read properties of null (reading 'nodes')` when the project omitted it; adding this current-runes layout fixed the page:
+
+```svelte
+<script lang="ts">
+  let { children } = $props();
+</script>
+
+{@render children()}
+```
+
+### Visual direction
+
+- Light mode only: warm off-white background, dark ink text, rat green as the only strong accent.
+- Full-color `ratstack-logo.svg` as a responsive hero mark: `width: clamp(14rem, 42vw, 34rem)`.
+- One strong monospace face; system monospace fallback until the Dank Mono license is proven.
+- Generous vertical rhythm, 70–76 character prose measure, visible focus rings, and 44 px controls.
+- Home page: the install command, four skill cards grouped as Learn / Build / Shape, then compact links to MCP, OpenAPI, and agent documents.
+- Skill page: breadcrumb, title and description, rendered prose, optional heading navigation, and a copyable install command.
+- No gradient, dark-mode branch, dashboard chrome, or client-side data fetch.
+
+Use stable Svelte 5 runes:
+
+```svelte
+<script lang="ts">
+  import type { PageProps } from "./$types";
+
+  let { data }: PageProps = $props();
+  let query = $state("");
+  let visibleSkills = $derived(
+    data.skills.filter((skill) =>
+      `${skill.name} ${skill.description}`.toLowerCase().includes(query.toLowerCase()),
+    ),
+  );
+</script>
+```
+
+For rendered prose:
+
+```svelte
+<article class="prose">{@html data.skill.html}</article>
+```
+
+The generated HTML is trusted repository output, not arbitrary request data.
+
+### Head metadata
+
+Reuse the generated assets and metadata from `make-og-image-asset.svx`:
+
+```svelte
+<svelte:head>
+  <title>ratstack.sh</title>
+  <meta
+    name="description"
+    content="Effect-native capabilities projected to CLI, HTTP, MCP, and sandboxed code mode."
+  />
+  <meta property="og:title" content="ratstack.sh" />
+  <meta property="og:description" content="A source-first TypeScript capability stack." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={`${data.origin}/`} />
+  <meta property="og:image" content={`${data.origin}/og.png`} />
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" />
+  <link rel="icon" href="/icon-512.png" sizes="512x512" />
+</svelte:head>
+```
+
+SvelteKit calls its static directory `static` by default. This app already stores `og.png` and icons in `public`. Either move every asset together to `static`, or set `files.assets: "public"` in `sveltekit(...)`. Do not split the two conventions. The lower-churn choice is to keep `public` and add `public/ratstack-logo.svg` as a generated copy of `assets/ratstack-logo.svg`.
+
+### Dank Mono provenance and license result
+
+The three local WOFF2 files are genuine Dank Mono files. Their embedded name tables say:
+
+- family: `Dank Mono`;
+- styles: Regular, Italic, Bold;
+- copyright: `Copyright © 2018–2020 by Phil Plückthun. All rights reserved.`;
+- foundry: `Grazil Ltd`;
+- license URL: `https://dank.sh/eula`.
+
+SHA-256:
+
+```text
+Regular  0ca792d9493ffdc3643d088b02455efd67b2511632f32836eddac8d647be469d
+Italic   455e1bad0167fa54ef84ca1ecdb7fc21ca3f49d3effc671b6a931ecc200de33e
+Bold     f74612241181aff7a5c5a83ee1c13dc967ed84fb4edfe09533afdde97f292108
+```
+
+The source tree contains **no license file or purchase receipt** for those WOFF2 files. The embedded metadata says “All rights reserved,” and the embedded EULA URL returned HTTP 503 during this research. Therefore copying them into rat-stack's deployable public assets is **not proven license-safe**.
+
+The `/tmp` spike used local copies only. Production should use the system monospace fallback until Joel confirms that the Dank Mono purchase covers self-hosted web embedding on ratstack.sh. If confirmed, place the files in the chosen Kit asset directory and use explicit `@font-face` rules with `font-display: swap`. Do not commit the font binaries on assumption.
+
+## 5. Versions, Kit v3 status, and the fence
+
+Versions published on 2026-09-22:
+
+| Package | Exact pin | Status and reason |
+| --- | --- | --- |
+| `@alchemy.run/frontend-frameworks` | `2.0.0-beta.79` | Must match the repository's Alchemy pin; build-time dependency required by `Website.SvelteKit` |
+| `@sveltejs/kit` | `3.0.0-next.27` | Newest published Kit v3 line; **prerelease**, while npm `latest` remains Kit 2 |
+| `svelte` | `5.57.1` | Newest stable Svelte 5.x |
+| `vite` | `8.3.0` | Satisfies Kit's `^8.0.12` peer |
+| `@sveltejs/vite-plugin-svelte` | `7.3.0` | Satisfies Kit's `^7.0.0` peer |
+| `svelte-check` | `4.7.6` | Required `.svelte` compiler/type/accessibility check |
+| `marked` | `18.0.13` | Generation-time Markdown only |
+| `typescript` in `apps/mischief` | `6.0.3` | Compatibility island required by Kit v3's `^6.0.0` peer and `svelte-kit sync` |
+
+Keep the workspace root `typescript@7.0.2` pin. Kit `3.0.0-next.27` does not currently run its config synchronization on TS7: the `/tmp` probe failed in `load_tsconfig` because Kit calls the classic `ts.sys` API removed by TS7. Alchemy's own Kit v3 patch added a TS6 fixture for this reason. ([Alchemy PR #1709](https://github.com/alchemy-run/alchemy/pull/1709), [Kit package peers](https://www.npmjs.com/package/@sveltejs/kit/v/3.0.0-next.27))
+
+### Dual compiler fence
+
+Use TS6 only for Kit's tools and Svelte checking. Keep TS7 plus the Effect language service for ordinary `.ts` source:
+
+```json
+{
+  "scripts": {
+    "check:svelte": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:effect": "pnpm --workspace-root exec tsc --noEmit -p apps/mischief/tsconfig.effect.json",
+    "typecheck": "pnpm run generate && pnpm run check:svelte && pnpm run check:effect"
+  }
+}
+```
+
+`tsconfig.json` for Kit:
+
+```json
+{
+  "extends": "$app/tsconfig",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "strict": true
+  }
+}
+```
+
+`tsconfig.effect.json` for the root TS7 binary:
+
+```json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": ["alchemy.site.ts", "src/**/*.ts", "src/**/*.d.ts"],
+  "exclude": [".svelte-kit/**", "src/**/*.svelte"]
+}
+```
+
+The scratch app passed this TS7 command after its TS6 `svelte-kit sync` pass. This preserves the Effect diagnostics for `hooks.server.ts`, route loaders, the Effect handler, and Alchemy declarations.
+
+Oxlint 1.83.0 parses the `<script>` blocks in `.svelte` files and enforces ordinary syntax rules there; probes caught both an invalid token and `no-debugger`. It does **not** lint Svelte markup, and the custom JS-plugin API still has limited framework-file support. Oxfmt 0.68.0 excludes `.svelte` entirely and reports that no target matched. Keep Ultracite/Oxlint for script-block lint, but do not pretend it is the Svelte fence. Make `svelte-check` a required Turbo `check` task. Keep `.svelte` excluded from the TS7-only config with the written reason: Svelte source is compiled and checked by `svelte-check`; TS7 continues to check every `.ts` seam. ([Oxlint framework-file support](https://oxc.rs/docs/guide/usage/linter))
+
+Do not add Prettier just for this shell. Keep the initial surface small; format Svelte manually until Oxfmt supports it or the owner explicitly approves a formatter dependency.
+
+### Stability choices
+
+| Feature | Status in these pins | Decision |
+| --- | --- | --- |
+| Svelte 5 runes (`$props`, `$state`, `$derived`) | Stable current idiom | Use |
+| Component-level/top-level `await` | **Experimental**; requires `compilerOptions.experimental.async: true` | Do not enable; the shell does not need it |
+| Kit remote functions | **Experimental** in Kit v3; requires both `experimental.remoteFunctions: true` and async Svelte | Do not enable |
+| Remote function imports and types | Moved to `$app/server` in Kit v3 | Note for later only |
+| `svelte.config.js` | Removed in Kit v3 | Do not create |
+| `$lib` | Removed as an automatic alias in Kit v3 | Declare `#lib` in package `imports` and include `.js` extensions |
+
+Remote functions would also create a second server-call vocabulary beside Effect capabilities. The static catalogue and skill pages need no remote call. If an interactive feature arrives later, add it as a capability and project it rather than hiding behavior in a `.remote.ts` file. ([Kit v3 migration](https://github.com/sveltejs/kit/blob/090d77ff289bf844cf65403f8f5e7eec8a7bb902/documentation/docs/60-appendix/35-migrating-to-sveltekit-3.md), [Svelte 5.57.1 await docs](https://github.com/sveltejs/svelte/blob/svelte%405.57.1/documentation/docs/03-template-syntax/19-await-expressions.md))
+
+`package.json` needs Kit v3's subpath imports:
+
+```json
+{
+  "imports": {
+    "#lib": "./src/lib/index.js",
+    "#lib/*": "./src/lib/*"
+  }
+}
+```
+
+Alchemy's mirrored example still declares a deprecated `$lib` alias in `vite.config.ts`; Kit `3.0.0-next.27` warns about it. Follow the pinned Kit migration guide instead.
+
+## 6. `/tmp` spike verdict
+
+Scratch project: `/tmp/sveltekit-shell-spike`
+
+The final spike used the exact versions above, Effect `4.0.0-rc.116`, and Alchemy `2.0.0-beta.79`. Its `hooks.server.ts` sent HTML `/` requests to SvelteKit and Markdown `/` plus `/api/ping` to a real Effect `HttpRouter.toWebHandler` handler. The Alchemy Website declared three bindings:
+
+- literal `SPIKE_MESSAGE`;
+- `Cloudflare.WorkerLoader("CODE_SANDBOX")`;
+- `Cloudflare.RateLimit("TEST_LIMIT", ...)`.
+
+`alchemy dev` exposed all three through `platform.env`. The Effect response proved that both native bindings had callable methods.
+
+Verification receipt:
+
+```text
+HTML
+HTTP/1.1 200 OK
+content-type: text/html
+x-sveltekit-page: true
+HTML reached SvelteKit
+
+MARKDOWN
+HTTP/1.1 200 OK
+content-type: text/markdown; charset=utf-8
+x-handler: effect
+# Effect response
+
+bound-through-platform-env; loader=function; rateLimit=function
+
+API
+HTTP/1.1 200 OK
+content-type: application/json
+x-handler: effect
+{"handler":"effect","message":"bound-through-platform-env; loader=function; rateLimit=function"}
+```
+
+Checks:
+
+```text
+svelte-check found 0 errors and 0 warnings
+root TS7 Effect fence: exit 0
+vite build: exit 0
+alchemy dev: one local Website created; no deploy
+```
+
+### What broke
+
+1. **A clean profile with no Cloudflare provider fails before local dev starts.** `alchemy dev` first reported `Provider 'Cloudflare' is not configured in profile 'default'`.
+2. **CI mode with no credentials still fails.** It next required `CLOUDFLARE_ACCOUNT_ID`, then a credential value, even though the Website plan said `create (local)`.
+3. **No-login workaround.** The successful run used an isolated temporary home plus syntactically valid, explicitly fake local-only values for `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. No login or deployment occurred. This is a beta.79 local-dev ergonomics bug, not a production configuration recommendation. The repository must continue using its Alchemy profile for real infrastructure.
+4. **An explicit root layout was required in this integration.** With no `+layout.svelte`, Effect routes worked but the Svelte page returned 500 from Kit's route manifest. Adding the two-line runes layout fixed it.
+5. **TS7 cannot run `svelte-kit sync`.** The exact failure was `Cannot read properties of undefined (reading 'readFile')` in Kit's `load_tsconfig`. TS6.0.3 passed.
+6. **Direct `vite build` warns `No adapter specified`.** This is expected outside the Alchemy resource because Alchemy injects its adapter only when it owns the Website build. Use direct Vite build as a compile check, not as the deploy artifact.
+7. **Oxlint covers only Svelte script blocks and Oxfmt excludes `.svelte`.** `svelte-check` must be part of `check` for Svelte compiler, type, and template diagnostics.
+
+The final Alchemy process was stopped and port 1337 was closed. No Cloudflare API deployment occurred.
+
+## Sources
+
+- Alchemy SvelteKit guide: `.agent_sources/github.com/alchemy-run/alchemy/website/src/content/docs/cloudflare/frontend/sveltekit.mdx`
+- Alchemy example: `.agent_sources/github.com/alchemy-run/alchemy/examples/cloudflare-website-sveltekit`
+- Website resource: `.agent_sources/github.com/alchemy-run/alchemy/packages/alchemy/src/Cloudflare/Website/SvelteKit.ts`
+- SvelteKit adapter implementation: `.agent_sources/github.com/alchemy-run/alchemy/packages/frontend-frameworks/src/sveltekit/`
+- Kit `3.0.0-next.27` changelog: [pinned source](https://github.com/sveltejs/kit/blob/090d77ff289bf844cf65403f8f5e7eec8a7bb902/packages/kit/CHANGELOG.md)
+- Kit v3 migration: [pinned source](https://github.com/sveltejs/kit/blob/090d77ff289bf844cf65403f8f5e7eec8a7bb902/documentation/docs/60-appendix/35-migrating-to-sveltekit-3.md)
+- Svelte async status: [Svelte 5.57.1 source](https://github.com/sveltejs/svelte/blob/svelte%405.57.1/documentation/docs/03-template-syntax/19-await-expressions.md)
+- Current Effect routes and bindings: `apps/mischief/src/app.ts`, `apps/mischief/src/worker.ts`, `apps/mischief/src/content.ts`, `apps/mischief/src/rate-limits.ts`, `apps/mischief/src/sandbox-worker-loader.ts`
+- OG and icon contract: `./make-og-image-asset.svx`

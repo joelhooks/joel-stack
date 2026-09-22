@@ -1,0 +1,38 @@
+---
+title: "Worker task: build-sveltekit-shell"
+type: "task"
+status: "active"
+created_at: "2026-09-22"
+privacy: "public"
+---
+
+# Worker task: build-sveltekit-shell
+
+Effort brief: `.brain/projects/ratstack-sh/ratstack-sh-brief.svx` (read it first; Vocabulary and Decision ledger bind you). The research that binds this build: `.brain/projects/ratstack-sh/research-sveltekit-shell-asset.svx`; follow its copy-ready code, pins, fence plan, and stability choices exactly unless the repo proves one wrong, and say so in the Result if it does. The site is live at https://ratstack.sh (v0.2, Level 5); every existing route, document, MCP tool, and test must keep working byte-for-byte on the agent surfaces.
+Your step: `.brain/projects/ratstack-sh/build-sveltekit-shell.svx` (already claimed for you). Joel approved the SvelteKit direction, the newest Kit line, and the dependency additions below; the TypeScript 6 island is approved as the asset describes it.
+
+## What to do
+
+Apply the [research asset](./research-sveltekit-shell-asset.svx): turn `apps/mischief` into the SvelteKit app that hosts the Effect router, with the agent surfaces byte-for-byte unchanged (the existing route and MCP tests keep passing), and the `text/html` face rendered from the same generated content: home page is the catalogue, `/skills/<name>` pages, light theme, Dank Mono self-hosted, prose styles for rendered markdown, the OG tags. Dependencies pinned exactly, `minimumReleaseAgeExclude` entries where prerelease, the fence extended to `.svelte` per the asset. `alchemy dev` serves both faces locally. Joel signs off on the dependency additions and the first deploy that ships the font files.
+
+Resolved when the gate is green, `curl -H 'Accept: text/html' http://localhost:1337/` returns a SvelteKit-rendered page with the catalogue as real markup, and every existing agent test passes unchanged.
+
+Concretely, in this order, each slice gate-green:
+
+1. Dependencies, exact pins from the asset: `@sveltejs/kit 3.0.0-next.27`, `svelte 5.57.1`, `vite 8.3.0`, `@sveltejs/vite-plugin-svelte 7.3.0`, `svelte-check 4.7.6`, `marked 18.0.13`, `@alchemy.run/frontend-frameworks 2.0.0-beta.79`, and `typescript 6.0.3` scoped to `apps/mischief` only (root stays 7.0.2). Version-scoped `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml` for every prerelease. `pnpm install` must succeed offline-first then online; note the lockfile diff size.
+2. The Website resource: `apps/mischief/alchemy.site.ts` as the asset shows (bindings in `env`: `CODE_SANDBOX` WorkerLoader, the three RateLimits, `WEB_BOT_AUTH_ENABLED`, `WEB_BOT_AUTH_PRIVATE_JWK` as a secret), `InferEnv` typed `platform.env` in `src/app.d.ts`, `apps/infra/alchemy.run.ts` yielding it in place of the current Worker class with the same `domain` and `assets` behavior (public/ files move to Kit's static dir); keep the zone, DNS-AID, DNSSEC declarations untouched.
+3. The seam: `src/lib/server/effect-handler.ts` building the Effect web handler once from `makeRoutes` with bindings from `platform.env`; `src/hooks.server.ts` routing per the asset's rule list. Kit v3 `#lib` subpath imports in `package.json`; no `svelte.config.js`; explicit root `+layout.svelte`.
+4. Content: extend `scripts/generate-content.ts` to also emit HTML for the catalogue, each skill, and each law file with `marked` (own repo content, so no sanitizer, say so in a comment); pages: `/` catalogue, `/skills` index, `/skills/[name]`; light theme, Dank Mono via `@font-face` with `font-display: swap` from the three woff2 files copied from `/Users/joel/Code/joelhooks/joelclaw/apps/web/app/fonts/DankMono-{Regular,Italic,Bold}.woff2` (sha256 in the asset; verify after copy), system monospace fallback; prose styles for headings, lists, code, tables, links; the OG and Twitter tags from `make-og-image-asset.svx`; runes only, no experimental flags.
+5. Fence: `check:svelte` (`svelte-kit sync && svelte-check`), `check:effect` (root TS7 on `tsconfig.effect.json`), `typecheck` runs generate then both; oxlint keeps script blocks; `.svelte` excluded from oxfmt with the reason in the config comment. The turbo `generate` dependency stays.
+6. Tests: every existing `apps/mischief` test passes unchanged (they hit the Effect handler directly); add one test that the hook sends `Accept: text/html` on `/` to SvelteKit and `Accept: text/markdown` to Effect, if the asset's harness makes that cheap; otherwise prove it with `alchemy dev` curls in the Result.
+7. `pnpm infra:dev`: curl `/` with `Accept: text/html` (expect a SvelteKit-rendered catalogue with real markup, the font-face rules, the OG tags) and with `Accept: text/markdown` (expect the unchanged Markdown), plus `/mcp` `server/discover`; paste the outputs into the Result; stop the process.
+
+## Write scope
+
+`apps/mischief`, `apps/infra/alchemy.run.ts`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, root `package.json` only if a script must change, `.brain/`. Do not deploy, do not authenticate with Cloudflare, do not commit, do not edit the brief. Do not edit `packages/*`.
+
+## Deliverables
+
+- The work, `pnpm turbo run check test build` green (run `pnpm fix` first when formatting complains; never loosen the fence; a targeted `@effect-diagnostics-next-line` with a reason is fine at a real boundary).
+- In the step file: `## Result (2026-09-22)` with what exists, the dev curl outputs, the lockfile diff size, what the asset got wrong if anything, and what felt forced; set `status: "closed"` and `closed_at: "2026-09-22"` when the resolved-when line holds.
+- Print a DONE summary with the file list and the gate result.
