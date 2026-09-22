@@ -27,9 +27,46 @@ export default Alchemy.Stack(
     if (!dev) {
       // ratstack.sh already exists in the account, so adoption is explicit.
       // Zones retain on stack removal; there is no destroy() here on purpose.
-      yield* Cloudflare.Zone.Zone("RatstackZone", { name: "ratstack.sh" }).pipe(
-        adopt(true)
-      );
+      const zone = yield* Cloudflare.Zone.Zone("RatstackZone", {
+        name: "ratstack.sh",
+      }).pipe(adopt(true));
+
+      const dnsAidService = (
+        id: string,
+        name:
+          | `_a2a._agents.${string}`
+          | `_index._agents.${string}`
+          | `_mcp._agents.${string}`
+      ) =>
+        Cloudflare.DNS.Record(id, {
+          content: {
+            priority: 1,
+            target: "ratstack.sh.",
+            value: 'mandatory="alpn,port" alpn="h2" port="443"',
+          },
+          name,
+          ttl: 3600,
+          type: "SVCB",
+          zoneId: zone.zoneId,
+        });
+
+      yield* dnsAidService("DnsAidIndexSvcb", "_index._agents.ratstack.sh");
+      yield* dnsAidService("DnsAidA2aSvcb", "_a2a._agents.ratstack.sh");
+      yield* dnsAidService("DnsAidMcpSvcb", "_mcp._agents.ratstack.sh");
+      yield* Cloudflare.DNS.Record("DnsAidIndexTxt", {
+        content: '"agents=rat-stack:mcp,rat-stack:a2a"',
+        name: "_index._agents.ratstack.sh",
+        ttl: 3600,
+        type: "TXT",
+        zoneId: zone.zoneId,
+      });
+
+      // Alchemy manages Cloudflare's per-zone DNSSEC setting. Adoption keeps
+      // an already-signed zone instead of treating it as somebody else's state.
+      yield* Cloudflare.DNS.Dnssec("RatstackDnssec", {
+        status: "active",
+        zoneId: zone.zoneId,
+      }).pipe(adopt(true));
     }
     const mischief = yield* Mischief;
     return { mischiefUrl: mischief.url };

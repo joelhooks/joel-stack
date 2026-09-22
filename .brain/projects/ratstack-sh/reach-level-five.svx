@@ -21,3 +21,43 @@ Build half (worker, in the `level-five` rift, no deploy): from the [not-applicab
 Scan half (owner): deploy, run `pnpm mischief:smoke`, save the scan output as `reach-level-five-asset.svx`, flip the Web Bot Auth flag only if needed, repeat.
 
 Resolved when the smoke script prints Level 5 and the scan output is saved as an asset.
+
+## Build result (2026-09-22)
+
+Build half complete in the `level-five` rift. The step stays open for the owner’s deploy, smoke test, live scan, and asset receipt.
+
+### Worker surfaces
+
+- `POST /a2a` is a real A2A JSON-RPC endpoint. It accepts `message/send` and the v1 spelling `SendMessage`, searches with the shipped `search` capability, reads each match with the shipped `read` capability, and returns a source-grounded A2A message. It does not pretend to be a generative model.
+- The same A2A v1.0 agent card is served with `application/a2a+json` at `/.well-known/agent-card.json` and the legacy scanner/client path `/.well-known/agent.json`. Its one skill points at `https://ratstack.sh/a2a` and describes the search-plus-read behavior.
+- `GET /.well-known/ai-catalog.json` serves the ARD 1.0 manifest with CORS. It has one MCP entry and one A2A entry, stable `urn:air:ratstack.sh:*` identifiers, exactly one URL per entry, and two representative queries per entry.
+- `GET /auth.md` serves Markdown whose H1 contains `auth.md`. It says the public MCP, A2A, and HTTP surfaces are anonymous, there is no registration or provisioning endpoint, credentials must not be sent, and no OAuth authorization server or protected resource exists.
+- `GET /.well-known/http-message-signatures-directory` is behind `WEB_BOT_AUTH_ENABLED`, which defaults to false and returns 404. When enabled, `WEB_BOT_AUTH_PRIVATE_JWK` is read through Effect `Config.Redacted`, which Alchemy installs as a Worker `secret_text` binding; the route decodes an Ed25519 private JWK and publishes only the public `OKP`/`Ed25519` fields. `apps/mischief/.env.schema` declares both controls without values.
+- The sitemap and `Link` header now include the A2A, ARD, and auth discovery documents. The off-by-default Web Bot Auth route is not advertised.
+
+### Stack declarations
+
+`apps/infra/alchemy.run.ts` keeps the adopted zone and Worker shape intact, and declares these non-proxied records only outside `alchemy dev`:
+
+- `_index._agents.ratstack.sh` SVCB, priority 1, target `ratstack.sh.`, `mandatory="alpn,port" alpn="h2" port="443"`, TTL 3600.
+- `_a2a._agents.ratstack.sh` with the same ServiceMode connection parameters.
+- `_mcp._agents.ratstack.sh` with the same ServiceMode connection parameters.
+- `_index._agents.ratstack.sh` TXT: `agents=rat-stack:mcp,rat-stack:a2a`, TTL 3600.
+
+Alchemy beta.79 does have a first-class `Cloudflare.DNS.Dnssec` resource. The Stack declares `RatstackDnssec` with `status: "active"` and `adopt(true)`, so an already-signed adopted zone remains owned safely. No plan or deploy ran here. The owner must verify the resource reaches `active` and that validating DoH responses carry authenticated data after deployment; Alchemy documents that registrar-side DS completion can leave it pending.
+
+### Test receipt
+
+`apps/mischief/test/worker.test.ts` exercises the scanner fixtures through `HttpRouter.toWebHandler`:
+
+- both A2A card paths return the same v1 card, and `POST /a2a` returns a source-grounded message containing resource and source references;
+- ARD returns JSON, wildcard CORS, the expected host, non-empty entries, and `urn:air` identifiers;
+- `auth.md` returns Markdown, the required H1, anonymous access, no registration endpoint, and no OAuth claim;
+- Web Bot Auth returns 404 by default, then returns a public-only JWKS when the route is built with a real test-only Ed25519 private JWK;
+- the existing all-public-path probe covers the new always-on documents.
+
+Final gate: `pnpm turbo run check test build` passed, 20 tasks successful. Mischief’s suite passed 9 tests.
+
+### What felt forced
+
+The A2A “answer” is deliberately retrieval, not fake intelligence: it returns the best source passages found through the same two capabilities. Web Bot Auth remains the soft edge. Ratstack has no outbound bot-request path to sign today, so enabling a key directory would satisfy the scanner before it satisfies the whole protocol; that is why the flag stays off unless the owner proves `auth.md` does not count and explicitly chooses the fallback. DNS publication and DNSSEC activation also remain unverified until the owner deploys and reads them back.

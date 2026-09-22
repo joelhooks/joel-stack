@@ -196,13 +196,17 @@ export const agentSkillPath = (name: string) =>
 
 export const publicPaths = [
   "/",
+  "/auth.md",
   "/llms.txt",
   "/llms-full.txt",
   "/openapi.json",
   "/robots.txt",
   "/sitemap.xml",
   "/skills",
+  "/.well-known/agent-card.json",
+  "/.well-known/agent.json",
   "/.well-known/agent-skills/index.json",
+  "/.well-known/ai-catalog.json",
   "/.well-known/api-catalog",
   "/.well-known/mcp.json",
   ...lawResources.map((resource) => resource.routePath),
@@ -220,6 +224,8 @@ ${publicPaths.map((path) => `  <url><loc>${origin}${path}</loc></url>`).join("\n
 export const linkHeader = [
   `</.well-known/api-catalog>; rel="api-catalog"`,
   `</.well-known/mcp.json>; rel="service-desc"; type="application/json"`,
+  `</.well-known/agent-card.json>; rel="service-desc"; type="application/a2a+json"`,
+  `</.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/json"`,
   `</.well-known/agent-skills/index.json>; rel="describedby"; type="application/json"`,
   `</llms.txt>; rel="describedby"; type="text/markdown"`,
   `</>; rel="alternate"; type="text/markdown"`,
@@ -266,6 +272,83 @@ export const mcpServerCard = (origin: string) => ({
   serverInfo: { name: "sh.ratstack/rat-stack", version: "0.2.0" },
   transport: { endpoint: `${origin}/mcp`, type: "streamable-http" },
 });
+
+export const a2aAgentCard = (origin: string) => ({
+  capabilities: {
+    extendedAgentCard: false,
+    pushNotifications: false,
+    streaming: false,
+  },
+  defaultInputModes: ["text/plain"],
+  defaultOutputModes: ["text/plain"],
+  description:
+    "Answers rat-stack questions with source-grounded search and read results from the public project corpus.",
+  name: "Rat Stack",
+  skills: [
+    {
+      description:
+        "Answer a rat-stack question by searching the public law and skills, then reading the matching sources.",
+      examples: [
+        "How do I add a capability?",
+        "Where does lifecycle state live?",
+      ],
+      id: "answer-rat-stack-question",
+      name: "Answer a rat-stack question",
+      tags: ["rat-stack", "documentation", "source-grounded"],
+    },
+  ],
+  supportedInterfaces: [
+    {
+      protocolBinding: "JSONRPC",
+      protocolVersion: "1.0",
+      url: `${origin}/a2a`,
+    },
+  ],
+  version: "0.1.0",
+});
+
+export const ardManifest = (origin: string) => ({
+  entries: [
+    {
+      displayName: "Rat Stack MCP",
+      identifier: "urn:air:ratstack.sh:server:mcp",
+      representativeQueries: [
+        "how do I add a capability",
+        "show the rat-stack project law",
+      ],
+      type: "application/mcp-server-card+json",
+      url: `${origin}/.well-known/mcp.json`,
+    },
+    {
+      displayName: "Rat Stack A2A Agent",
+      identifier: "urn:air:ratstack.sh:agent:a2a",
+      representativeQueries: [
+        "answer a question about rat-stack",
+        "where does rat-stack lifecycle state live",
+      ],
+      type: "application/a2a+json",
+      url: `${origin}/.well-known/agent-card.json`,
+    },
+  ],
+  host: {
+    displayName: "Rat Stack",
+    identifier: "did:web:ratstack.sh",
+  },
+  specVersion: "1.0",
+});
+
+export const authMarkdown = `# ratstack.sh auth.md
+
+Ratstack's public agent surfaces are anonymous. Agents may call the MCP, A2A, and HTTP capability endpoints without credentials.
+
+## Agent access
+
+- Audience: agents reading and querying the public rat-stack corpus.
+- Registration or provisioning: none. There is no registration endpoint.
+- Supported method: anonymous HTTPS requests.
+- Credentials: do not send any. Ratstack does not issue or accept access tokens.
+- OAuth: none. Ratstack is not an OAuth authorization server and has no protected-resource metadata.
+`;
 
 export interface SearchMatch {
   readonly description: string;

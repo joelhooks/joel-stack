@@ -1,6 +1,9 @@
 import * as Cloudflare from "alchemy/Cloudflare";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
 import { makeRoutes } from "./app.js";
@@ -31,6 +34,12 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       "EXECUTE_PER_IP",
       rateLimitDeclarations.EXECUTE_PER_IP
     );
+    const webBotAuthEnabled = yield* Config.Boolean(
+      "WEB_BOT_AUTH_ENABLED"
+    ).pipe(Config.withDefault(false));
+    const webBotAuthPrivateJwk = yield* Config.option(
+      Config.Redacted("WEB_BOT_AUTH_PRIVATE_JWK")
+    );
     const environment = yield* Cloudflare.WorkerEnvironment;
     // These are the native runtime bindings declared above. Alchemy's typed
     // environment is populated dynamically, so this is the one boundary cast.
@@ -44,7 +53,15 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL,
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
     });
-    const workerRoutes = makeRoutes(rateLimits).pipe(
+    const workerRoutes = makeRoutes({
+      rateLimits,
+      webBotAuth: {
+        enabled: webBotAuthEnabled,
+        ...(Option.isSome(webBotAuthPrivateJwk)
+          ? { privateJwk: Redacted.value(webBotAuthPrivateJwk.value) }
+          : {}),
+      },
+    }).pipe(
       Layer.provide(
         layerWorkerLoader(loader, {
           compatibilityDate: "2026-05-28",
