@@ -1241,7 +1241,47 @@ const program = Effect.gen(function* generateContent() {
     .trim();
   const homeMarkdownSource = `# 🐀 Rat Stack
 
-Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart a working app.
+The reference for building an app and its cloud as one typed program. Effect owns the hard parts. Alchemy infers the infrastructure from the code. The fence raises the floor, so agents can build it and you can still trust it.
+
+Vendor it like a library. Keep the bins you need and pull the rest.
+
+## Four ideas
+
+- **Pieces.** An Alchemy Layer carries its own infrastructure. A service tag is the product's API, a Layer is one vendor's implementation, and swapping vendors is a one-line change.
+- **Trust.** Make the easy path the right path. The codebase and the compiler stop mistakes that rules and style guides can only ask about. Remove a binding and the code that uses it stops compiling.
+- **Floor.** Raise the worst case, not the best one. Small cuts to failure rates multiply how long an agent can run unattended.
+- **Range.** Think wider. Building got fast and deploying did not. Layers that carry their own infrastructure close that gap: if it compiles, it deploys.
+
+The [vision](${originToken}/VISION.md) has the sources and the reasoning.
+
+## The shelf
+
+Every piece is a bin you can push in or pull out.
+
+<Diagram alt="A shelf of labeled bins. In today: capability, projections, fence, and stack. Next: a database bin with D1 or PlanetScale. Coming: the agent front door.">
+
+\`\`\`text
+  every bin: labeled · push in · pull out · self-contained · easy to trash
+
+  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+  │ capability   │ │ projections  │ │ fence        │ │ stack        │
+  │ one schema,  │ │ CLI · HTTP   │ │ types · lint │ │ Alchemy →    │
+  │ one handler  │ │ MCP · sandbox│ │ hooks · CI   │ │ Cloudflare   │
+  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+        in               in               in               in
+
+  ┌──────────────┐ ┌──────────────┐
+  │ database     │ │ front door   │
+  │ D1 (free) or │ │ REST · MCP   │
+  │ PlanetScale  │ │ A2A · sandbox│
+  └──────────────┘ └──────────────┘
+       next            coming
+\`\`\`
+</Diagram>
+
+What to notice: removing a bin means deleting its package and the one line that provides it. Everything else still passes the checks.
+
+## One capability, every surface
 
 <Diagram alt="One capability projected onto the command line, HTTP with OpenAPI, MCP tools, and sandbox code mode">
 
@@ -1266,8 +1306,6 @@ Learn Effect, XState, TypeScript, Alchemy, and agent interfaces by taking apart 
 </Diagram>
 
 What to notice: the four boxes share one handler and one set of schemas. Add a capability once and every surface picks it up.
-
-Rat-stack is the example. These pieces are the point.
 
 ## The pattern in code
 
@@ -1373,9 +1411,9 @@ ${groupedSkills}
 
   const homeMetadata = {
     description:
-      "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces in one working app.",
+      "The reference for building an app and its cloud as one typed program, with Effect, Alchemy, and a fence that raises the floor.",
     path: "/",
-    title: "Rat Stack: learn the pieces in a working app",
+    title: "Rat Stack: an app and its cloud as one typed program",
   } as const;
   const skillIndexMetadata = {
     description:

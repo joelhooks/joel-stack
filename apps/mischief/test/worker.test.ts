@@ -442,9 +442,9 @@ it.effect(
         );
         expect(markdownResponse.headers.get("link")).toBe(linkHeader);
         expect(markdown).toBe(markdownDocument("https://ratstack.sh"));
-        expect(markdown).toContain(
-          "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces"
-        );
+        expect(markdown).toContain("an app and its cloud as one typed program");
+        expect(markdown).toContain("## Four ideas");
+        expect(markdown).toContain("every bin: labeled · push in · pull out");
         expect(markdown).toContain("│  defineCapability");
         expect(markdown).toContain("What to notice:");
         expect(markdown).toContain("npx skills add joelhooks/rat-stack");
@@ -454,7 +454,7 @@ it.effect(
         expect(markdown).toContain("## Connect an agent");
         expect(htmlResponse.headers.get("content-type")).toContain("text/html");
         expect(html).toContain(
-          "<title>Rat Stack: learn the pieces in a working app</title>"
+          "<title>Rat Stack: an app and its cloud as one typed program</title>"
         );
         expect(html).toContain('<h1 id="rat-stack">🐀 Rat Stack</h1>');
         expect(html.match(/<h1\b/gu)).toHaveLength(1);
