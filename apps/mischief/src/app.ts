@@ -23,6 +23,7 @@ import {
   linkHeader,
   llmsFullText,
   llmsText,
+  logoSvg,
   markdownDocument,
   mcpServerCard,
   mcpVersionText,
@@ -71,7 +72,9 @@ export interface StaticResponseCache {
   readonly put: (request: Request, response: Response) => Promise<void>;
 }
 
-const staticPaths = new Set<string>(publicPaths);
+// The favicon is cached like every other static file but stays out of the
+// sitemap and agent catalogue, so it is not a public content path.
+const staticPaths = new Set<string>([...publicPaths, "/favicon.svg"]);
 const negotiatedHtmlPaths = new Set<string>([
   "/",
   "/skills",
@@ -240,6 +243,13 @@ const contentRoutes = Layer.mergeAll(
         ? html(renderStaticDocument(originOf(request), skillIndexDocumentHtml))
         : markdown(skillIndex())
     )
+  ),
+  HttpRouter.add(
+    "GET",
+    "/favicon.svg",
+    HttpServerResponse.text(logoSvg, {
+      contentType: "image/svg+xml; charset=utf-8",
+    })
   ),
   HttpRouter.add(
     "GET",

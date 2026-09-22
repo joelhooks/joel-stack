@@ -407,9 +407,8 @@ it.effect(
         expect(markdown).toContain(
           "Learn Effect, XState, TypeScript, Alchemy, and agent interfaces"
         );
-        expect(markdown).toContain(
-          "Call it    command line · HTTP · MCP · sandbox"
-        );
+        expect(markdown).toContain("│  defineCapability");
+        expect(markdown).toContain("What to notice:");
         expect(markdown).toContain("npx skills add joelhooks/rat-stack");
         expect(markdown).toContain("## Source files");
         expect(markdown).toContain("[AGENTS.md](/AGENTS.md)");
@@ -420,12 +419,18 @@ it.effect(
           "<title>rat-stack: learn the pieces in a working app</title>"
         );
         expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
-        expect(html).toContain('<code class="language-text">Call it');
+        expect(html).toContain('<code class="language-text">');
+        expect(html).toContain("│  defineCapability");
+        expect(html).toContain('<a class="mark');
+        expect(html).toContain("<svg");
+        expect(html).not.toContain("<!-- Rat Stack mark");
+        expect(html).toContain('href="/favicon.svg"');
         expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
-        expect(html).toContain("max-width:52rem");
-        expect(html).toContain("pre {max-width:100%;overflow-x:auto;}");
-        expect(html).toContain(
-          "table {display:block;max-width:100%;overflow-x:auto;}"
+        expect(html).toContain("max-width:80ch");
+        expect(html).toContain("ui-monospace");
+        expect(html).toMatch(/pre \{[^}]*overflow-x:auto;[^}]*\}/u);
+        expect(html).toMatch(
+          /table \{[^}]*display:block;[^}]*overflow-x:auto;[^}]*\}/u
         );
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");
@@ -460,6 +465,15 @@ it.effect(
         );
         expect(resourceHtml).toContain("<table>");
         expect(resourceHtml).not.toContain("<script");
+
+        const favicon = yield* Effect.promise(
+          handler.bind(undefined, new Request("http://localhost/favicon.svg"))
+        );
+        const faviconBody = yield* Effect.promise(favicon.text.bind(favicon));
+        expect(favicon.status).toBe(200);
+        expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
+        expect(faviconBody).toMatch(/^<svg /u);
+        expect(faviconBody).not.toContain("<!--");
       })
     )
 );
@@ -501,6 +515,9 @@ it.effect(
           const mcp = yield* Effect.promise(
             handler.bind(undefined, new Request("http://localhost/mcp"))
           );
+          const favicon = yield* Effect.promise(
+            handler.bind(undefined, new Request("http://localhost/favicon.svg"))
+          );
 
           expect(firstHtml.headers.get("x-ratstack-cache")).toBe("MISS");
           expect(secondHtml.headers.get("x-ratstack-cache")).toBe("HIT");
@@ -517,8 +534,12 @@ it.effect(
             "REVALIDATED"
           );
           expect(mcp.headers.get("x-ratstack-cache")).toBeNull();
-          expect(cache.matchKeys).toHaveLength(3);
-          expect(cache.putKeys).toHaveLength(2);
+          expect(favicon.headers.get("x-ratstack-cache")).toBe("MISS");
+          expect(favicon.headers.get("cache-control")).toContain(
+            "s-maxage=31536000"
+          );
+          expect(cache.matchKeys).toHaveLength(4);
+          expect(cache.putKeys).toHaveLength(3);
           expect(cache.matchKeys[0]).toContain("__ratstack_content=");
           expect(cache.matchKeys[0]).toContain(
             "__ratstack_representation=html"

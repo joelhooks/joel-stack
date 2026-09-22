@@ -28,6 +28,14 @@ The Cloudflare Worker still owns routing, content negotiation, caching, MCP, HTT
 
 Effect owns build I/O, typed `ContentBuildError` failures, concurrent source reads and compilation, package JSON decoding, and the final atomic write. Pure hashing, slugging, AST traversal, and string assembly remain ordinary functions.
 
+## Document shell (2026-09-22)
+
+`apps/mischief/src/document.svelte` is a man page, not a marketing site. Monospace everywhere so box-drawing diagrams line up, an 80ch measure, `color-scheme: light dark` with the brand colours from `assets/ratstack-logo.svg` (cream `#FAF5E9`, charcoal `#262829`), and rules above and below the nav. The logo SVG is read at build time, inlined in every header, and served as `/favicon.svg`; nothing else is fetched.
+
+Diagrams follow the `show-me` skill: one fenced `text` block, Unicode box drawing, under 80 columns, followed by a `What to notice` line. The same block ships in the Markdown representation, so agents and browsers see one diagram. Quiver (Arrow) drew the logo and stays available for marks and Open Graph art, not for diagrams, because an SVG would exist only in the HTML face.
+
+Table cells reset `overflow-wrap` to `normal`; the page-level `anywhere` setting shredded words into single characters on phones.
+
 ## Compatibility rules
 
 - Preserve the previous heading slug algorithm so existing anchors do not move.

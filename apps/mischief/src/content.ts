@@ -8,6 +8,7 @@ import {
 
 export {
   homeDocumentHtml,
+  logoSvg,
   skillIndexDocumentHtml,
   staticContentVersion,
 } from "./bundled-content.generated.js";
