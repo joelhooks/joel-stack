@@ -1,10 +1,10 @@
 # Agent instructions
 
-This file is the repo law for agents and contributors. Keep commands, validation rules, architecture constraints, and project-specific stop rules here. Read `VISION.md` for product intent before planning substantial work. `VISION.md` is not permission to bypass this file. Pi sessions also load `.pi/APPEND_SYSTEM.md` (project context) and the live repo-local extension `.pi/extensions/project.ts`.
+This file is the repo law for agents and contributors. It holds commands, validation rules, architecture constraints, and project stop rules. Read `VISION.md` for intent before planning substantial work. `VISION.md` does not override this file. Pi sessions also load `.pi/APPEND_SYSTEM.md` and the repo-local extension `.pi/extensions/project.ts`.
 
 ## Stack contract
 
-The pinned stack is declared in workspace `package.json` files and summarized in [README.md](./README.md#what-is-in-the-stack). Keep dependencies exact. Repo-local config wins; note drift instead of silently migrating the project.
+Workspace `package.json` files declare the pinned stack. [README.md](./README.md#what-is-in-the-stack) summarizes it. Keep dependencies exact. Repo-local config wins. Record drift instead of silently migrating the project.
 
 - pnpm workspaces + Turborepo (`apps/*`, `packages/*`)
 - Node `>=24.18.0` and pnpm `11.3.0`; do not replace pnpm with Bun or npm for installs
@@ -26,6 +26,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 | `@rat-stack/core` | `packages/core` | Domain logic: the `inspectFile` capability, its lifecycle machine, `FileInspector` |
 | `@rat-stack/cli` | `apps/cli` | Composition root: `stats`, `catalog`, `openapi`, `serve`, `mcp [--code-mode]` commands |
 | `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
+| `@rat-stack/mischief` | `apps/mischief` | Cloudflare Worker: the public site, agent discovery, and sandboxed execute surface |
 
 ## Commands
 
@@ -36,7 +37,7 @@ The pinned stack is declared in workspace `package.json` files and summarized in
 | `pnpm lint` | Type-aware lint plus format check only; `turbo run check` runs this once at the root as `//#lint` |
 | `pnpm fix` | Apply Oxfmt and safe Oxlint fixes |
 | `pnpm test` | Build and run the Vitest suite once |
-| `pnpm build` | Compile packages into `dist/` |
+| `pnpm build` | Compile package outputs |
 | `pnpm typecheck` | `turbo run typecheck` |
 | `pnpm vendor:agent-sources` | Shallow-clone Effect, effect-solutions, xstate, and alchemy mirrors |
 | `pnpm infra:plan` | Preview the Alchemy Stack diff without applying |
@@ -59,7 +60,7 @@ If a hook fails, fix the failure. Do not disable the fence.
 
 ## Source-first Effect / XState work
 
-Before writing, reviewing, or refactoring Effect or XState code, read `node_modules/effect/AGENTS.md` first: it ships with the installed version, so it is never stale. Then inspect vendored source for the pinned versions. Populate mirrors:
+Before writing, reviewing, or refactoring Effect or XState code, read the installed Effect package's `AGENTS.md` first, for example `packages/core/node_modules/effect/AGENTS.md`. It ships with the installed version, so it is never stale. Then inspect vendored source for the pinned versions. Populate mirrors:
 
 ```sh
 pnpm vendor:agent-sources
@@ -87,30 +88,30 @@ Preserve existing work. Inspect status before editing, stage only files changed 
 
 ## Project law
 
-<!-- A child project replaces this section on day one with its own product rules. These are rat-stack's rules; they describe the template, not your product. Keep durable product intent in VISION.md, not here. -->
+A child project replaces this section on day one with its own product rules. These rules describe the rat-stack template, not the product in a clone. Keep durable product intent in `VISION.md`.
 
 - One capability, every surface. Behavior enters through `defineCapability` in `packages/core` and is added to `capabilities`; CLI, HTTP, MCP, and code mode are projections in `packages/capability`. Do not add a command, route, or tool handler that bypasses a capability.
 - Schemas are the contract. Input, output, and failure are Effect `Schema`; JSON Schema, OpenAPI, and the code-mode declarations are derived from them, never hand-written.
 - Lifecycles are machines. Finite modes, retries, and cancellation live in XState machines started with `createEffectActor`; side effects live in declared `fromEffect` actors, never inline.
 - The sandbox is a surface, not a bypass. Anything reachable from a code-mode program must be a capability and goes through that capability's schemas and handler.
-- Diagnostic overrides are targeted and explained: `// @effect-diagnostics-next-line <rule>:off` with a reason. File-level overrides exist only at projection boundaries (`to-toolkit.ts`, `to-code-mode.ts`) and in process-spawning test files.
+- Diagnostic overrides are targeted and explained: `// @effect-diagnostics-next-line <rule>:off` with a reason. File-level overrides exist only at projection boundaries (`packages/capability/src/to-toolkit.ts`, `packages/capability/src/to-code-mode.ts`) and in process-spawning test files.
 - Pins stay exact. A vendored dependency carries a matching `minimumReleaseAgeExclude` entry and a removal rule in `vendor/README.md`.
 
 ## Architecture
 
-<!-- A child project replaces this section on day one. Record module boundaries, dependency direction, data ownership, and state-machine seams; link deeper docs instead of duplicating them. -->
+A child project replaces this section on day one with its own architecture. Record module boundaries, dependency direction, data ownership, and state-machine seams here. Link deeper docs instead of duplicating them.
 
 - Dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps. `core` owns domain behavior and depends on `capability` only for `defineCapability`; `capability` knows nothing about the domain.
 - `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`.
 - `packages/core/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect. `packages/core/src/inspect-file.ts` wraps it as the one shipped capability.
 - Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases.
-- `packages/capability/src`: `capability.ts` (the domain object), `to-command.ts`, `to-http-api.ts`, `to-toolkit.ts` (pure projections onto `effect/unstable/{cli,httpapi,ai}`), `catalog.ts` + `sandbox.ts` + `to-code-mode.ts` (the fourth projection; `Sandbox` is a `Context.Service` with a subprocess implementation). `to-code-mode.ts` imports from `to-toolkit.ts`, so MCP is a prerequisite for code mode.
-- `apps/cli/src/surfaces.ts` is the only place projections are instantiated; `command.ts` maps them to subcommands; `cli.ts` is the single composition root that provides `FileInspector` and `NodeServices`.
+- `packages/capability/src`: `packages/capability/src/capability.ts` (the domain object), `packages/capability/src/to-command.ts`, `packages/capability/src/to-http-api.ts`, and `packages/capability/src/to-toolkit.ts` (pure projections onto `effect/unstable/{cli,httpapi,ai}`), plus `packages/capability/src/catalog.ts`, `packages/capability/src/sandbox-service.ts`, `packages/capability/src/sandbox-subprocess.ts`, and `packages/capability/src/to-code-mode.ts` (the fourth projection; `Sandbox` is a `Context.Service` with a subprocess implementation). `packages/capability/src/to-code-mode.ts` imports from `packages/capability/src/to-toolkit.ts`, so MCP is a prerequisite for code mode.
+- `apps/cli/src/surfaces.ts` is the only place projections are instantiated; `apps/cli/src/command.ts` maps them to subcommands; `apps/cli/src/cli.ts` is the single composition root that provides `FileInspector` and `NodeServices`.
 - The [README's Keep or cut section](./README.md#keep-or-cut) lists what to delete per surface.
 
 ## Boundaries and sign-off
 
-<!-- A child project replaces this section on day one. Name changes agents may make directly and changes that need owner approval: security, privacy, deployment, public API, dependency, and destructive-data boundaries. -->
+A child project replaces this section on day one with its own boundaries. This section names changes agents may make directly and changes that need owner approval.
 
 - Safe by default: adding a capability in `packages/core` and wiring it into `capabilities`; new or tightened tests; a targeted diagnostic override with a written reason; README, AGENTS.md, and `.brain/` edits; tightening a lint rule; removing a surface by following Keep or cut.
 - Needs owner sign-off: adding or changing a dependency version (pins are exact and CI installs cold); any edit to `oxlint.config.ts`, the diagnostics map in `tsconfig.base.json`, `lefthook.yml`, or `scripts/vcs-command-policy.js` that loosens the fence; anything under `apps/infra` and any `pnpm infra:deploy` or `infra:destroy`; widening sandbox permissions or adding a runtime that reaches the network; exposing `serve` or `mcp` beyond localhost; vendoring a package as a `file:` tarball; deleting `.agent_sources/` or `vendor/`.

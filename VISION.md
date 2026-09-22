@@ -1,67 +1,67 @@
 # Vision
 
-This repo is an **agentic scaffold** for a TypeScript Effect app: CLI, XState lifecycles, Alchemy infrastructure, and varlock config. It began life as ts-cli-template. It is Joel's opinionated default for starting new work: why in the law files, an enforceable fence in the stack and hooks, so agents write good TypeScript because the cheap path is the honest path.
+rat-stack is the smallest honest example of an app and its cloud as one typed program. Effect owns the hard parts, Alchemy infers the infrastructure from the code, and the fence makes the cheap path the honest path, so an agent can build it and you can still trust it.
 
-Public GitHub is a **steal the ideas** surface, not a product to support. Clones that become a real app should replace this vision with that product's intent. Until then, this thesis is the why.
+It is an agentic scaffold for a TypeScript Effect app with a CLI, XState lifecycles, Alchemy infrastructure, and varlock config. This repo is the example the content points at. It is not a course or a wiki. Learning material lives elsewhere. Skills here teach vocabulary and where to look: name it, ask for it, check the result.
 
-**Scope:** `joelhooks/rat-stack` — the template repo and the shape a clone inherits on day one.
+Public GitHub is a steal-the-ideas surface, not a supported product. Clones that become real apps should replace this vision with their own intent. Until then, this is the why.
 
-**Audience:** Joel, agents working in a clone, and anyone reading the public tree for ideas. Not paying users. Not a support queue.
+Scope: `joelhooks/rat-stack`, the template repo and the shape a clone inherits on day one.
 
-## Who we serve
+Audience: Joel, the agents that start work from this scaffold, engineers who work through agents and want to trust what an agent built, and readers looking for ideas. The pattern includes workspaces, source mirrors, and a fence that makes `--no-verify` fail loudly. This is not a support queue, compatibility promise, ghostwriting service, growth automation, thin npm init, or TypeScript tutorial brand.
 
-- Primary: Joel and the agents that start work from this scaffold
-- Secondary: readers who steal the pattern (workspaces, source mirrors, fence that makes `--no-verify` fail loud)
-- Not for: ghostwriting, growth automation, "thin npm init with extra steps," or a general TypeScript tutorial brand
+Status: `ratstack.sh` is deployed. This repository is the only instantiated clone so far. Effect is pinned to a release candidate, XState and `@xstate/effect` to alphas, and Alchemy to a beta, so their APIs can drift.
 
 ## Why it exists
 
-Agents will take the shortest path. A skeleton without law and gates produces sludge. A pile of prose without a fence is documentation. This scaffold exists so starting a CLI already includes:
+Agents take the shortest path. A skeleton without law and gates produces sludge. A pile of prose without a fence is documentation. This scaffold gives a new CLI:
 
-1. Why — `VISION.md` and `AGENTS.md`
-2. Fence — pins, `pnpm check`, lefthook, and harness hooks that block hook bypass
-3. Context — vendored Effect / effect-solutions / XState sources for source-first edits
+1. Why. `VISION.md` and `AGENTS.md` explain the point.
+2. Fence. Pins, `pnpm check`, lefthook, and harness hooks block hook bypass.
+3. Context. Vendored Effect, effect-solutions, and XState sources support source-first edits.
 
-The stack is the load-bearing floor. The agent surface is the product.
+The stack is the load-bearing floor. The agent surface is the product. Sam Goodwin's devtools-fm argument sets the bar: the whole cloud becomes a library, limited by the accounts you have, and the type system should guarantee that the infrastructure is correct.
 
 ## Outcomes
 
-- A new CLI clone starts as a pnpm + Turborepo workspace with a real Effect CLI, not a single-folder lie
-- Agents hit a loud failure when they cheat (`git … --no-verify`, skipped checks) instead of a silent green
-- Why and fence stay split: prose explains; CI, lefthook, and agent hooks enforce
-- Good TypeScript is the default path: strict TS, typed Effect errors, XState for real lifecycles
-- Product-specific corpora (tokens, x-algorithm, customer data) stay out of the shared template
+- A new CLI clone starts as a pnpm and Turborepo workspace with a real Effect CLI.
+- Agents hit a loud failure when they cheat, including `git … --no-verify` and skipped checks.
+- Prose explains the why. CI, lefthook, and agent hooks enforce the fence.
+- Success means someone can ask an agent for an Effect-shaped, Alchemy-shaped solution and catch it when the agent gets it wrong.
+- Product-specific corpora, including tokens, x-algorithm, and customer data, stay out of the shared template.
 
 ## Current priorities
 
-1. Keep the scaffold honest: fence wins; cheating is uncomfortable and obvious
-2. Keep pins and vendor refs matched to the stack actually used
-3. Keep the example CLI small; the scaffold is the product, not `stats`
+1. Keep the scaffold honest. The fence wins, and cheating stays uncomfortable and obvious.
+2. Hold advocacy and judgment together. Teach the judgment and let Alchemy win on merit.
+3. Keep pins and vendor references matched to the stack. Keep the example small. Cloudflare is the on-ramp, not the frame, and a second cloud vendor is not the answer.
+4. Direction, not a claim about today's tests: import a stack, deploy in `beforeAll`, hit real infrastructure, destroy in `afterAll`, and run the same path for each pull request. The fake `Sandbox` in `apps/mischief` tests is a known gap.
+5. Next honest step: a database `Layer` behind a binding, such as Hyperdrive with Drizzle. Commenting out the binding should make application code a type error. This needs sign-off and is not built.
 
-## Actors
+## Questions this repo answers in code
 
-- Beneficiary: Joel starting a CLI (and agents in that clone)
-- Builders: anyone editing the template
-- External systems: GitHub template clone, CI, Pi / Cursor / Claude hook runtimes
-- Not an audience: people expecting support, compatibility, or a framework
+- Does the type system protect infrastructure correctness? Removing a binding should make typecheck fail. Not yet proven in this repo.
+- Does importing `apps/infra/alchemy.run.ts` stay pure? It should deploy nothing. Not yet proven by a test.
+- Where does a correction to an agent live? Lauren Tan's fence ladder puts code first, then lint and CI, then rules and skills, with the style guide last. The `--no-verify` rung is proven today by `packages/core/test/vcs-command-policy.test.ts`.
 
 ## Merge by default
 
 - Tests and checks that encode the existing fence
-- Docs that sharpen why vs fence without adding a second product promise
+- Docs that sharpen why and fence without adding a second product promise
 - Small example-CLI fixes that keep the vertical slice working
 - Pin bumps that stay exact and reviewed as stack changes
 
 ## Needs sign-off
 
 - Weakening lefthook, CI, or `--no-verify` blocks
-- Replacing pnpm / turbo / Effect / XState as the default floor
+- Replacing pnpm, Turborepo, Effect, or XState as the default floor
 - Adding product-specific vendor corpora to the shared template
 - Turning the public repo into a supported starter product
+- Adding the database binding candidate described above
 
 ## Will not do for now
 
-- Support SLAs or "works on every agent harness"
+- Support SLAs or a promise that it works on every agent harness
 - Vendoring x-algorithm or other app-specific source
 - Generating publishable copy as part of the template
 - Bun or npm as the install story
@@ -69,9 +69,9 @@ The stack is the load-bearing floor. The agent surface is the product.
 
 ## Decision boundaries
 
-- Safe by default: changes that keep why in VISION/AGENTS and the fence enforceable
+- Safe by default: changes that keep the why in VISION and AGENTS and the fence enforceable
 - Needs owner sign-off: new promises, toolchain swaps, or making the fence optional
-- Evidence expected: `pnpm check` / `pnpm test` green; hook policy tests that still block `git commit --no-verify`
+- Evidence expected: `pnpm check` and `pnpm test` green, plus hook policy tests that still block `git commit --no-verify`
 
 ## Amendment policy
 
