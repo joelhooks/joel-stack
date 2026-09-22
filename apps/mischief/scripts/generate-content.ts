@@ -240,6 +240,104 @@ const linkCodeSpans =
     };
   };
 
+// The stack pieces are wiki entities. The first plain-text mention of each
+// on a page links to the tool's home. Longer names come first so "Effect
+// diagnostics" wins over "Effect". Headings, code, and existing links are
+// left alone. Verified 2026-09-22: every URL answered 200.
+const stackEntities: readonly (readonly [pattern: string, href: string])[] = [
+  ["Effect diagnostics", "https://github.com/Effect-TS/language-service"],
+  ["Cloudflare Workers?", "https://developers.cloudflare.com/workers/"],
+  ["TypeScript 7", "https://github.com/microsoft/typescript-go"],
+  ["TypeScript", "https://www.typescriptlang.org"],
+  ["Turborepo", "https://turborepo.com"],
+  ["Effect", "https://effect.website"],
+  ["XState", "https://stately.ai/docs/xstate"],
+  ["Oxlint", "https://oxc.rs/docs/guide/usage/linter"],
+  ["Oxfmt", "https://oxc.rs/docs/guide/usage/formatter"],
+  ["Vitest", "https://vitest.dev"],
+  ["lefthook", "https://lefthook.dev"],
+  ["pnpm", "https://pnpm.io"],
+  ["Alchemy", "https://alchemy.run"],
+  ["OpenAPI", "https://www.openapis.org"],
+  ["MCP", "https://modelcontextprotocol.io"],
+];
+const entityPattern = new RegExp(
+  `(?<![\\w./-])(?<entity>${stackEntities.map(([pattern]) => pattern).join("|")})(?![\\w./-])`,
+  "gu"
+);
+const entityHref = (name: string) =>
+  stackEntities.find(([pattern]) =>
+    new RegExp(`^(?:${pattern})$`, "u").test(name)
+  )?.[1];
+const skippedByEntityLinker = new Set([
+  "a",
+  "code",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "pre",
+]);
+
+const linkStackEntities: Plugin = () => {
+  const visit = (node: unknown, linked: Set<string>): void => {
+    if (typeof node !== "object" || node === null) {
+      return;
+    }
+    const children: unknown = Reflect.get(node, "children");
+    if (!Array.isArray(children)) {
+      return;
+    }
+    const list: unknown[] = children;
+    for (let index = 0; index < list.length; index += 1) {
+      const child = list[index];
+      if (typeof child !== "object" || child === null) {
+        continue;
+      }
+      const tagName: unknown = Reflect.get(child, "tagName");
+      if (typeof tagName === "string" && skippedByEntityLinker.has(tagName)) {
+        continue;
+      }
+      const value: unknown = Reflect.get(child, "value");
+      if (Reflect.get(child, "type") !== "text" || typeof value !== "string") {
+        visit(child, linked);
+        continue;
+      }
+      const replacement: unknown[] = [];
+      let cursor = 0;
+      for (const match of value.matchAll(entityPattern)) {
+        const name = match.groups?.entity;
+        const href = name === undefined ? undefined : entityHref(name);
+        if (name === undefined || href === undefined || linked.has(href)) {
+          continue;
+        }
+        linked.add(href);
+        replacement.push(
+          { type: "text", value: value.slice(cursor, match.index) },
+          {
+            children: [{ type: "text", value: name }],
+            properties: { href },
+            tagName: "a",
+            type: "element",
+          }
+        );
+        cursor = match.index + name.length;
+      }
+      if (replacement.length === 0) {
+        continue;
+      }
+      replacement.push({ type: "text", value: value.slice(cursor) });
+      list.splice(index, 1, ...replacement);
+      index += replacement.length - 1;
+    }
+  };
+  return (tree: unknown) => {
+    visit(tree, new Set<string>());
+  };
+};
+
 // Markdown and Svelte-flavoured sources compile under their own name so
 // mdsvex picks the right extension; generated pages compile under the title.
 const compileName = (spec: SourceSpec) =>
@@ -302,6 +400,7 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
             stableHeadingIds,
             tableCellLabels,
             linkCodeSpans(targets),
+            linkStackEntities,
           ],
           remarkPlugins: [remarkGfm as Plugin],
         }).then((value): unknown => value),

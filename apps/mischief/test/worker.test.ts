@@ -491,6 +491,32 @@ it.effect(
         expect(skillHtml).not.toContain(
           'href="https://github.com/joelhooks/rat-stack/blob/main/node_modules'
         );
+        // Stack pieces are entities: first plain mention links out, once per
+        // page, never inside headings or code.
+        expect(skillHtml).toContain(
+          '<a href="https://effect.website">Effect</a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="https://stately.ai/docs/xstate">XState</a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="https://github.com/microsoft/typescript-go">TypeScript 7</a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="https://alchemy.run">Alchemy</a>'
+        );
+        expect(skillHtml).toContain(
+          '<a href="https://lefthook.dev">lefthook</a>'
+        );
+        expect(skillHtml.split('href="https://effect.website"')).toHaveLength(
+          2
+        );
+        expect(skillHtml).not.toMatch(
+          /<h[1-6][^>]*>[^<]*<a href="https:\/\/(?:effect\.website|stately\.ai)/u
+        );
+        expect(skillHtml).not.toMatch(
+          /<code>[^<]*<a href="https:\/\/effect\.website"/u
+        );
         expect(agentsHtml).toContain("Linked from: ");
         expect(agentsHtml).toContain(
           '<a href="https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md">Source on GitHub</a>'
