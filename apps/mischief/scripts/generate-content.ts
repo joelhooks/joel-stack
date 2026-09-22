@@ -100,13 +100,13 @@ const lawSources = await Promise.all([
   readSource(
     ".brain/resources/effect-4-reference-projects.svx",
     "/resources/effect-4-reference-projects.svx",
-    "effect-4-reference-projects.svx",
+    "Effect 4 examples",
     "Working examples for the exact Effect version used by this repo."
   ),
   readSource(
     ".brain/resources/schema-projections-and-code-mode.svx",
     "/resources/schema-projections-and-code-mode.svx",
-    "schema-projections-and-code-mode.svx",
+    "One action, four interfaces",
     "Why one typed action powers the command line, HTTP, MCP, and sandbox."
   ),
 ]);

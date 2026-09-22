@@ -394,7 +394,12 @@ it.effect(
         );
         expect(html).toContain('<h1 id="ratstack-sh">ratstack.sh</h1>');
         expect(html).toContain('<code class="language-text">Call it');
-        expect(html).not.toContain("<style");
+        expect(html).toContain("<style>");
+        expect(html).toContain("max-width: 52rem");
+        expect(html).toContain("pre { max-width: 100%; overflow-x: auto; }");
+        expect(html).toContain(
+          "table { display: block; max-width: 100%; overflow-x: auto; }"
+        );
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");
         expect(html).not.toContain('property="og:image"');

@@ -38,6 +38,13 @@ const renderDocument = (
 <meta property="og:description" content="${description}">
 <meta property="og:url" content="${canonicalUrl}">
 <link rel="canonical" href="${canonicalUrl}">
+<style>
+html { overflow-wrap: anywhere; }
+body { box-sizing: border-box; margin: 0 auto; max-width: 52rem; padding: 1rem; }
+nav { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+pre { max-width: 100%; overflow-x: auto; }
+table { display: block; max-width: 100%; overflow-x: auto; }
+</style>
 </head>
 <body>
 <header>
