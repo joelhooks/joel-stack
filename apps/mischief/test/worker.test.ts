@@ -472,7 +472,10 @@ it.effect(
         // Light only: no page background. Code boxes carry the Catppuccin
         // Latte box colour inline, which is allowed.
         expect(html).not.toMatch(/(?:html|body)\s*\{[^}]*background/u);
-        expect(html).toContain('href="/favicon.svg"');
+        expect(html).toContain(
+          '<link rel="icon" href="/favicon.ico" sizes="48x48"'
+        );
+        expect(html).toContain('href="/apple-touch-icon.png"');
         expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
         expect(html).toContain("max-width:80ch");
         expect(html).toContain("ui-monospace");
@@ -594,6 +597,17 @@ it.effect(
         expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
         expect(faviconBody).toMatch(/^<svg /u);
         expect(faviconBody).not.toContain("<!--");
+
+        for (const [iconPath, contentType] of [
+          ["/favicon.ico", "image/x-icon"],
+          ["/apple-touch-icon.png", "image/png"],
+        ] as const) {
+          const icon = yield* Effect.promise(
+            handler.bind(undefined, new Request(`http://localhost${iconPath}`))
+          );
+          expect(icon.status, iconPath).toBe(200);
+          expect(icon.headers.get("content-type"), iconPath).toBe(contentType);
+        }
 
         // Every page has a preview image, served from the versioned edge
         // cache, 1200x630 PNG (magic bytes, then IHDR width and height).

@@ -7,9 +7,11 @@ import {
 } from "./bundled-content.generated.js";
 
 export {
+  appleTouchIconPngBase64,
+  faviconIcoBase64,
   homeDocumentHtml,
-  logoSvg,
   ogImages,
+  ratSvg,
   skillIndexDocumentHtml,
   staticContentVersion,
 } from "./bundled-content.generated.js";

@@ -72,3 +72,39 @@ export const deriveHtmlMarkdown = (source: string): string => {
 };
 
 export const hasAudienceSyntax = (source: string) => audienceTag.test(source);
+
+interface IcoImage {
+  readonly bytes: Uint8Array;
+  readonly size: number;
+}
+
+/**
+ * Packs PNG images into one `.ico` file. Every browser since IE Vista reads
+ * PNG entries, so there is no bitmap conversion: a 6-byte header, one 16-byte
+ * directory entry per image, then the PNG bytes in order.
+ */
+export const encodeIco = (images: readonly IcoImage[]): Uint8Array => {
+  const headerSize = 6 + images.length * 16;
+  const total = images.reduce(
+    (length, image) => length + image.bytes.length,
+    headerSize
+  );
+  const ico = new Uint8Array(total);
+  const view = new DataView(ico.buffer);
+  view.setUint16(2, 1, true);
+  view.setUint16(4, images.length, true);
+  let offset = headerSize;
+  for (const [index, image] of images.entries()) {
+    const entry = 6 + index * 16;
+    // Width and height are one byte each; 0 means 256.
+    view.setUint8(entry, image.size % 256);
+    view.setUint8(entry + 1, image.size % 256);
+    view.setUint16(entry + 4, 1, true);
+    view.setUint16(entry + 6, 32, true);
+    view.setUint32(entry + 8, image.bytes.length, true);
+    view.setUint32(entry + 12, offset, true);
+    ico.set(image.bytes, offset);
+    offset += image.bytes.length;
+  }
+  return ico;
+};
