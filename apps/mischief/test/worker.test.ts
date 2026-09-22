@@ -65,6 +65,27 @@ const htmlHomeRequest = () =>
     headers: { accept: "text/html" },
   });
 
+const expectedSecurityHeaders = {
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+} as const;
+const expectedContentSecurityPolicy =
+  "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+const expectSecurityHeaders = (response: Response, html: boolean) => {
+  for (const [name, value] of Object.entries(expectedSecurityHeaders)) {
+    expect(response.headers.get(name), name).toBe(value);
+  }
+  expect(response.headers.get("content-security-policy")).toBe(
+    html ? expectedContentSecurityPolicy : null
+  );
+};
+
 class FakeRateLimitBinding implements NativeRateLimitBinding {
   readonly keys: string[] = [];
   readonly #results: boolean[];
@@ -563,6 +584,68 @@ it.effect(
     )
 );
 
+it.effect("sets security headers on every response", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testSecurityHeaders() {
+      const htmlResponse = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/", {
+            headers: { accept: "text/html" },
+          })
+        )
+      );
+      const markdownResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/"))
+      );
+      const openapiResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/openapi.json"))
+      );
+      const notFoundResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/not-found"))
+      );
+
+      expectSecurityHeaders(htmlResponse, true);
+      expectSecurityHeaders(markdownResponse, false);
+      expectSecurityHeaders(openapiResponse, false);
+      expectSecurityHeaders(notFoundResponse, false);
+      expect(notFoundResponse.status).toBe(404);
+    })
+  )
+);
+
+it.effect(
+  "negotiates HTML for explicit preview crawlers without changing default Markdown",
+  () =>
+    withHandler((handler) =>
+      Effect.gen(function* testPreviewCrawlerNegotiation() {
+        const crawler = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/", {
+              headers: { "user-agent": "Twitterbot/1.0" },
+            })
+          )
+        );
+        const plain = yield* Effect.promise(
+          handler.bind(undefined, new Request("http://localhost/"))
+        );
+        const browser = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/", {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
+
+        expect(crawler.headers.get("content-type")).toContain("text/html");
+        expect(plain.headers.get("content-type")).toContain("text/markdown");
+        expect(browser.headers.get("content-type")).toContain("text/html");
+      })
+    )
+);
+
 it.effect(
   "caches each static representation and revalidates with its ETag",
   () => {
@@ -603,9 +686,18 @@ it.effect(
           const favicon = yield* Effect.promise(
             handler.bind(undefined, new Request("http://localhost/favicon.svg"))
           );
+          const crawlerHtml = yield* Effect.promise(
+            handler.bind(
+              undefined,
+              new Request("http://localhost/", {
+                headers: { "user-agent": "Twitterbot/1.0" },
+              })
+            )
+          );
 
           expect(firstHtml.headers.get("x-ratstack-cache")).toBe("MISS");
           expect(secondHtml.headers.get("x-ratstack-cache")).toBe("HIT");
+          expectSecurityHeaders(secondHtml, true);
           expect(secondHtmlBody).toBe(firstHtmlBody);
           expect(firstHtml.headers.get("cache-control")).toContain(
             "s-maxage=31536000"
@@ -618,12 +710,17 @@ it.effect(
           expect(revalidated.headers.get("x-ratstack-cache")).toBe(
             "REVALIDATED"
           );
+          expectSecurityHeaders(revalidated, false);
           expect(mcp.headers.get("x-ratstack-cache")).toBeNull();
           expect(favicon.headers.get("x-ratstack-cache")).toBe("MISS");
           expect(favicon.headers.get("cache-control")).toContain(
             "s-maxage=31536000"
           );
-          expect(cache.matchKeys).toHaveLength(4);
+          expect(crawlerHtml.headers.get("x-ratstack-cache")).toBe("HIT");
+          expect(crawlerHtml.headers.get("content-type")).toContain(
+            "text/html"
+          );
+          expect(cache.matchKeys).toHaveLength(5);
           expect(cache.putKeys).toHaveLength(3);
           expect(cache.matchKeys[0]).toContain("__ratstack_content=");
           expect(cache.matchKeys[0]).toContain(
@@ -631,6 +728,9 @@ it.effect(
           );
           expect(cache.matchKeys[2]).toContain(
             "__ratstack_representation=default"
+          );
+          expect(cache.matchKeys[4]).toContain(
+            "__ratstack_representation=html"
           );
         }),
       fakeRateLimitBindings(),
@@ -699,6 +799,12 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
           new Request("http://localhost/.well-known/api-catalog")
         )
       );
+      const mcpCard = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/.well-known/mcp.json")
+        )
+      );
       const openapi = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/openapi.json"))
       );
@@ -707,6 +813,11 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       expect(llmsBody).toBe(llmsText("https://ratstack.sh"));
       expect(llmsBody).toContain("## Connect with MCP");
       expect(llmsBody).toContain("Use protocol 2026-07-28");
+      expect(llmsBody).toContain("no `initialize` handshake");
+      expect(llmsBody).toContain("Mcp-Method: tools/list");
+      expect(llmsBody).toContain("params._meta");
+      expect(llmsBody).toContain("## Run code");
+      expect(llmsBody).toContain('"result":2');
       expect(llmsBody).toContain(
         "6 calls per IP and 300 total calls per 60 seconds"
       );
@@ -719,13 +830,18 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       expect(apiCatalog.headers.get("content-type")).toContain(
         "application/linkset+json"
       );
+      expect(JSON.stringify(yield* readJson(mcpCard))).toContain(
+        "Mcp-Method: tools/list"
+      );
 
       const openapiBody = yield* readJson(openapi);
-      const OpenApiPaths = Schema.Struct({
+      const OpenApiDocument = Schema.Struct({
+        info: Schema.Struct({ title: Schema.String }),
         paths: Schema.Record(Schema.String, Schema.Unknown),
       });
       const document =
-        yield* Schema.decodeUnknownEffect(OpenApiPaths)(openapiBody);
+        yield* Schema.decodeUnknownEffect(OpenApiDocument)(openapiBody);
+      expect(document.info.title).toBe("ratstack.sh");
       expect(Object.keys(document.paths).toSorted()).toEqual([
         "/api/execute",
         "/api/read",
@@ -964,6 +1080,7 @@ it.effect("returns 429 after API_PER_IP denies a client IP", () => {
 
         expect(allowed.status).toBe(200);
         expect(denied.status).toBe(429);
+        expectSecurityHeaders(denied, false);
         expect(denied.headers.get("retry-after")).toBe("60");
         expect(yield* Effect.promise(denied.text.bind(denied))).toContain(
           "API_PER_IP rate limit exceeded; retry after 60 seconds"
@@ -1093,6 +1210,9 @@ it.effect("explains the required MCP version in plain text", () =>
       );
       const expected = mcpVersionText("https://ratstack.sh");
 
+      expect(expected).toContain("no initialize handshake");
+      expect(expected).toContain("MCP-Protocol-Version header is required");
+      expect(expected).toContain("https://ratstack.sh/llms.txt");
       expect(getResponse.status).toBe(200);
       expect(getResponse.headers.get("content-type")).toContain("text/plain");
       expect(yield* Effect.promise(getResponse.text.bind(getResponse))).toBe(
@@ -1164,6 +1284,12 @@ it.effect(
           (tool) => tool.name === "execute"
         )?.description;
         expect(executeDescription).toContain("`code` argument");
+        expect(executeDescription).toContain(
+          "The program is the body of an async function"
+        );
+        expect(executeDescription).toContain(
+          "Imports, exports, and `fetch` are unavailable"
+        );
         expect(executeDescription).toContain(
           'const found = await tools.search({ query: "capability", limit: 1 });\nreturn await tools.read({ id: found.matches[0].id });'
         );

@@ -58,6 +58,9 @@ const json = (body: unknown, contentType = "application/json") =>
 const originOf = (request: HttpServerRequest.HttpServerRequest) =>
   new URL(request.url, "https://ratstack.sh").origin;
 
+const previewCrawler =
+  /(?:Twitterbot|facebookexternalhit|Facebot|Slackbot|Discordbot|LinkedInBot|WhatsApp|TelegramBot|Bluesky|Mastodon|Pinterestbot|redditbot|Applebot)/iu;
+
 const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) =>
   request.headers.accept?.split(",").some((entry) => {
     const [mediaType, ...parameters] = entry.trim().toLowerCase().split(";");
@@ -65,7 +68,7 @@ const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) =>
       .map((parameter) => parameter.trim())
       .find((parameter) => parameter.startsWith("q="));
     return mediaType === "text/html" && quality !== "q=0";
-  }) === true;
+  }) === true || previewCrawler.test(request.headers["user-agent"] ?? "");
 
 export interface StaticResponseCache {
   readonly match: (request: Request) => Promise<Response | undefined>;
@@ -176,7 +179,7 @@ const staticCaching = (cache: StaticResponseCache) =>
   );
 
 export const toolkitProjection = toToolkit(capabilities);
-export const apiProjection = toHttpApi("Mischief", capabilities, {
+export const apiProjection = toHttpApi("ratstack.sh", capabilities, {
   prefix: "/api",
 });
 
@@ -316,7 +319,15 @@ const contentRoutes = Layer.mergeAll(
       )
     ),
     HttpRouter.add("GET", agentSkillPath(skill.name), markdown(skill.text)),
-  ])
+  ]),
+  HttpRouter.add(
+    "*",
+    "/*",
+    HttpServerResponse.text("Not found.\n", {
+      contentType: "text/plain; charset=utf-8",
+      status: 404,
+    })
+  )
 );
 
 const JsonRpcEnvelope = Schema.Struct({
@@ -447,6 +458,33 @@ const linkHeaders = HttpRouter.middleware(
   { global: true }
 );
 
+const securityHeaders = {
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "strict-transport-security": "max-age=31536000; includeSubDomains",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+};
+const contentSecurityPolicy =
+  "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+const securityHeadersMiddleware = HttpRouter.middleware(
+  (httpEffect) =>
+    httpEffect.pipe(
+      Effect.map((response) =>
+        HttpServerResponse.setHeaders(response, {
+          ...securityHeaders,
+          ...(response.headers["content-type"]?.startsWith("text/html") === true
+            ? { "content-security-policy": contentSecurityPolicy }
+            : {}),
+        })
+      )
+    ),
+  { global: true }
+);
+
 export interface WebBotAuthOptions {
   readonly enabled: boolean;
   readonly privateJwk?: string;
@@ -494,6 +532,7 @@ export const makeRoutes = (options: MischiefRouteOptions = {}) =>
     contentRoutes,
     apiRoutes,
     mcp,
+    securityHeadersMiddleware,
     // Tests without bindings and the default `routes` skip protection.
     options.rateLimits === undefined
       ? Layer.empty

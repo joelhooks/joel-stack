@@ -67,8 +67,34 @@ const entryList = (resources: readonly ContentResource[]) =>
 export const markdownDocument = (origin: string) =>
   homeMarkdownTemplate.replaceAll(originToken, origin);
 
+const mcpToolsListBody = JSON.stringify({
+  id: "rat-stack-tools",
+  jsonrpc: "2.0",
+  method: "tools/list",
+  params: {
+    _meta: {
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        name: "rat-stack-example",
+        version: "0.1.0",
+      },
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+    },
+  },
+});
+
+export const mcpToolsListExample = (origin: string) =>
+  [
+    `curl --request POST '${origin}/mcp' \\`,
+    "  --header 'accept: application/json, text/event-stream' \\",
+    "  --header 'content-type: application/json' \\",
+    "  --header 'MCP-Protocol-Version: 2026-07-28' \\",
+    "  --header 'Mcp-Method: tools/list' \\",
+    `  --data '${mcpToolsListBody}'`,
+  ].join("\n");
+
 export const mcpVersionText = (origin: string) =>
-  `ratstack.sh MCP supports protocol 2026-07-28 only.\nSee ${origin}/llms.txt for connection details.\n`;
+  `ratstack.sh MCP supports protocol 2026-07-28 only.\nThe 2026-07-28 stateless protocol has no initialize handshake; send the version header, Mcp-Method header, and params._meta shown in the worked tools/list request.\nOlder clients receive MCP-Protocol-Version header is required or Unsupported protocol version; upgrade before connecting.\nSee ${origin}/llms.txt for the complete curl example.\n`;
 
 export const llmsText = (origin: string) => `# ratstack.sh
 
@@ -83,9 +109,26 @@ Use this working app to learn Effect, XState, TypeScript, Alchemy, and agent int
 
 ## Connect with MCP
 
-Use protocol 2026-07-28. Older clients need to upgrade before connecting.
+Use protocol 2026-07-28. This stateless revision has no \`initialize\` handshake: every request sends \`MCP-Protocol-Version\`, \`Mcp-Method\`, and the \`params._meta\` block shown here.
+
+\`\`\`sh
+${mcpToolsListExample(origin)}
+\`\`\`
+
+Older clients receive \`MCP-Protocol-Version header is required\` or \`Unsupported protocol version\`; upgrade before connecting.
 
 Each IP may make 120 API or MCP requests per 60 seconds. \`execute\` also allows 6 calls per IP and 300 total calls per 60 seconds. Cloudflare counts these limits separately in each location.
+
+## Run code
+
+\`execute\` runs the \`code\` value as the body of an async function. \`return\` sets \`result\`, and \`console.log\` output appears in \`logs\`; imports, exports, and \`fetch\` are unavailable.
+
+\`\`\`sh
+curl --request POST '${origin}/api/execute' \\
+  --header 'content-type: application/json' \\
+  --data '{"code":"return 1 + 1"}'
+# {"logs":[],"result":2}
+\`\`\`
 
 ## Source files
 
@@ -205,6 +248,7 @@ export const mcpServerCard = (origin: string) => ({
   protocolVersion: "2026-07-28",
   serverInfo: { name: "sh.ratstack/rat-stack", version: "0.2.0" },
   transport: { endpoint: `${origin}/mcp`, type: "streamable-http" },
+  "x-ratstack-example": mcpToolsListExample(origin),
 });
 
 export const a2aAgentCard = (origin: string) => ({
