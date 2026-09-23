@@ -97,6 +97,7 @@ interface OgPage {
 
 interface DocumentProps {
   readonly bodyHtml: string;
+  readonly stylesheet: string;
   readonly breadcrumbHref?: string;
   readonly breadcrumbLabel?: string;
   readonly breadcrumbName?: string;
@@ -759,6 +760,7 @@ const program = Effect.gen(function* generateContent() {
       )
     );
 
+  const stylesheet = yield* readText("apps/mischief/src/rat.css");
   const shellSource = yield* readText("apps/mischief/src/document.svelte");
 
   const shell = yield* loadCompiledComponent(
@@ -788,7 +790,10 @@ const program = Effect.gen(function* generateContent() {
 
   const makeDocument = (
     bodyHtml: string,
-    metadata: Omit<DocumentProps, "bodyHtml" | "ogImageUrl" | "origin">,
+    metadata: Omit<
+      DocumentProps,
+      "bodyHtml" | "ogImageUrl" | "origin" | "stylesheet"
+    >,
     sourcePath: string,
     contentVersion: string
   ) =>
@@ -798,6 +803,7 @@ const program = Effect.gen(function* generateContent() {
         bodyHtml,
         ogImageUrl: `${originToken}${ogImagePath(metadata.path)}?v=${contentVersion}`,
         origin: originToken,
+        stylesheet,
         ...metadata,
       },
       sourcePath
@@ -1460,6 +1466,7 @@ ${groupedSkills}
       skillIndexMarkdown,
       skillIndexBodyHtml,
       emojiSvg,
+      stylesheet,
       ...publicSpecs.map((spec) => spec.text),
       ...lawBodies.map(({ bodyHtml }) => bodyHtml),
       ...skillTexts.map((skill) => skill.text),
