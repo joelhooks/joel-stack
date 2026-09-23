@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { backend } from "#backend";
+import { devtoolsBackend } from "#backend";
 
 import { rpcRouteHandler } from "../server/rpc.js";
 
-export const Route = createFileRoute("/rpc")({
+export const Route = createFileRoute("/__rat/$")({
   server: {
     handlers: {
-      ANY: rpcRouteHandler(backend),
+      ANY: rpcRouteHandler(devtoolsBackend),
     },
   },
 });

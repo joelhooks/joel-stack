@@ -173,8 +173,8 @@ All five start at zero findings. The only renames were code mode's `contract` to
 
 Joel, 2026-09-23: queue all three; Rubicon's badass-devtools "are broken and suck", so nothing is copied from them.
 
-1. **Client atoms, slice 4.** Blocked on `apps/web`. A browser bridge reports the AtomRpc registry (atom keys, values by path, refresh history) to the same devtools process, so `rat_list_atoms` and `rat_get_atom` read the client replica. The open design question is transport: the dev server's `/__rat` route, or the `/rpc` route the web lane builds.
-2. **🐀 overlay, slice 5.** Blocked on `apps/web`. A feature plus a client in `apps/web`, reading only the devtools contracts through `toRpcGroup`: Calls, Contracts with a dispatch form generated from JSON Schema, Machines, Atoms. It replaces badass-devtools in vendoring apps instead of sitting beside it.
+1. **Client atoms, slice 4.** Built; see below. Was blocked on `apps/web`. A browser bridge reports the AtomRpc registry (atom keys, values by path, refresh history) to the same devtools process, so `rat_list_atoms` and `rat_get_atom` read the client replica. The open design question is transport: the dev server's `/__rat` route, or the `/rpc` route the web lane builds.
+2. **🐀 overlay, slice 5.** Built; see below. Was blocked on `apps/web`. A feature plus a client in `apps/web`, reading only the devtools contracts through `toRpcGroup`: Calls, Contracts with a dispatch form generated from JSON Schema, Machines, Atoms. It replaces badass-devtools in vendoring apps instead of sitting beside it.
 3. **Session and test person, slice 6.** Built; see below. The Session tab moves into slice 5.
 
 ## Slice 6 status: run as a test person
@@ -204,4 +204,27 @@ The owner's condition on 2026-09-23: test people and devtools must never be in a
 - `apps/*/src/dev/**`
 
 Nothing outside an app's `dev/` folder may import from it. The dev composition is therefore its own entry: the web app's Website resource points `main` at `src/dev/…` under `alchemy dev` and at the production entry otherwise, by path string, never by import. Slices 4 and 5 put the devtools wiring there: `ratTestPerson` in the list, `{ runAs: runAsPerson }`, and `testPersonLayer("dev")` as the default person.
+
+## Slices 4 and 5 status: the web dev loop, the overlay, and atoms
+
+Built on `a68fb4b` after `apps/web` landed.
+
+- **The dev loop came first, in its own commit.** `vite dev` returned 500 on every page, because `routes/rpc.ts` imported `env` from `cloudflare:workers`. The web lane's "alchemy dev smoke passed" was true: it had used a temporary Stack, `apps/web/stack-smoke.tmp.ts`, which it deleted afterward, so nothing on main could reproduce it. `/rpc` now takes its backend from the `#backend` import in `apps/web/package.json`. The `development` condition serves the content capabilities in process from `src/dev/`, and the default forwards to the `RpcBackend` binding.
+- **Devtools layer on top.** `src/dev/devtools/routes.ts` runs the content capabilities plus `rat_test_person` under `devtools(…, { runAs: runAsPerson })`. It serves recorded `/rpc`, `/__rat/rpc` for the overlay, and `/__rat/mcp` for agents, with memory Better Auth and `testPersonLayer("dev")`. Removing it is one line in `src/dev/backend.ts`.
+- **The overlay.** A 🐀 button and ⌘K open four tabs:
+  - Calls, the recent log;
+  - Contracts, with the input JSON Schema, a JSON editor, and Run, optionally as the selected person;
+  - Machines;
+  - Session, which signs in a test person and uses them for dispatch.
+
+  It is a client and a feature under `src/dev/`, with its own `RegistryProvider`, so its atoms never mix with the app's. The boundary rules treat `apps/*/src/dev/{client,features}` as browser code, and `@rat-stack/devtools/contracts` is browser-safe.
+- **Atoms.** The overlay mounts a reporter atom on the app's registry. Every 1.5 seconds, and only when something changed, it sends `rat_report_atoms` with each keyed atom (AtomRpc queries) or labeled atom (`Atom.withLabel`): the key, the state, and the value as JSON. Anonymous runtime atoms are skipped, so labeling an atom opts it in. Agents read the result with `rat_list_atoms` and `rat_get_atom`.
+- **Verified in a real browser:**
+  - a search shows up in the Calls tab, recorded as the dev person;
+  - signing in `ada` from Session works;
+  - Contracts runs `search` as `ada`, and the log shows her person id;
+  - `rat_get_atom` over `/__rat/rpc` returns the page's `AtomRpc:search:capability` result.
+- **One bug found and fixed on the way.** The selected person was a plain `Atom.make` and reset to `null` when the Session tab unmounted. It is now `Atom.keepAlive`.
+- **Guardrail test.** `apps/web/test/production-bundle.test.ts` builds with source maps. It asserts no module from `src/dev/`, `packages/devtools`, or `packages/auth/src/devtools`, and no `rat_call`, `rat_test_person`, or test-password string. A `NODE_ENV=development` control build must contain all of them.
+- **Known noise.** Better Auth logs "User not found" once per dev-server start, before `rat_test_person` falls back to sign-up.
 

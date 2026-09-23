@@ -94,6 +94,8 @@ Delete:
 - the `--devtools` flag from `apps/cli/src/command.ts`
 - the devtools cases from `apps/cli/test/serve.test.ts` and `apps/cli/test/cli.e2e.test.ts`
 
+In `apps/web`, swap `devtoolsRoutes` for `contentRoutes` in `src/dev/backend.ts`, point the `development` condition of `#devtools-overlay` in `apps/web/package.json` at `./src/features/shared/no-devtools.tsx`, and delete `src/dev/devtools`, `src/dev/client`, and `src/dev/features`. `vite dev` keeps serving search and read; `test/dev-content-routes.test.ts` covers that path.
+
 `aroundHandlers`, `invokerFor`, and `watchActor` stay in `packages/capability`. Code mode uses `invokerFor`, and `watchActor` falls back to a no-op, so machines keep calling it.
 
 ## Clean up after each cut

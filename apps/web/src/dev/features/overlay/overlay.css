@@ -1,0 +1,102 @@
+.rat-trigger {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 999px;
+  bottom: 1rem;
+  cursor: pointer;
+  font-size: 1.5rem;
+  height: 3rem;
+  position: fixed;
+  right: 1rem;
+  width: 3rem;
+  z-index: 9998;
+}
+
+.rat-panel {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 0.75rem;
+  bottom: 5rem;
+  color: #cdd6f4;
+  display: flex;
+  flex-direction: column;
+  font:
+    13px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  max-height: min(70vh, 40rem);
+  position: fixed;
+  right: 1rem;
+  width: min(92vw, 44rem);
+  z-index: 9999;
+}
+
+.rat-panel header {
+  align-items: center;
+  border-bottom: 1px solid #45475a;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.rat-panel nav {
+  display: flex;
+  flex: 1;
+  gap: 0.25rem;
+}
+
+.rat-panel button {
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 0.4rem;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+}
+
+.rat-panel button[aria-pressed="true"] {
+  background: #585b70;
+}
+
+.rat-body {
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.rat-body table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.rat-body td,
+.rat-body th {
+  border-bottom: 1px solid #313244;
+  padding: 0.25rem 0.4rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.rat-body pre,
+.rat-body textarea,
+.rat-body input {
+  background: #11111b;
+  border: 1px solid #45475a;
+  border-radius: 0.4rem;
+  color: inherit;
+  font: inherit;
+  max-width: 100%;
+  overflow: auto;
+  padding: 0.4rem;
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+.rat-failed {
+  color: #f38ba8;
+}
+
+.rat-ok {
+  color: #a6e3a1;
+}

@@ -73,10 +73,18 @@ describe("architecture boundary rules", () => {
       "utf-8"
     );
 
+    for (const glob of [
+      "apps/*/src/features/**",
+      "apps/*/src/client/**",
+      "apps/*/src/dev/features/**",
+      "apps/*/src/dev/client/**",
+    ]) {
+      expect(configSource).toContain(`"${glob}"`);
+    }
+
     expect(configSource).toContain(
-      'files: ["apps/*/src/features/**", "apps/*/src/client/**"]'
+      'files: ["apps/*/src/features/**", "apps/*/src/dev/features/**"]'
     );
-    expect(configSource).toContain('files: ["apps/*/src/features/**"]');
     expect(configSource).toContain(
       '"rat-stack-boundaries/no-browser-server-imports": "error"'
     );
@@ -351,5 +359,29 @@ describe("architecture boundary rules", () => {
     );
 
     expectRule(result, "Only modules inside apps/web/src/dev may import it.");
+  });
+
+  it("treats the dev client and features as browser code", () => {
+    const overlay = lintFixture(
+      "apps/web/src/dev/features/overlay",
+      'export const toggle = () => window.addEventListener("keydown", () => undefined);\n'
+    );
+
+    const contracts = lintFixture(
+      "apps/web/src/dev/client",
+      'import { devtoolsContracts } from "@rat-stack/devtools/contracts";\n\nexport const contracts = devtoolsContracts;\n'
+    );
+
+    const server = lintFixture(
+      "apps/web/src/dev/client",
+      'import { devtools } from "@rat-stack/devtools";\n\nexport const tools = devtools;\n'
+    );
+
+    expect(overlay.status).toBe(0);
+    expect(contracts.status).toBe(0);
+    expectRule(
+      server,
+      "Feature and client modules can import only browser-safe contract entry points"
+    );
   });
 });

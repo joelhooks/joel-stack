@@ -38,13 +38,18 @@ export default defineConfig({
   },
   overrides: [
     {
-      files: ["apps/*/src/features/**", "apps/*/src/client/**"],
+      files: [
+        "apps/*/src/features/**",
+        "apps/*/src/client/**",
+        "apps/*/src/dev/features/**",
+        "apps/*/src/dev/client/**",
+      ],
       rules: {
         "rat-stack-boundaries/no-browser-server-imports": "error",
       },
     },
     {
-      files: ["apps/*/src/features/**"],
+      files: ["apps/*/src/features/**", "apps/*/src/dev/features/**"],
       rules: {
         "rat-stack-boundaries/no-feature-transport": "error",
       },

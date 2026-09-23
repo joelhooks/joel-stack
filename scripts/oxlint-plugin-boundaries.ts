@@ -23,6 +23,7 @@ const clientFactories = new Set([
 const browserContractModules = new Set([
   "packages/capability/rpc-group",
   "packages/core/contracts",
+  "packages/devtools/contracts",
 ]);
 
 const workspacePath = (filename: string) => {
@@ -47,10 +48,11 @@ const isCapabilityPackage = (filename: string) =>
 const isInfraApp = (filename: string) => isWithin(filename, "apps/infra");
 
 const isFeature = (filename: string) =>
-  /^apps\/[^/]+\/src\/features\/.+/u.test(filename);
+  /^apps\/[^/]+\/src\/(?:dev\/)?features\/.+/u.test(filename);
 
 const isBrowserZone = (filename: string) =>
-  isFeature(filename) || /^apps\/[^/]+\/src\/client\/.+/u.test(filename);
+  isFeature(filename) ||
+  /^apps\/[^/]+\/src\/(?:dev\/)?client\/.+/u.test(filename);
 
 const isStringModule = (node: ESTree.Expression): string | null => {
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers and booleans, so module sources need a string boundary check.
@@ -158,6 +160,7 @@ const browserCapabilityModule = (filename: string, specifier: string) => {
     target !== null &&
     (isWithin(target, "packages/capability") ||
       isWithin(target, "packages/core") ||
+      isWithin(target, "packages/devtools") ||
       /^apps\/[^/]+\/src\/capabilities(?:\/|$)/u.test(target))
   );
 };
