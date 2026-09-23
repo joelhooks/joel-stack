@@ -3,7 +3,15 @@ import { capabilities, formatFileStats, inspectFile } from "@rat-stack/core";
 import { Console, Effect, Layer } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
-import { codeMode, http, mcpServer, webServer } from "./surfaces.js";
+import {
+  DEVTOOLS_HOST,
+  DEVTOOLS_MCP_PATH,
+  codeMode,
+  devtoolsWebServer,
+  http,
+  mcpServer,
+  webServer,
+} from "./surfaces.js";
 import { VERSION } from "./version.js";
 
 export { VERSION } from "./version.js";
@@ -24,18 +32,34 @@ const openapiCommand = Command.make("openapi", {}, () =>
   Console.log(JSON.stringify(http.openApi(), null, 2))
 ).pipe(Command.withDescription("Print the OpenAPI document for the REST API"));
 
+const devtoolsFlag = Flag.Boolean("devtools").pipe(
+  Flag.withDefault(false),
+  Flag.withDescription(
+    "Record every capability call and add the rat_* devtools tools"
+  )
+);
+
 const serveCommand = Command.make(
   "serve",
   {
+    devtools: devtoolsFlag,
     port: Flag.Int("port").pipe(
       Flag.withDefault(3000),
       Flag.withDescription("TCP port to listen on")
     ),
   },
-  ({ port }) => Layer.launch(webServer(port))
+  ({ devtools, port }) =>
+    devtools
+      ? Console.error(
+          `🐀 devtools MCP: http://${DEVTOOLS_HOST}:${port}${DEVTOOLS_MCP_PATH}`
+        ).pipe(
+          Effect.andThen(Layer.launch(devtoolsWebServer(port))),
+          Effect.orDie
+        )
+      : Layer.launch(webServer(port))
 ).pipe(
   Command.withDescription(
-    "Serve the REST API, /openapi.json, and /docs until interrupted"
+    "Serve the REST API, /openapi.json, and /docs until interrupted; --devtools adds MCP at /__rat/mcp on 127.0.0.1"
   )
 );
 
@@ -48,12 +72,19 @@ const mcpCommand = Command.make(
         "Expose search and execute instead of one tool per capability"
       )
     ),
+    devtools: devtoolsFlag,
   },
-  ({ codeMode: enabled }) =>
-    (enabled
-      ? Layer.launch(mcpServer.codeMode)
-      : Layer.launch(mcpServer.tools)
-    ).pipe(Effect.orDie)
+  ({ codeMode: enabled, devtools }) => {
+    if (devtools) {
+      return enabled
+        ? Layer.launch(mcpServer.devtoolsCodeMode).pipe(Effect.orDie)
+        : Layer.launch(mcpServer.devtools).pipe(Effect.orDie);
+    }
+
+    return enabled
+      ? Layer.launch(mcpServer.codeMode).pipe(Effect.orDie)
+      : Layer.launch(mcpServer.tools).pipe(Effect.orDie);
+  }
 ).pipe(
   Command.withDescription("Serve the capabilities as an MCP server over stdio")
 );

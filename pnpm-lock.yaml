@@ -261,6 +261,9 @@ importers:
       '@rat-stack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@rat-stack/devtools':
+        specifier: workspace:*
+        version: link:../../packages/devtools
       effect:
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117
@@ -450,6 +453,28 @@ importers:
       sql.js:
         specifier: 1.14.2
         version: 1.14.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/devtools:
+    dependencies:
+      '@rat-stack/capability':
+        specifier: workspace:*
+        version: link:../capability
+      effect:
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117
+    devDependencies:
+      '@effect/vitest':
+        specifier: 4.0.0-rc.117
+        version: 4.0.0-rc.117(effect@4.0.0-rc.117)(vitest@5.0.1(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
       typescript:
         specifier: 7.0.2
         version: 7.0.2
