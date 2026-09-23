@@ -549,12 +549,88 @@ const noBrowserGlobalsOnServer = defineRule({
   },
 });
 
+const isDevtoolsModule = (target: string) =>
+  isWithin(target, "packages/devtools") ||
+  /^packages\/auth\/(?:src\/)?devtools(?:\.[jt]s)?$/u.test(target);
+
+const devFolderOf = (target: string) =>
+  /^(?<folder>apps\/[^/]+\/src\/dev)(?:\/|$)/u.exec(target)?.groups?.folder;
+
+const mayUseDevtools = (filename: string) =>
+  isWithin(filename, "packages/devtools") ||
+  isWithin(filename, "packages/auth") ||
+  isWithin(filename, "apps/cli") ||
+  /(?:^|\/)test\//u.test(filename) ||
+  devFolderOf(filename) !== undefined;
+
+const noDevtoolsInProduction = defineRule({
+  create(context) {
+    const filename = workspacePath(context.filename);
+
+    const check = (node: ESTree.Node, source: ESTree.Expression) => {
+      const specifier = isStringModule(source);
+
+      const target =
+        specifier === null ? null : normalizeWorkspacePath(filename, specifier);
+
+      if (target === null) {
+        return;
+      }
+
+      if (isDevtoolsModule(target) && !mayUseDevtools(filename)) {
+        context.report({ messageId: "devtools", node });
+      }
+
+      const folder = devFolderOf(target);
+
+      if (
+        folder !== undefined &&
+        !isWithin(filename, folder) &&
+        !/(?:^|\/)test\//u.test(filename)
+      ) {
+        context.report({ data: { folder }, messageId: "devFolder", node });
+      }
+    };
+
+    return {
+      ExportAllDeclaration(node) {
+        check(node, node.source);
+      },
+      ExportNamedDeclaration(node) {
+        if (node.source !== null) {
+          check(node, node.source);
+        }
+      },
+      ImportDeclaration(node) {
+        check(node, node.source);
+      },
+      ImportExpression(node) {
+        check(node, node.source);
+      },
+    };
+  },
+  meta: {
+    docs: {
+      description:
+        "Keep devtools and test people out of anything a production entry can reach.",
+    },
+    messages: {
+      devFolder:
+        "Only modules inside {{folder}} may import it. The dev composition is an entry of its own; production code must not reach it.",
+      devtools:
+        "Devtools and test people (@rat-stack/devtools, @rat-stack/auth/devtools) belong in apps/*/src/dev/**, apps/cli, or tests. rat_call and rat_test_person bypass per-request auth and create accounts with a fixed password, so a production composition must never include them.",
+    },
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "rat-stack-boundaries" },
   rules: {
     "no-browser-globals-on-server": noBrowserGlobalsOnServer,
     "no-browser-server-imports": noBrowserServerImports,
     "no-cross-layer-imports": noCrossLayerImports,
+    "no-devtools-in-production": noDevtoolsInProduction,
     "no-feature-transport": noFeatureTransport,
     "no-hand-rolled-surface": noHandRolledSurface,
   },

@@ -191,3 +191,17 @@ Built on `3269e50` after `packages/auth` landed.
 - Integration test: `packages/auth/test/devtools.test.ts`, on Better Auth's memory database. Making dispatch ignore `as` fails two of its tests.
 - Not wired into `apps/cli` yet: no CLI capability needs a person, and the CLI has no `Auth`. The web composition adds `ratTestPerson` to its devtools list and passes `{ runAs: runAsPerson }`.
 
+## Production guardrail
+
+The owner's condition on 2026-09-23: test people and devtools must never be in a deployed composition. `rat_test_person` creates accounts with a fixed password, and `rat_call` runs as a default identity, bypassing per-request auth.
+
+`rat-stack-boundaries/no-devtools-in-production` enforces this. `@rat-stack/devtools` and `@rat-stack/auth/devtools` may be imported only from:
+
+- `packages/devtools`
+- `packages/auth`
+- `apps/cli`
+- test folders
+- `apps/*/src/dev/**`
+
+Nothing outside an app's `dev/` folder may import from it. The dev composition is therefore its own entry: the web app's Website resource points `main` at `src/dev/…` under `alchemy dev` and at the production entry otherwise, by path string, never by import. Slices 4 and 5 put the devtools wiring there: `ratTestPerson` in the list, `{ runAs: runAsPerson }`, and `testPersonLayer("dev")` as the default person.
+
