@@ -15,6 +15,8 @@ import { ActorEntrySchema, ActorLog } from "./actor-log.js";
 import type { ActorEntry, ActorLogSnapshot } from "./actor-log.js";
 import { ActorNotFound } from "./actor-not-found.js";
 import { actorWatcher } from "./actor-watcher.js";
+import { AtomLog } from "./atom-log.js";
+import { AtomNotFound } from "./atom-not-found.js";
 import { CallEntrySchema, CallLog, OutcomeSchema } from "./call-log.js";
 import type { CallEntry, CallLogSnapshot, Outcome } from "./call-log.js";
 import { CallNotFound } from "./call-not-found.js";
@@ -25,12 +27,15 @@ import {
   ratDescribeContract,
   ratDiffCalls,
   ratGetActor,
+  ratGetAtom,
   ratGetCall,
   ratListActors,
+  ratListAtoms,
   ratListCalls,
   ratListContracts,
   ratListTransitions,
   ratReplayCall,
+  ratReportAtoms,
 } from "./contracts.js";
 import type { InvokeResult } from "./contracts.js";
 import { ROOT, diff, readPath, summarize, toJson } from "./json.js";
@@ -218,6 +223,7 @@ const toolsFor = <
   capabilities: Caps,
   log: CallLog["Service"],
   actors: ActorLog["Service"],
+  atoms: AtomLog["Service"],
   runAs: RunAs<Identifier, Value> | undefined
 ) => {
   const byName = new Map(
@@ -504,6 +510,64 @@ const toolsFor = <
         return { value: expand === true ? value : summarize(value) };
       })
     ),
+    implement(ratReportAtoms, ({ atoms: reported, tabId }) =>
+      atoms.report(tabId, reported).pipe(Effect.map((id) => ({ tabId: id })))
+    ),
+    implement(
+      ratListAtoms,
+      Effect.fn("Devtools.listAtoms")(function* listAtomsHandler({ tabId }) {
+        const tabs = yield* atoms.tabs;
+
+        return {
+          tabs: tabs
+            .filter((tab) => tabId === undefined || tab.tabId === tabId)
+            .map((tab) => ({
+              atoms: tab.atoms.map(({ key, state }) => ({ key, state })),
+              tabId: tab.tabId,
+              updatedAt: tab.updatedAt,
+            })),
+        };
+      })
+    ),
+    implement(
+      ratGetAtom,
+      Effect.fn("Devtools.getAtom")(function* getAtomHandler({
+        expand,
+        key,
+        path,
+        tabId,
+      }) {
+        const tabs = yield* atoms.tabs;
+
+        const tab = tabs.findLast(
+          (candidate) =>
+            (tabId === undefined || candidate.tabId === tabId) &&
+            candidate.atoms.some((atom) => atom.key === key)
+        );
+
+        const atom = tab?.atoms.find((candidate) => candidate.key === key);
+
+        if (tab === undefined || atom === undefined) {
+          return yield* new AtomNotFound({
+            available: [
+              ...new Set(
+                tabs.flatMap((candidate) =>
+                  candidate.atoms.map((known) => known.key)
+                )
+              ),
+            ],
+            key,
+          });
+        }
+
+        const value = yield* readPath(atom.value, path ?? ROOT);
+
+        return {
+          tabId: tab.tabId,
+          value: expand === true ? value : summarize(value),
+        };
+      })
+    ),
   ] as const;
 };
 
@@ -518,6 +582,7 @@ export const devtools = <
   Effect.gen(function* buildDevtools() {
     const log = yield* CallLog;
     const actors = yield* ActorLog;
+    const atoms = yield* AtomLog;
     const watcher = yield* actorWatcher;
 
     const recorded = aroundHandlers(
@@ -525,7 +590,7 @@ export const devtools = <
       recorder(log, watcher, options.runAs)
     );
 
-    const tools = toolsFor(recorded, log, actors, options.runAs);
+    const tools = toolsFor(recorded, log, actors, atoms, options.runAs);
 
     return {
       capabilities: [...recorded, ...tools] as const,
@@ -535,4 +600,8 @@ export const devtools = <
   });
 
 export const devtoolsLayer = (capacity?: number) =>
-  Layer.mergeAll(CallLog.layer(capacity), ActorLog.layer(capacity));
+  Layer.mergeAll(
+    CallLog.layer(capacity),
+    ActorLog.layer(capacity),
+    AtomLog.layer
+  );

@@ -17,6 +17,7 @@ import { Tool } from "effect/unstable/ai";
 import {
   ActorLog,
   ActorNotFound,
+  AtomNotFound,
   CallLog,
   CallNotFound,
   OutcomeSchema,
@@ -175,6 +176,9 @@ const tools = setup.pipe(
       listActors,
       listTransitions,
       getActor,
+      reportAtoms,
+      listAtoms,
+      getAtom,
     ] = devtoolsTools;
 
     return {
@@ -183,12 +187,15 @@ const tools = setup.pipe(
       describeContract,
       diffCalls,
       getActor,
+      getAtom,
       getCall,
       listActors,
+      listAtoms,
       listCalls,
       listContracts,
       listTransitions,
       replayCall,
+      reportAtoms,
     };
   })
 );
@@ -424,6 +431,9 @@ describe("devtools", () => {
         "rat_list_actors",
         "rat_list_transitions",
         "rat_get_actor",
+        "rat_report_atoms",
+        "rat_list_atoms",
+        "rat_get_atom",
       ]);
     }).pipe(Effect.provide(withLog()))
   );
@@ -500,6 +510,55 @@ describe("devtools", () => {
 
       expect(entries).toEqual([]);
     }).pipe(Effect.provide(withLog()))
+  );
+
+  it.effect(
+    "stores each tab's atom snapshot and reads atoms by key and path",
+    () =>
+      Effect.gen(function* readsAtoms() {
+        const { getAtom, listAtoms, reportAtoms } = yield* tools;
+
+        const first = yield* reportAtoms.handler({
+          atoms: [
+            {
+              key: "search:capability",
+              state: "valid",
+              value: { matches: [{ id: "skills/add-a-capability" }], total: 1 },
+            },
+          ],
+        });
+
+        const again = yield* reportAtoms.handler({
+          atoms: [
+            { key: "search:capability", state: "stale", value: { total: 2 } },
+            { key: "read:skills", state: "uninitialized", value: null },
+          ],
+          tabId: first.tabId,
+        });
+
+        const listed = yield* listAtoms.handler({});
+
+        const total = yield* getAtom.handler({
+          key: "search:capability",
+          path: "root.total",
+        });
+
+        const missing = yield* Effect.flip(getAtom.handler({ key: "nope" }));
+
+        expect(first.tabId).toBe("tab-1");
+        expect(again.tabId).toBe("tab-1");
+        expect(listed.tabs).toMatchObject([
+          {
+            atoms: [
+              { key: "search:capability", state: "stale" },
+              { key: "read:skills", state: "uninitialized" },
+            ],
+            tabId: "tab-1",
+          },
+        ]);
+        expect(total).toEqual({ tabId: "tab-1", value: 2 });
+        expect(Schema.is(AtomNotFound)(missing)).toBe(true);
+      }).pipe(Effect.provide(withLog()))
   );
 
   it("summarizes long arrays, long strings, and deep records", () => {

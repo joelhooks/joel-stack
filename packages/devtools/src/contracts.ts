@@ -2,12 +2,16 @@ import { defineContract } from "@rat-stack/capability/contract";
 import { Schema } from "effect";
 
 import { ActorNotFound } from "./actor-not-found.js";
+import { AtomSnapshotSchema } from "./atom-log.js";
+import { AtomNotFound } from "./atom-not-found.js";
 import { OutcomeSchema } from "./call-log.js";
 import { CallNotFound } from "./call-not-found.js";
 import { ChangeSchema, PathNotFound } from "./json.js";
 import { UnknownCapability } from "./unknown-capability.js";
 
 export { ActorNotFound } from "./actor-not-found.js";
+
+export { AtomNotFound } from "./atom-not-found.js";
 
 export { CallNotFound } from "./call-not-found.js";
 
@@ -246,6 +250,58 @@ export const ratGetActor = defineContract("rat_get_actor", {
   output: Schema.Struct({ value: Schema.Json }),
 });
 
+export const ratReportAtoms = defineContract("rat_report_atoms", {
+  description:
+    "Store one browser tab's snapshot of its AtomRpc registry. The 🐀 overlay calls this; agents read the result with rat_list_atoms and rat_get_atom.",
+  failure: Schema.Never,
+  input: Schema.Struct({
+    atoms: Schema.Array(AtomSnapshotSchema),
+    tabId: Schema.optional(
+      Schema.String.annotate({
+        description: "Omit on the first report; reuse the returned id after.",
+      })
+    ),
+  }),
+  output: Schema.Struct({ tabId: Schema.String }),
+});
+
+export const ratListAtoms = defineContract("rat_list_atoms", {
+  annotations: readOnly,
+  description:
+    "List the atoms each open browser tab last reported: key and state (uninitialized, stale, valid), without values. Read one with rat_get_atom.",
+  failure: Schema.Never,
+  input: Schema.Struct({
+    tabId: Schema.optional(
+      Schema.String.annotate({ description: "Only this tab." })
+    ),
+  }),
+  output: Schema.Struct({
+    tabs: Schema.Array(
+      Schema.Struct({
+        atoms: Schema.Array(
+          Schema.Struct({ key: Schema.String, state: Schema.String })
+        ),
+        tabId: Schema.String,
+        updatedAt: Schema.Int,
+      })
+    ),
+  }),
+});
+
+export const ratGetAtom = defineContract("rat_get_atom", {
+  annotations: readOnly,
+  description:
+    "Read one atom's value from the most recent tab that reported it, or one path inside it, such as 'root.value.matches.0'.",
+  failure: Schema.Union([AtomNotFound, PathNotFound]),
+  input: Schema.Struct({
+    expand: ExpandField,
+    key: Schema.String,
+    path: PathField,
+    tabId: Schema.optional(Schema.String),
+  }),
+  output: Schema.Struct({ tabId: Schema.String, value: Schema.Json }),
+});
+
 export const devtoolsContracts = [
   ratListContracts,
   ratDescribeContract,
@@ -258,4 +314,7 @@ export const devtoolsContracts = [
   ratListActors,
   ratListTransitions,
   ratGetActor,
+  ratReportAtoms,
+  ratListAtoms,
+  ratGetAtom,
 ] as const;
