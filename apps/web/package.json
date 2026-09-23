@@ -1,0 +1,37 @@
+{
+  "name": "@rat-stack/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "typecheck": "vite build && tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "vite build",
+    "check": "pnpm run typecheck"
+  },
+  "dependencies": {
+    "@effect/atom-react": "4.0.0-rc.117",
+    "@rat-stack/capability": "workspace:*",
+    "@rat-stack/core": "workspace:*",
+    "@rat-stack/mischief": "workspace:*",
+    "@tanstack/react-router": "1.167.4",
+    "@tanstack/react-start": "1.166.15",
+    "alchemy": "2.0.0-beta.79",
+    "effect": "4.0.0-rc.117",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "scheduler": "0.27.0"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.0-rc.117",
+    "@effect/vitest": "4.0.0-rc.117",
+    "@types/node": "24.13.6",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "@vitejs/plugin-react": "6.0.2",
+    "typescript": "7.0.2",
+    "vite": "8.0.7",
+    "vitest": "5.0.1"
+  }
+}
