@@ -11,15 +11,18 @@ import {
   join,
   setupEffect,
 } from "@xstate/effect";
-import { Effect, Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 import { types } from "xstate";
 
 import { FileInspector } from "./file-inspector.js";
 import type { FileStats, FileStatsError } from "./stats.js";
 
-export type InspectOutcome =
-  | { readonly _tag: "Inspected"; readonly stats: FileStats }
-  | { readonly _tag: "Unreadable"; readonly error: FileStatsError };
+export type InspectOutcome = Data.TaggedEnum<{
+  Inspected: { readonly stats: FileStats };
+  Unreadable: { readonly error: FileStatsError };
+}>;
+
+export const inspectOutcome = Data.taggedEnum<InspectOutcome>();
 
 interface InspectContext {
   readonly outcome: InspectOutcome | undefined;
@@ -54,13 +57,13 @@ export const inspectMachine = setupEffect({
         input: ({ context }) => ({ path: context.path }),
         onDone: {
           context: ({ event }) => ({
-            outcome: { _tag: "Inspected", stats: event.output },
+            outcome: inspectOutcome.Inspected({ stats: event.output }),
           }),
           target: "inspected",
         },
         onError: {
           context: ({ event }) => ({
-            outcome: { _tag: "Unreadable", error: event.error },
+            outcome: inspectOutcome.Unreadable({ error: event.error }),
           }),
           target: "unreadable",
         },
@@ -90,11 +93,10 @@ export const runInspectMachine = Effect.fn("runInspectMachine")(
       );
     }
 
-    if (outcome._tag === "Unreadable") {
-      return yield* outcome.error;
-    }
-
-    return outcome.stats;
+    return yield* inspectOutcome.$match(outcome, {
+      Inspected: ({ stats }) => Effect.succeed(stats),
+      Unreadable: ({ error }) => Effect.fail(error),
+    });
   },
   Effect.scoped
 );

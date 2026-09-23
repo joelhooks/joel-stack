@@ -16,9 +16,9 @@ const writeTempFile = Effect.fn("writeTempFile")(function* writeTempFile(
   const path = yield* Path.Path;
   const directory = yield* fileSystem.makeTempDirectoryScoped();
   const file = path.join(directory, name);
-  yield* typeof content === "string"
-    ? fileSystem.writeFileString(file, content)
-    : fileSystem.writeFile(file, content);
+  yield* content instanceof Uint8Array
+    ? fileSystem.writeFile(file, content)
+    : fileSystem.writeFileString(file, content);
 
   return file;
 });
