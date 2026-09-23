@@ -422,80 +422,59 @@ const makeCodeHighlighter =
     );
   };
 
-const makeOgElement = (page: OgPage, emojiDataUrl: string) => {
-  const urlText = `ratstack.sh${page.routePath === "/" ? "" : page.routePath}`;
-  return {
-    props: {
-      children: [
-        {
-          props: {
-            children: page.title,
-            style: {
-              fontSize: 64,
-              fontWeight: 700,
-              lineHeight: 1.1,
-            },
+const makeOgElement = (page: OgPage, emojiDataUrl: string) => ({
+  props: {
+    children: [
+      {
+        props: {
+          children: page.title,
+          style: {
+            fontSize: 64,
+            fontWeight: 700,
+            lineHeight: 1.1,
           },
-          type: "div",
         },
-        {
-          props: {
-            children: page.description,
-            style: {
-              fontSize: 30,
-              lineHeight: 1.35,
-              marginTop: 24,
-              maxWidth: 1000,
-            },
-          },
-          type: "div",
-        },
-        // Skip the URL when it just repeats the title (the home card titles
-        // itself "ratstack.sh").
-        ...(urlText === page.title
-          ? []
-          : [
-              {
-                props: {
-                  children: urlText,
-                  style: {
-                    color: "#555555",
-                    fontSize: 24,
-                    lineHeight: 1.35,
-                    marginTop: 20,
-                  },
-                },
-                type: "div",
-              },
-            ]),
-        {
-          props: {
-            src: emojiDataUrl,
-            style: {
-              bottom: 64,
-              height: 96,
-              position: "absolute",
-              right: 64,
-              width: 96,
-            },
-          },
-          type: "img",
-        },
-      ],
-      style: {
-        backgroundColor: "#ffffff",
-        color: "#000000",
-        display: "flex",
-        flexDirection: "column",
-        height: 630,
-        padding: 80,
-        position: "relative",
-        width: 1200,
+        type: "div",
       },
+      {
+        props: {
+          children: page.description,
+          style: {
+            fontSize: 30,
+            lineHeight: 1.35,
+            marginTop: 24,
+            maxWidth: 1000,
+          },
+        },
+        type: "div",
+      },
+      {
+        props: {
+          src: emojiDataUrl,
+          style: {
+            bottom: 64,
+            height: 96,
+            position: "absolute",
+            right: 64,
+            width: 96,
+          },
+        },
+        type: "img",
+      },
+    ],
+    style: {
+      backgroundColor: "#ffffff",
+      color: "#000000",
+      display: "flex",
+      flexDirection: "column",
+      height: 630,
+      padding: 80,
+      position: "relative",
+      width: 1200,
     },
-    type: "div",
-  };
-};
+  },
+  type: "div",
+});
 
 const renderOgImage = (
   page: OgPage,
