@@ -1,5 +1,6 @@
 node_modules/
 dist/
+**/routeTree.gen.ts
 .turbo/
 coverage/
 **/.alchemy/bundles/

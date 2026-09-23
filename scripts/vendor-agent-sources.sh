@@ -68,6 +68,7 @@ EFFECT_VERSION="$(pin packages/core/package.json effect)"
 XSTATE_VERSION="$(pin packages/core/package.json xstate)"
 ALCHEMY_VERSION="$(pin apps/infra/package.json alchemy)"
 BETTER_AUTH_VERSION="$(pin packages/auth/package.json better-auth)"
+TANSTACK_START_VERSION="$(pin apps/web/package.json @tanstack/react-start)"
 
 clone_source Effect-TS effect https://github.com/Effect-TS/effect.git "effect@${EFFECT_VERSION}" \
   "Effect v4 monorepo matching packages/core effect@${EFFECT_VERSION}."
@@ -79,6 +80,8 @@ clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git "v${
   "Alchemy IaC matching apps/infra alchemy@${ALCHEMY_VERSION}. Read alchemy/src/cloudflare/."
 clone_source better-auth better-auth https://github.com/better-auth/better-auth.git "better-auth@${BETTER_AUTH_VERSION}" \
   "Better Auth matching packages/auth better-auth@${BETTER_AUTH_VERSION}; Alchemy's wrapper lives in alchemy-run/alchemy packages/better-auth."
+clone_source TanStack router https://github.com/TanStack/router.git "@tanstack/react-start@${TANSTACK_START_VERSION}" \
+  "TanStack Start and Router matching apps/web @tanstack/react-start@${TANSTACK_START_VERSION}; the router packages sit at that commit, not at the react-router pin."
 
 # The pi-effect tool reads .agent-sources/effect. Point it at the pinned mirror
 # instead of letting it hydrate a floating branch.

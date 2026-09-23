@@ -33,6 +33,7 @@
     "@rat-stack/database": "workspace:*",
     "alchemy": "2.0.0-beta.79",
     "better-auth": "1.6.2",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "effect": "4.0.0-rc.117",
     "pg": "8.23.0"
   },

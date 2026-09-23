@@ -15,6 +15,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@alchemy.run/better-auth@2.0.0-beta.79"
   - alchemy@2.0.0-beta.79
+  - "@effect/atom-react@4.0.0-rc.117"
   - xstate@6.0.0-alpha.59
   - "@xstate/effect@0.1.0-alpha.2"
   - "@distilled.cloud/aws@1.0.0-rc.12"

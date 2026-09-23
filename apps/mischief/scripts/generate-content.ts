@@ -402,9 +402,11 @@ const makeCodeHighlighter =
   };
 
 const makeOgElement = (page: OgPage, emojiDataUrl: string) => ({
+  key: null,
   props: {
     children: [
       {
+        key: null,
         props: {
           children: page.title,
           style: {
@@ -416,6 +418,7 @@ const makeOgElement = (page: OgPage, emojiDataUrl: string) => ({
         type: "div",
       },
       {
+        key: null,
         props: {
           children: page.description,
           style: {
@@ -428,6 +431,7 @@ const makeOgElement = (page: OgPage, emojiDataUrl: string) => ({
         type: "div",
       },
       {
+        key: null,
         props: {
           src: emojiDataUrl,
           style: {
