@@ -146,6 +146,40 @@ describe("architecture boundary rules", () => {
     );
   });
 
+  it.each(["apps/cli/src/client", "apps/cli/src/features"])(
+    "allows only browser-safe contract entry points in %s",
+    (area) => {
+      const result = lintFixture(
+        area,
+        'import * as contracts from "@rat-stack/core/contracts";\nimport { toRpcGroup } from "@rat-stack/capability/rpc-group";\n\nexport const browserContract = { contracts, toRpcGroup };\n'
+      );
+
+      expect(result.status).toBe(0);
+    }
+  );
+
+  it.each([
+    ["the core implementation barrel", "@rat-stack/core"],
+    [
+      "the capability implementation entry point",
+      "@rat-stack/capability/implement",
+    ],
+    [
+      "an application capability handler",
+      "../../../../mischief/src/capabilities/search.ts",
+    ],
+  ])("blocks %s from browser modules", (_name, specifier) => {
+    const result = lintFixture(
+      "apps/cli/src/client",
+      `import * as implementation from ${JSON.stringify(specifier)};\n\nexport const source = implementation;\n`
+    );
+
+    expectRule(
+      result,
+      "Feature and client modules can import only browser-safe contract entry points; capability handlers and other domain implementation modules stay server-side."
+    );
+  });
+
   it("keeps fetch calls out of feature modules", () => {
     const result = lintFixture(
       "apps/cli/src/features",

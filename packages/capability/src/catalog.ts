@@ -2,8 +2,8 @@ import { Option, Schema } from "effect";
 import type { JsonSchema } from "effect";
 import { Tool } from "effect/unstable/ai";
 
-import { failureSchemaOf } from "./capability.js";
-import type { Annotations, AnyCapability } from "./capability.js";
+import { failureSchemaOf } from "./contract.js";
+import type { Annotations, AnyCapability } from "./contract.js";
 
 export interface CatalogEntry {
   readonly name: string;
@@ -21,14 +21,14 @@ export interface Catalog {
 }
 
 export const toCatalog = (capabilities: readonly AnyCapability[]): Catalog => ({
-  capabilities: capabilities.map((capability) => ({
-    annotations: capability.annotations,
-    description: capability.description,
-    failure: Tool.getJsonSchemaFromSchema(failureSchemaOf(capability)),
-    input: Tool.getJsonSchemaFromSchema(capability.input),
-    name: capability.name,
-    needsApproval: capability.needsApproval,
-    output: Tool.getJsonSchemaFromSchema(capability.output),
+  capabilities: capabilities.map(({ contract }) => ({
+    annotations: contract.annotations,
+    description: contract.description,
+    failure: Tool.getJsonSchemaFromSchema(failureSchemaOf(contract)),
+    input: Tool.getJsonSchemaFromSchema(contract.input),
+    name: contract.name,
+    needsApproval: contract.needsApproval,
+    output: Tool.getJsonSchemaFromSchema(contract.output),
   })),
   version: "1",
 });

@@ -85,17 +85,20 @@ fi
 
 step="add throwaway capability"
 cat > packages/core/src/acceptance-probe.ts <<EOF
-import { defineCapability } from "${acceptance_scope}/capability";
+import { defineContract, implement } from "${acceptance_scope}/capability";
 import { Effect, Schema } from "effect";
 
-export const acceptanceProbe = defineCapability("acceptanceProbe", {
+const acceptanceProbeContract = defineContract("acceptanceProbe", {
   annotations: { idempotent: true, readOnly: true },
   description: "Return a deterministic value for template acceptance tests",
   failure: Schema.Never,
-  handler: () => Effect.succeed({ value: "acceptance-ok" }),
   input: Schema.Struct({}),
   output: Schema.Struct({ value: Schema.String }),
 });
+
+export const acceptanceProbe = implement(acceptanceProbeContract, () =>
+  Effect.succeed({ value: "acceptance-ok" })
+);
 EOF
 if ! node --input-type=module <<'NODE'
 import { readFile, writeFile } from "node:fs/promises";

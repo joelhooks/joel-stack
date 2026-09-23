@@ -13,13 +13,14 @@ Read `AGENTS.md` first. Keep unrelated product work. Check imports and tests bef
 
 Keep these files:
 
-- `packages/capability/src/capability.ts`
+- `packages/capability/src/contract.ts`
+- `packages/capability/src/implement.ts`
 - `packages/capability/src/to-command.ts`
 - their tests
 - all of `packages/core`
 - the CLI composition needed by the projected command
 
-`defineCapability` plus `toCommand` keeps the shipped `stats` command working. `capability.ts` does not depend on the other interfaces.
+`defineContract`, `implement`, and `toCommand` keep the shipped `stats` command working. `contract.ts` does not depend on the other interfaces.
 
 For CLI only, delete:
 

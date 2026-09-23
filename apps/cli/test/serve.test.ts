@@ -26,7 +26,7 @@ describe("serve routes", () => {
       expect(openapi.status).toBe(200);
       const document = decodeOpenApi(yield* openapi.json);
       expect(Object.keys(document.paths)).toEqual(
-        capabilities.map((capability) => `/${capability.name}`)
+        capabilities.map((capability) => `/${capability.contract.name}`)
       );
 
       const docs = yield* HttpClient.get("/docs");

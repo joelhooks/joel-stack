@@ -1351,12 +1351,12 @@ What to notice: removing a bin means deleting its package and the one line that 
 
 \`\`\`text
               ┌─────────────────────────────────────┐
-              │  one capability                     │
+              │  one contract + capability          │
               │  Effect Schema: input · output · err│
               │  one Effect handler                 │
               │  XState when the work has states    │
               └──────────────────┬──────────────────┘
-                                 │  defineCapability
+                                 │  defineContract → implement
         ┌───────────────┬────────┴──────┬───────────────┐
         ▼               ▼               ▼               ▼
   ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐
@@ -1369,7 +1369,7 @@ What to notice: removing a bin means deleting its package and the one line that 
 \`\`\`
 </Diagram>
 
-What to notice: the four boxes share one handler and one set of schemas. Add a capability once and every surface picks it up.
+What to notice: projections share one contract and one handler. Add a capability once and every surface picks it up.
 
 ## The pattern in code
 

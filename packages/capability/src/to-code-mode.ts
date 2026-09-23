@@ -3,14 +3,16 @@ import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
-import { defineCapability, failureSchemaOf } from "./capability.js";
+import { searchCatalog, toCatalog, toTypeScript } from "./catalog.js";
+import type { Catalog } from "./catalog.js";
+import { defineContract, failureSchemaOf } from "./contract.js";
 import type {
   AnyCapability,
   ApprovalRequirement,
+  ContractOf,
   FailureSchemaOf,
-} from "./capability.js";
-import { searchCatalog, toCatalog, toTypeScript } from "./catalog.js";
-import type { Catalog } from "./catalog.js";
+} from "./contract.js";
+import { implement } from "./implement.js";
 import { Sandbox, SandboxError, invokeFailure } from "./sandbox-service.js";
 import type { Invoke, InvokeOutcome } from "./sandbox-service.js";
 import type { RequirementsOf } from "./to-toolkit.js";
@@ -64,7 +66,7 @@ export interface CodeModeOptions {
 }
 
 type NeedsApprovalOf<Caps extends readonly AnyCapability[]> =
-  true extends Caps[number]["needsApproval"] ? true : false;
+  true extends ContractOf<Caps[number]>["needsApproval"] ? true : false;
 
 export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   readonly catalog: Catalog;
@@ -100,23 +102,38 @@ export const toExecuteCapability = <
   const declarations = toTypeScript(catalog);
 
   const byName = new Map(
-    capabilities.map((capability) => [capability.name, capability] as const)
+    capabilities.map(
+      (capability) => [capability.contract.name, capability] as const
+    )
   );
 
-  const hasApproval = capabilities.some((item) => item.needsApproval);
+  const hasApproval = capabilities.some((item) => item.contract.needsApproval);
   // SAFETY: Caps preserves the literal approval flag for the generated capability, and `some` over the same array computes exactly that flag.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
 
-  const capability = defineCapability("execute", {
+  const contract = defineContract("execute", {
     annotations: {
-      destructive: capabilities.some((item) => item.annotations.destructive),
-      openWorld: capabilities.some((item) => item.annotations.openWorld),
-      readOnly: capabilities.every((item) => item.annotations.readOnly),
+      destructive: capabilities.some(
+        (item) => item.contract.annotations.destructive
+      ),
+      openWorld: capabilities.some(
+        (item) => item.contract.annotations.openWorld
+      ),
+      readOnly: capabilities.every(
+        (item) => item.contract.annotations.readOnly
+      ),
     },
     description: executeDescription(declarations),
     failure: SandboxError,
-    handler: Effect.fn("CodeMode.execute")(function* execute({ code }) {
+    input: ExecuteInput,
+    needsApproval,
+    output: ExecuteResult,
+  });
+
+  const capability = implement(
+    contract,
+    Effect.fn("CodeMode.execute")(function* execute({ code }) {
       const context = yield* Effect.context<
         RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
       >();
@@ -139,10 +156,13 @@ export const toExecuteCapability = <
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
 
-        const encodeOutput = Schema.encodeUnknownEffect(item.output);
-        const encodeFailure = Schema.encodeUnknownEffect(failureSchemaOf(item));
+        const encodeOutput = Schema.encodeUnknownEffect(item.contract.output);
 
-        return Schema.decodeUnknownEffect(item.input)(input).pipe(
+        const encodeFailure = Schema.encodeUnknownEffect(
+          failureSchemaOf(item.contract)
+        );
+
+        return Schema.decodeUnknownEffect(item.contract.input)(input).pipe(
           Effect.matchEffect({
             onFailure: (error) =>
               Effect.succeed(invokeFailure("InvalidInput", error.message)),
@@ -184,11 +204,8 @@ export const toExecuteCapability = <
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         result: run.result as typeof ExecuteResult.Type.result,
       };
-    }),
-    input: ExecuteInput,
-    needsApproval,
-    output: ExecuteResult,
-  });
+    })
+  );
 
   return { capability, catalog, declarations } as const;
 };
@@ -204,23 +221,29 @@ export const toCodeMode = <
   const searchLimit = options?.searchLimit ?? 5;
 
   const execute = Tool.make("execute", {
-    description: executeProjection.capability.description,
-    failure: failureSchemaOf(executeProjection.capability),
-    needsApproval: executeProjection.capability.needsApproval,
+    description: executeProjection.capability.contract.description,
+    failure: failureSchemaOf(executeProjection.capability.contract),
+    needsApproval: executeProjection.capability.contract.needsApproval,
     parameters: ExecuteInput,
     success: ExecuteResult,
   })
     .annotate(
       Tool.Readonly,
-      capabilities.every((capability) => capability.annotations.readOnly)
+      capabilities.every(
+        (capability) => capability.contract.annotations.readOnly
+      )
     )
     .annotate(
       Tool.Destructive,
-      capabilities.some((capability) => capability.annotations.destructive)
+      capabilities.some(
+        (capability) => capability.contract.annotations.destructive
+      )
     )
     .annotate(
       Tool.OpenWorld,
-      capabilities.some((capability) => capability.annotations.openWorld)
+      capabilities.some(
+        (capability) => capability.contract.annotations.openWorld
+      )
     );
 
   const toolkit = Toolkit.make(search, execute);

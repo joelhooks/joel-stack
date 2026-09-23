@@ -20,6 +20,11 @@ const clientFactories = new Set([
   "makeRpcClient",
 ]);
 
+const browserContractImports = new Set([
+  "@rat-stack/capability/rpc-group",
+  "@rat-stack/core/contracts",
+]);
+
 const workspacePath = (filename: string) => {
   const relative = path
     .relative(repoRoot, path.resolve(filename))
@@ -135,6 +140,21 @@ const importModule = (
   ) {
     context.report({ messageId: "infraOwner", node });
   }
+};
+
+const browserCapabilityModule = (filename: string, specifier: string) => {
+  if (browserContractImports.has(specifier)) {
+    return false;
+  }
+
+  const target = normalizeWorkspacePath(filename, specifier);
+
+  return (
+    target !== null &&
+    (isWithin(target, "packages/capability") ||
+      isWithin(target, "packages/core") ||
+      /^apps\/[^/]+\/src\/capabilities(?:\/|$)/u.test(target))
+  );
 };
 
 const browserServerModule = (filename: string, specifier: string) => {
@@ -267,8 +287,14 @@ const noBrowserServerImports = defineRule({
     const report = (node: ESTree.Node, source: ESTree.Expression) => {
       const specifier = isStringModule(source);
 
-      if (specifier !== null && browserServerModule(filename, specifier)) {
-        context.report({ messageId: "serverImport", node });
+      if (specifier !== null) {
+        if (browserServerModule(filename, specifier)) {
+          context.report({ messageId: "serverImport", node });
+        }
+
+        if (browserCapabilityModule(filename, specifier)) {
+          context.report({ messageId: "capabilityImport", node });
+        }
       }
     };
 
@@ -310,6 +336,8 @@ const noBrowserServerImports = defineRule({
         "Keep Node, Alchemy, Worker, infrastructure, and server-only modules out of browser zones.",
     },
     messages: {
+      capabilityImport:
+        "Feature and client modules can import only browser-safe contract entry points; capability handlers and other domain implementation modules stay server-side.",
       serverImport:
         "Feature and client modules cannot import Node, Alchemy, Worker, infra, or server-only modules.",
     },
