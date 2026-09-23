@@ -195,6 +195,62 @@ const contractBindingMatchesName = defineRule({
   },
 });
 
+const calleeName = (node: ESTree.CallExpression) => {
+  if (node.callee.type === "Identifier") {
+    return node.callee.name;
+  }
+
+  return node.callee.type === "MemberExpression" &&
+    node.callee.property.type === "Identifier"
+    ? node.callee.property.name
+    : null;
+};
+
+const watchEffectActors = defineRule({
+  create(context) {
+    if (!isRuntimeSource(workspacePath(context.filename))) {
+      return {};
+    }
+
+    const started: ESTree.CallExpression[] = [];
+    let watched = false;
+
+    return {
+      CallExpression(node) {
+        const name = calleeName(node);
+
+        if (name === "createEffectActor") {
+          started.push(node);
+        }
+
+        if (name === "watchActor") {
+          watched = true;
+        }
+      },
+      "Program:exit"() {
+        if (watched) {
+          return;
+        }
+
+        for (const node of started) {
+          context.report({ messageId: "unwatched", node });
+        }
+      },
+    };
+  },
+  meta: {
+    docs: {
+      description:
+        "Hand every Effect-backed actor to watchActor so devtools can inspect it.",
+    },
+    messages: {
+      unwatched:
+        'Call watchActor("<machine>", actor) from @rat-stack/capability/actor-watch after createEffectActor. It is a no-op until devtools provides a watcher, and without it rat_list_actors cannot see this machine.',
+    },
+    type: "suggestion",
+  },
+});
+
 export default definePlugin({
   meta: { name: "rat-stack-patterns" },
   rules: {
@@ -202,5 +258,6 @@ export default definePlugin({
       acquireReleaseConstructsInAcquireBody,
     "contract-binding-matches-name": contractBindingMatchesName,
     "no-module-level-mutable-state": noModuleLevelMutableState,
+    "watch-effect-actors": watchEffectActors,
   },
 });

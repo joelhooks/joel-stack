@@ -22,6 +22,7 @@ const rules = [
   "rat-stack-patterns/acquire-release-constructs-in-acquire-body",
   "rat-stack-patterns/contract-binding-matches-name",
   "rat-stack-patterns/no-module-level-mutable-state",
+  "rat-stack-patterns/watch-effect-actors",
 ];
 
 interface LintResult {
@@ -160,5 +161,29 @@ describe("rat-stack pattern rules", () => {
     );
 
     expect(result.status).toBe(0);
+  });
+
+  it("flags an Effect-backed actor that is never watched", () => {
+    const result = lintFixture(
+      "packages/core/src",
+      'import { createEffectActor } from "@xstate/effect";\n\nexport const start = (machine: never) => createEffectActor(machine);\n'
+    );
+
+    expectRule(result, 'Call watchActor("<machine>", actor)');
+  });
+
+  it("accepts an actor handed to watchActor, and tests that start actors", () => {
+    const watched = lintFixture(
+      "packages/core/src",
+      'import { watchActor } from "@rat-stack/capability/actor-watch";\nimport { createEffectActor } from "@xstate/effect";\nimport { Effect } from "effect";\n\nexport const start = (machine: never) =>\n  Effect.gen(function* startMachine() {\n    const actor = yield* createEffectActor(machine);\n\n    yield* watchActor("machine", actor);\n  });\n'
+    );
+
+    const test = lintFixture(
+      "packages/core/test",
+      'import { createEffectActor } from "@xstate/effect";\n\nexport const start = (machine: never) => createEffectActor(machine);\n'
+    );
+
+    expect(watched.status).toBe(0);
+    expect(test.status).toBe(0);
   });
 });
