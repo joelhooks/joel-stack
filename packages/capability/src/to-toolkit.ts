@@ -3,7 +3,7 @@ import type { Layer } from "effect";
 import { Effect } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
-import { failureSchemaOf } from "./capability.js";
+import { failureSchemaOf } from "./contract.js";
 import type {
   AnyCapability,
   FailureOf,
@@ -13,7 +13,7 @@ import type {
   OutputOf,
   PlainSchema,
   RequirementsOf as CapabilityRequirementsOf,
-} from "./capability.js";
+} from "./contract.js";
 
 const toolFor = <
   Name extends string,
@@ -56,19 +56,19 @@ export interface ToolkitProjection<Caps extends readonly AnyCapability[]> {
   >;
 }
 
-const toTool = (capability: AnyCapability) =>
+const toTool = ({ contract }: AnyCapability) =>
   toolFor(
-    capability.name,
-    capability.description,
-    capability.input,
-    capability.output,
-    failureSchemaOf(capability),
-    capability.needsApproval
+    contract.name,
+    contract.description,
+    contract.input,
+    contract.output,
+    failureSchemaOf(contract),
+    contract.needsApproval
   )
-    .annotate(Tool.Readonly, capability.annotations.readOnly)
-    .annotate(Tool.Destructive, capability.annotations.destructive)
-    .annotate(Tool.Idempotent, capability.annotations.idempotent)
-    .annotate(Tool.OpenWorld, capability.annotations.openWorld);
+    .annotate(Tool.Readonly, contract.annotations.readOnly)
+    .annotate(Tool.Destructive, contract.annotations.destructive)
+    .annotate(Tool.Idempotent, contract.annotations.idempotent)
+    .annotate(Tool.OpenWorld, contract.annotations.openWorld);
 
 export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps
@@ -96,7 +96,7 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
 
-        handlers[capability.name] = (parameters) =>
+        handlers[capability.contract.name] = (parameters) =>
           run(parameters).pipe(Effect.provideContext(context));
       }
 

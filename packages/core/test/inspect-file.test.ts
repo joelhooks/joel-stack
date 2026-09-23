@@ -17,7 +17,10 @@ it.layer(TestLayer)("inspectFile capability", (test) => {
       yield* fileSystem.writeFileString(file, "one two\nthree\n");
 
       const stats = yield* inspectFile.handler({ path: file });
-      const encoded = yield* Schema.encodeEffect(inspectFile.output)(stats);
+
+      const encoded = yield* Schema.encodeEffect(inspectFile.contract.output)(
+        stats
+      );
 
       expect(encoded).toEqual({
         bytes: 14,
@@ -31,7 +34,7 @@ it.layer(TestLayer)("inspectFile capability", (test) => {
 
   test.effect("declares itself read-only and idempotent", () =>
     Effect.sync(() => {
-      expect(inspectFile.annotations).toMatchObject({
+      expect(inspectFile.contract.annotations).toMatchObject({
         destructive: false,
         idempotent: true,
         readOnly: true,

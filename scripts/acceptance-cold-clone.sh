@@ -78,6 +78,11 @@ fi
 
 # A longer or shorter scope changes line lengths, so the formatter rewraps.
 # README's Make it yours path tells a clone to run the same command.
+step="generate worker content"
+if ! pnpm --filter "${acceptance_scope}/mischief" generate; then
+  fail "mischief content generation failed after the workspace rename"
+fi
+
 step="post-rename format"
 if ! pnpm fix; then
   fail "pnpm fix failed after the workspace rename"
@@ -85,17 +90,21 @@ fi
 
 step="add throwaway capability"
 cat > packages/core/src/acceptance-probe.ts <<EOF
-import { defineCapability } from "${acceptance_scope}/capability";
+import { defineContract, implement } from "${acceptance_scope}/capability";
 import { Effect, Schema } from "effect";
 
-export const acceptanceProbe = defineCapability("acceptanceProbe", {
+const acceptanceProbeContract = defineContract("acceptanceProbe", {
   annotations: { idempotent: true, readOnly: true },
   description: "Return a deterministic value for template acceptance tests",
   failure: Schema.Never,
-  handler: () => Effect.succeed({ value: "acceptance-ok" }),
-  input: Schema.Struct({}),
+  input: Schema.Struct({ value: Schema.String }),
   output: Schema.Struct({ value: Schema.String }),
 });
+
+export const acceptanceProbe = implement(
+  acceptanceProbeContract,
+  ({ value }) => Effect.succeed({ value })
+);
 EOF
 if ! node --input-type=module <<'NODE'
 import { readFile, writeFile } from "node:fs/promises";
@@ -119,7 +128,7 @@ const indexPath = "packages/core/src/index.ts";
 const index = await readFile(indexPath, "utf8");
 const exported = index.replace(
   'export { capabilities, inspectFile } from "./inspect-file.js";',
-  'export { acceptanceProbe } from "./acceptance-probe.js";\nexport { capabilities, inspectFile } from "./inspect-file.js";'
+  'export { acceptanceProbe } from "./acceptance-probe.js";\n\nexport { capabilities, inspectFile } from "./inspect-file.js";'
 );
 if (exported === index) {
   throw new Error("add-a-capability export text did not match core/index.ts");
@@ -130,6 +139,11 @@ then
   fail "add-a-capability instructions did not match the scaffold"
 fi
 printf 'registered acceptanceProbe in packages/core/src/inspect-file.ts\n'
+
+step="format acceptance probe"
+if ! pnpm fix; then
+  fail "pnpm fix failed after adding the throwaway capability"
+fi
 
 step="full gate"
 if ! pnpm turbo run check test build; then
@@ -171,7 +185,7 @@ if [[ "$ready" != "1" ]]; then
 fi
 http_body="$tmp/http.json"
 if ! curl --silent --show-error --fail --request POST "http://127.0.0.1:${port}/acceptanceProbe" \
-  --header 'content-type: application/json' --data '{}' >"$http_body"; then
+  --header 'content-type: application/json' --data '{"value":"acceptance-ok"}' >"$http_body"; then
   cat "$http_body" >&2 || true
   fail "POST /acceptanceProbe failed"
 fi
@@ -194,17 +208,20 @@ server_pid=""
 step="MCP capability tool"
 mcp_output="$tmp/mcp.jsonl"
 mcp_error="$tmp/mcp.stderr"
-if ! printf '%s\n' \
+mcp_status=0
+if printf '%s\n' \
   '{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"acceptance","version":"0.0.0"},"protocolVersion":"2025-06-18"}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"id":2,"jsonrpc":"2.0","method":"tools/list","params":{}}' \
   | node apps/cli/dist/cli.js mcp >"$mcp_output" 2>"$mcp_error"; then
-  cat "$mcp_error" >&2 || true
-  fail "MCP stdio conversation failed"
+  :
+else
+  mcp_status=$?
 fi
 cat "$mcp_output"
 if ! grep -Fq 'acceptanceProbe' "$mcp_output"; then
-  fail "MCP tools/list did not include acceptanceProbe"
+  cat "$mcp_error" >&2 || true
+  fail "MCP tools/list did not include acceptanceProbe (exit ${mcp_status})"
 fi
 printf 'MCP: acceptanceProbe appears in tools/list\n'
 

@@ -22,8 +22,8 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 
 | Package | Path | Role |
 | --- | --- | --- |
-| `@rat-stack/capability` | `packages/capability` | `defineCapability` and the projections `toCommand`, `toHttpApi`, `toToolkit`, `toCodeMode` (catalog, `search`/`execute`, subprocess `Sandbox`) |
-| `@rat-stack/core` | `packages/core` | Domain logic: the `inspectFile` capability, its lifecycle machine, `FileInspector` |
+| `@rat-stack/capability` | `packages/capability` | `defineContract`, `implement`, and the `toCommand`, `toHttpApi`, `toToolkit`, `toRpc`, and `toCodeMode` projections |
+| `@rat-stack/core` | `packages/core` | Shared `inspectFile`, `search`, and `read` contracts; `inspectFile` handler, lifecycle machine, and `FileInspector` |
 | `@rat-stack/cli` | `apps/cli` | Composition root: `stats`, `catalog`, `openapi`, `serve`, `mcp [--code-mode]` commands |
 | `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 | `@rat-stack/mischief` | `apps/mischief` | Cloudflare Worker: the public site, agent discovery, and sandboxed execute surface |
@@ -32,8 +32,9 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 
 | Noun | Home | Runtime job |
 | --- | --- | --- |
-| Capability | `packages/core/src/<name>.ts` | Typed domain behavior and the shared args/failures contract. |
-| Projection | `packages/capability/src/to-<surface>.ts` | Expose capabilities on one runtime surface. |
+| Contract | `packages/core/src/contracts.ts` | Shared name, schemas, failure, annotations, and approval setting. |
+| Capability | `packages/core/src/inspect-file.ts` or `apps/mischief/src/capabilities/<name>.ts` | Binds one contract to its server-side handler with `implement`. |
+| Projection | `packages/capability/src/to-<surface>.ts` | Expose implemented capabilities on one runtime surface. |
 | Cartridge | `packages/<name>/src/` | One Layer with its own infrastructure; it must pass the cartridge test in `VISION.md`. |
 | Machine | `packages/core/src/<name>-machine.ts` | Own one finite domain lifecycle. |
 | Feature | `apps/web/src/features/<name>/` | Thin route and view that read client atoms. |
@@ -101,7 +102,7 @@ Preserve existing work. Inspect status before editing, stage only files changed 
 
 A child project replaces this section on day one with its own product rules. These rules describe the rat-stack template, not the product in a clone. Keep durable product intent in `VISION.md`.
 
-- One capability, every surface. Behavior enters through `defineCapability` in `packages/core` and is added to `capabilities`; CLI, HTTP, MCP, and code mode are projections in `packages/capability`. Do not add a command, route, or tool handler that bypasses a capability.
+- One contract, every surface. Define schemas and metadata with `defineContract`; bind a server-side handler with `implement` and add the capability to `capabilities`. CLI, HTTP, MCP, RPC, and code mode are projections in `packages/capability`. Do not add a command, route, or tool handler that bypasses a capability.
 - Schemas are the contract. Input, output, and failure are Effect `Schema`; JSON Schema, OpenAPI, and the code-mode declarations are derived from them, never hand-written.
 - Lifecycles are machines. Finite modes, retries, and cancellation live in XState machines started with `createEffectActor`; side effects live in declared `fromEffect` actors, never inline.
 - The sandbox is a surface, not a bypass. Anything reachable from a code-mode program must be a capability and goes through that capability's schemas and handler.
@@ -115,12 +116,12 @@ A child project replaces this section on day one with its own product rules. The
 
 A child project replaces this section on day one with its own architecture. Record module boundaries, dependency direction, data ownership, and state-machine seams here. Link deeper docs instead of duplicating them.
 
-- `rat-stack-boundaries/no-cross-layer-imports` enforces dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps; `packages/capability` does not import domain code; `apps/infra` owns its Stack wiring. `core` owns domain behavior and depends on `capability` only for `defineCapability`.
-- `rat-stack-boundaries/no-browser-server-imports` applies to `apps/*/src/features/**` and `apps/*/src/client/**`; `rat-stack-boundaries/no-feature-transport` applies to `apps/*/src/features/**`.
+- `rat-stack-boundaries/no-cross-layer-imports` enforces dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps; `packages/capability` does not import domain code; `apps/infra` owns its Stack wiring. `core` owns shared contracts and the `inspectFile` handler; each capability's owner keeps its handler beside its data or infrastructure. Core depends on `capability` for `defineContract` and `implement`.
+- `rat-stack-boundaries/no-browser-server-imports` applies to `apps/*/src/features/**` and `apps/*/src/client/**`. Browser modules may import only `@rat-stack/core/contracts` and `@rat-stack/capability/rpc-group` from these packages; they cannot import handler modules. `rat-stack-boundaries/no-feature-transport` applies to `apps/*/src/features/**`.
 - `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`.
-- `packages/core/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect. `packages/core/src/inspect-file.ts` wraps it as the one shipped capability.
+- `packages/core/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect. `packages/core/src/contracts.ts` owns `inspectFileContract`; `packages/core/src/inspect-file.ts` implements it and registers the capability.
 - Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases.
-- `packages/capability/src`: `packages/capability/src/capability.ts` (the domain object), `packages/capability/src/to-command.ts`, `packages/capability/src/to-http-api.ts`, and `packages/capability/src/to-toolkit.ts` (pure projections onto `effect/unstable/{cli,httpapi,ai}`), plus `packages/capability/src/catalog.ts`, `packages/capability/src/sandbox-service.ts`, `packages/capability/src/sandbox-subprocess.ts`, and `packages/capability/src/to-code-mode.ts` (the fourth projection; `Sandbox` is a `Context.Service` with a subprocess implementation). `packages/capability/src/to-code-mode.ts` imports from `packages/capability/src/to-toolkit.ts`, so MCP is a prerequisite for code mode.
+- `packages/capability/src`: `contract.ts` defines shared contracts; `implement.ts` binds typed handlers and adds approval requirements; `to-command.ts`, `to-http-api.ts`, `to-toolkit.ts`, `to-rpc.ts`, and `to-code-mode.ts` project implemented capabilities. `to-rpc-group.ts` builds the contract-only client group; `to-rpc.ts` derives the server group from those same contracts. `catalog.ts`, `sandbox-service.ts`, and `sandbox-subprocess.ts` support code mode. `to-code-mode.ts` imports from `to-toolkit.ts`, so MCP is a prerequisite for code mode.
 - `apps/cli/src/surfaces.ts` is the only place projections are instantiated; `apps/cli/src/command.ts` maps them to subcommands; `apps/cli/src/cli.ts` is the single composition root that provides `FileInspector` and `NodeServices`.
 - The [README's Keep or cut section](./README.md#keep-or-cut) lists what to delete per surface.
 

@@ -9,16 +9,17 @@ import {
 } from "effect/unstable/httpapi";
 
 import { ApprovalDenied } from "./approval.js";
-import { failureSchemaOf } from "./capability.js";
+import { failureSchemaOf } from "./contract.js";
 import type {
   AnyCapability,
+  AnyContract,
   FailureOf,
   InputOf,
   InputSchema,
   NameOf,
   OutputOf,
   PlainSchema,
-} from "./capability.js";
+} from "./contract.js";
 import type { RequirementsOf } from "./to-toolkit.js";
 
 export const GROUP = "capabilities";
@@ -42,10 +43,10 @@ const withFailureStatus = (failure: PlainSchema): Schema.Top =>
     ? failure.annotate({ httpApiStatus: DEFAULT_FAILURE_STATUS })
     : failure;
 
-const httpFailure = (capability: AnyCapability): readonly Schema.Top[] =>
-  capability.needsApproval
-    ? [withFailureStatus(capability.failure), ApprovalDenied]
-    : [withFailureStatus(failureSchemaOf(capability))];
+const httpFailure = (contract: AnyContract): readonly Schema.Top[] =>
+  contract.needsApproval
+    ? [withFailureStatus(contract.failure), ApprovalDenied]
+    : [withFailureStatus(failureSchemaOf(contract))];
 
 export type EndpointOf<C> = ReturnType<
   typeof HttpApiEndpoint.post<
@@ -125,11 +126,11 @@ export const toHttpApi = <
 ): HttpApiProjection<Id, Caps> => {
   const hostErrors = options?.errors ?? [];
 
-  const endpoints = capabilities.map((capability) =>
-    post(capability.name, `/${capability.name}`, {
-      error: [...httpFailure(capability), ...hostErrors],
-      payload: capability.input,
-      success: capability.output,
+  const endpoints = capabilities.map(({ contract }) =>
+    post(contract.name, `/${contract.name}`, {
+      error: [...httpFailure(contract), ...hostErrors],
+      payload: contract.input,
+      success: contract.output,
     })
   );
 
@@ -163,7 +164,7 @@ export const toHttpApi = <
       input: unknown
     ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
 
-    implementations[capability.name] = ({ payload }) => run(payload);
+    implementations[capability.contract.name] = ({ payload }) => run(payload);
   }
 
   // SAFETY: `handleAll` wants a record keyed by the group's endpoint identifiers with each handler typed to its endpoint; that is what `implementations` is at runtime, but a loop cannot say so. `never` is accepted by every parameter type, so the call stays checked on its return side.

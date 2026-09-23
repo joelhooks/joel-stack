@@ -4,7 +4,7 @@
 
 Joel's **agentic scaffold** for an Effect app. `VISION.md` explains why. `AGENTS.md` defines the fence through exact pins, checks, and hooks. The public tree is for stealing ideas, not a supported product. It ships as a **pnpm + Turborepo workspace** with a real Effect v4 CLI, tests, formatting, type-aware linting, and vendored source mirrors for Effect, effect-solutions, XState, and Alchemy.
 
-The shape it teaches: define a **Capability** once (Effect Schema in, out, and failure; an Effect handler; read-only / destructive / approval annotations) and project it onto every agent surface. The same `inspectFile` capability is the `stats` command, `POST /inspectFile` with an OpenAPI document, and an MCP tool over stdio.
+The shape it teaches: define a **Contract** once (Effect input, output, and failure schemas plus annotations), bind a server-side handler, then project that capability onto every agent surface. The same `inspectFile` capability is the `stats` command, `POST /inspectFile` with an OpenAPI document, and an MCP tool over stdio.
 
 ## Create a repository
 
@@ -28,8 +28,8 @@ Node `24.18.0` and pnpm `11.3.0` are required. The requirement is declared in `.
 | Path | Package | Role |
 | --- | --- | --- |
 | `apps/cli` | `@rat-stack/cli` | Composition root: `stats`, `openapi`, `serve`, `mcp` |
-| `packages/capability` | `@rat-stack/capability` | `defineCapability` plus `toCommand`, `toHttpApi`, `toToolkit` |
-| `packages/core` | `@rat-stack/core` | Domain example: the `inspectFile` capability and its lifecycle machine |
+| `packages/capability` | `@rat-stack/capability` | `defineContract`, `implement`, and the `toCommand`, `toHttpApi`, `toToolkit`, `toRpc`, and `toCodeMode` projections |
+| `packages/core` | `@rat-stack/core` | Domain example: the `inspectFile` contract, handler, and lifecycle machine |
 | `apps/infra` | `@rat-stack/infra` | Alchemy Stack (Cloudflare by default) |
 | `apps/mischief` | `@rat-stack/mischief` | Cloudflare Worker for the public site, agent discovery, and sandboxed execute |
 | `.agent_sources/` | — | Shallow upstream mirrors (gitignored clones; see README there) |
@@ -161,13 +161,13 @@ The template is itself a project, so it ships more than a bare scaffold. Delete 
 
 | Want | Keep | Delete |
 | --- | --- | --- |
-| Only the CLI | `packages/capability/src/capability.ts`, `packages/capability/src/to-command.ts`, and their tests; all of `packages/core` | every other file in `packages/capability/src` and `packages/capability/test`; `apps/cli/src/surfaces.ts`; the `catalog`, `openapi`, `serve`, and `mcp` commands in `apps/cli/src/command.ts`; `apps/cli/test/serve.test.ts` and the MCP and catalog cases in `apps/cli/test/cli.e2e.test.ts` |
+| Only the CLI | `packages/capability/src/contract.ts`, `packages/capability/src/implement.ts`, `packages/capability/src/to-command.ts`, and their tests; all of `packages/core` | every other file in `packages/capability/src` and `packages/capability/test`; `apps/cli/src/surfaces.ts`; the `catalog`, `openapi`, `serve`, and `mcp` commands in `apps/cli/src/command.ts`; `apps/cli/test/serve.test.ts` and the MCP and catalog cases in `apps/cli/test/cli.e2e.test.ts` |
 | No code mode |  | `packages/capability/src/catalog.ts`, `packages/capability/src/code-mode.ts`, `packages/capability/src/sandbox-error.ts`, `packages/capability/src/sandbox-service.ts`, `packages/capability/src/sandbox-subprocess.ts`, and `packages/capability/src/to-code-mode.ts`; `packages/capability/test/catalog.test.ts`, `packages/capability/test/sandbox.test.ts`, and `packages/capability/test/to-code-mode.test.ts`; the `./sandbox` and `./code-mode` exports in `packages/capability/package.json`; `codeMode` and `mcpServer.codeMode` in `apps/cli/src/surfaces.ts`; the `catalog` command and the `--code-mode` flag in `apps/cli/src/command.ts`; the code-mode and catalog cases in `apps/cli/test/cli.e2e.test.ts` |
 | No HTTP |  | `packages/capability/src/to-http-api.ts`, `packages/capability/src/http-api.ts`, and their tests; the `./http-api` export in `packages/capability/package.json`; `http`, `routes`, and `webServer` in `apps/cli/src/surfaces.ts`; the `openapi` and `serve` commands; `apps/cli/test/serve.test.ts`; the OpenAPI case in `apps/cli/test/cli.e2e.test.ts` |
 | No MCP |  | `packages/capability/src/to-toolkit.ts`, `packages/capability/src/toolkit.ts`, their test, and `packages/capability/test/mcp-harness.ts`; the `./toolkit` export in `packages/capability/package.json`; `tools` and `mcpServer` in `apps/cli/src/surfaces.ts`; the `mcp` command; the MCP cases in `apps/cli/test/cli.e2e.test.ts`. Code mode imports from `packages/capability/src/to-toolkit.ts`, so cutting MCP cuts code mode too |
 | No XState |  | `packages/core/src/inspect-machine.ts` and its test (call `FileInspector.inspect` directly from `packages/core/src/inspect-file.ts`); `xstate` and `@xstate/effect` in `packages/core/package.json` and their `minimumReleaseAgeExclude` entries in `pnpm-workspace.yaml`; `scripts/oxlint-plugin-xstate-effect.ts` and its entry in `oxlint.config.ts` |
 
-`defineCapability` plus `toCommand` is the minimum that keeps `stats` working. `packages/capability/src/capability.ts` has no dependency on the other projections.
+`defineContract`, `implement`, and `toCommand` are the minimum that keep `stats` working. The contract module has no dependency on the other projections.
 
 ## License
 

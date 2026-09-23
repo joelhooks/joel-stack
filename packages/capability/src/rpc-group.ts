@@ -1,5 +1,3 @@
-export { toRpc, type ContractsOf, type RpcProjection } from "./to-rpc.js";
-
 export {
   toRpcGroup,
   type RpcGroupProjection,

@@ -1,41 +1,51 @@
 ---
 name: add-a-capability
-description: Learn how one Effect action becomes a command, HTTP route, MCP tool, and sandbox call.
+description: Learn how one contract and its handler become a command, HTTP route, MCP tool, and sandbox call.
 ---
 
 # Add a capability
 
-Build one action all the way through the stack. Copy the `inspectFile` example. Do not write separate business logic for each interface.
+Define the shared contract once. Implement its handler where the data and infrastructure live. Do not write separate business logic for each interface.
 
-## 1. Define the action
+## 1. Define the contract
 
-Create `packages/core/src/<capability>.ts`.
+Put cross-process contracts in `packages/core/src/contracts.ts` and import `defineContract` from `@rat-stack/capability/contract`.
 
-1. Define the output schema and the schema for expected errors.
-2. Call `defineCapability` from `@rat-stack/capability`.
-3. Give the capability a stable name and a short description.
-4. Use `Schema.Struct` for its input.
-5. Set honest flags such as `readOnly`, `idempotent`, and `needsApproval`. `needsApproval: true` is not a label. It adds the `Approval` service to the handler's requirements, so every surface must provide a policy (`Approval.denyAll` is the default at the CLI root, `--yes` opts in, `Approval.allowAll` is for tests) and the capability gains an `ApprovalDenied` failure (403 over HTTP, a typed tool error over MCP and code mode).
-6. Keep the handler small. Put real work in a service or lifecycle machine.
+1. Define the input, output, and expected failure schemas.
+2. Give the contract a stable name and short description.
+3. Use `Schema.Struct` for the input.
+4. Set honest annotations such as `readOnly`, `idempotent`, `destructive`, and `openWorld`.
+5. Set `needsApproval: true` when the action needs approval. `implement` adds the `Approval` requirement and `ApprovalDenied` failure; the handler itself declares only the contract's failures.
 
 ```ts
-export const doThing = defineCapability("doThing", {
+export const doThingContract = defineContract("doThing", {
   annotations: { idempotent: true, readOnly: true },
   description: "Do one concrete thing",
   failure: ThingError,
-  handler: ({ id }) => ThingService.use((service) => service.run(id)),
   input: Schema.Struct({ id: Schema.String }),
   output: ThingResult,
 });
 ```
 
-Schemas must encode and decode without services. Put service dependencies on the handler's Effect.
+Schemas must encode and decode without services. Keep server dependencies out of the contract module.
 
-If the action needs a service, copy `packages/core/src/file-inspector.ts`. Use a `Context.Service` class. Capture dependencies in `make`. Keep `static layer` beside it. Export the service and capability from `packages/core/src/index.ts`.
+## 2. Implement it
 
-## 2. Register it
+Import `implement` from `@rat-stack/capability/implement`. Put the handler next to its service or server-side data. Keep it small; put real work in a service or lifecycle machine.
 
-Add the capability to the `capabilities` tuple in `packages/core/src/inspect-file.ts`:
+```ts
+export const inspectFile = implement(inspectFileContract, ({ path }) =>
+  runInspectMachine(path)
+);
+```
+
+The handler input comes from the contract. Its Effect requirements and expected failures stay typed. `implement` supplies the approval gate when the contract requires it.
+
+If the action needs a service, copy `packages/core/src/file-inspector.ts`. Use a `Context.Service` class. Capture dependencies in `make` and keep `static layer` beside it.
+
+## 3. Register it
+
+Add the implementation to the `capabilities` tuple consumed by its composition root. For the CLI example, that tuple lives in `packages/core/src/inspect-file.ts`:
 
 ```ts
 import { doThing } from "./do-thing.js";
@@ -43,42 +53,30 @@ import { doThing } from "./do-thing.js";
 export const capabilities = [inspectFile, doThing] as const;
 ```
 
-The order is public. This tuple feeds HTTP, MCP, the catalogue, and sandbox declarations.
+The order is public. The tuple feeds the projections and code-mode declarations.
 
-## 3. Check its command
+## 4. Project the implementation
 
-The CLI builds one subcommand per registered capability from the same tuple, so `doThing` already exists once step 2 is done. Only open `apps/cli/src/command.ts` when the command needs something the schema cannot say: a positional argument, a custom renderer, or an alias (`inspectFile` keeps `stats` that way). A test in `apps/cli/test/command.test.ts` fails if a registered capability is missing from the command tree.
-
-Use:
-
-- `name` when the command name differs from the capability name
-- `positional` for input fields that should be arguments
-- `render` for readable output
-
-`toCommand` adds `--json`. Do not parse the fields again or call the service directly.
-
-## 4. Check the other interfaces
-
-You do not need more handlers.
+The CLI, HTTP, MCP, and code-mode projections take implemented capabilities. They read names, schemas, annotations, and approval settings from `capability.contract`.
 
 - HTTP adds `POST /doThing` and updates OpenAPI.
 - MCP adds a `doThing` tool with the same schemas and flags.
 - The sandbox catalogue adds `tools.doThing(input)`.
-- Sandbox calls still decode input, run the same handler, and encode the result.
+- Sandbox calls decode input, run the same handler, then encode the result.
 
-If the action needs a new service, provide its layer once in `apps/cli/src/cli.ts`.
+`toCommand` builds one CLI command from the registered tuple. Open `apps/cli/src/command.ts` only when the command needs a positional argument, custom renderer, or alias. Use `name`, `positional`, and `render` for those cases. `toCommand` adds `--json`; do not parse fields again or call the service directly.
+
+For browser RPC clients, import contracts from `@rat-stack/core/contracts` and `toRpcGroup` from `@rat-stack/capability/rpc-group`. Do not import a handler or the server-side `toRpc` projection.
 
 ## 5. Test it
 
-Use `@effect/vitest`. Run Effects with `it.effect` or `it.layer`. Do not call `Effect.run*` or `ManagedRuntime.make` in tests.
+Use `@effect/vitest` and run Effects with `it.effect` or `it.layer`. Do not call `Effect.run*` or `ManagedRuntime.make` in tests.
 
-Add these tests:
+1. Test the handler's output, expected failures, annotations, and approval behavior.
+2. Add projection tests when the projection changes. Check that client RPC groups can be built from contracts alone.
+3. Add a CLI e2e case when the new capability changes the command tree or a public interface.
 
-1. `packages/core/test/<capability>.test.ts`: check the output, expected errors, and flags.
-2. Shared interface tests only when the code that builds those interfaces changes.
-3. `apps/cli/test/cli.e2e.test.ts`: check the command, OpenAPI route, MCP tool, and sandbox declaration. Run the sandbox path when it adds useful coverage.
-
-Use `Schema.encodeEffect` to check the encoded result. Use `Effect.flip` to inspect expected errors.
+Use `Schema.encodeEffect` to check encoded results and `Effect.flip` to inspect expected errors.
 
 ## 6. Finish
 

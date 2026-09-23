@@ -10,7 +10,7 @@ export {
   ResourceNotFound,
   SearchMatch,
   SearchOutput,
-} from "./schemas.js";
+} from "@rat-stack/core/contracts";
 
 export { search } from "./search.js";
 
@@ -19,7 +19,7 @@ export const contentCapabilities = [search, read] as const;
 const generatedExecuteProjection = toExecuteCapability(contentCapabilities);
 
 const executeDescription = [
-  generatedExecuteProjection.capability.description,
+  generatedExecuteProjection.capability.contract.description,
   "",
   "The program is the body of an async function: `return` sets the result, and `console.log` output is returned in `logs`. Imports, exports, and `fetch` are unavailable; call tools as `await tools.search({...})` or `await tools.read({...})`.",
   "Pass the program in the `code` argument. Example:",
@@ -32,7 +32,10 @@ const executeDescription = [
 
 export const execute = {
   ...generatedExecuteProjection.capability,
-  description: executeDescription,
+  contract: {
+    ...generatedExecuteProjection.capability.contract,
+    description: executeDescription,
+  },
 };
 
 export const executeProjection = {

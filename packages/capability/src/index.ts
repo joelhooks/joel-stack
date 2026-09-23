@@ -1,11 +1,15 @@
 export {
-  defineCapability,
+  defineContract,
   failureSchemaOf,
   type Annotations,
   type AnyCapability,
+  type AnyContract,
   type ApprovalRequirement,
   type Capability,
-  type DefineOptions,
+  type Contract,
+  type ContractFailureOf,
+  type ContractOf,
+  type DefineContractOptions,
   type FailureOf,
   type FailureSchemaOf,
   type InputOf,
@@ -14,7 +18,9 @@ export {
   type OutputOf,
   type PlainSchema,
   type RequirementsOf,
-} from "./capability.js";
+} from "./contract.js";
+
+export { implement } from "./implement.js";
 
 export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";
 
@@ -66,9 +72,11 @@ export {
   type ToolsOf,
 } from "./to-toolkit.js";
 
+export { toRpc, type ContractsOf, type RpcProjection } from "./to-rpc.js";
+
 export {
-  toRpc,
+  toRpcGroup,
+  type RpcGroupProjection,
   type RpcOf,
-  type RpcProjection,
   type RpcsOf,
-} from "./to-rpc.js";
+} from "./to-rpc-group.js";

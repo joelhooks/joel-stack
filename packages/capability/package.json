@@ -14,10 +14,20 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./contract": {
+      "types": "./src/contract.ts",
+      "import": "./dist/contract.js",
+      "default": "./dist/contract.js"
+    },
     "./define": {
       "types": "./src/define.ts",
       "import": "./dist/define.js",
       "default": "./dist/define.js"
+    },
+    "./implement": {
+      "types": "./src/implement.ts",
+      "import": "./dist/implement.js",
+      "default": "./dist/implement.js"
     },
     "./toolkit": {
       "types": "./src/toolkit.ts",
@@ -33,6 +43,11 @@
       "types": "./src/rpc.ts",
       "import": "./dist/rpc.js",
       "default": "./dist/rpc.js"
+    },
+    "./rpc-group": {
+      "types": "./src/rpc-group.ts",
+      "import": "./dist/rpc-group.js",
+      "default": "./dist/rpc-group.js"
     },
     "./sandbox": {
       "types": "./src/sandbox-service.ts",

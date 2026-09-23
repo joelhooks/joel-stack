@@ -10,7 +10,7 @@ describe("command registration", () => {
     );
 
     for (const capability of capabilities) {
-      expect(names).toContain(capability.name);
+      expect(names).toContain(capability.contract.name);
     }
 
     expect(

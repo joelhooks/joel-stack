@@ -7,12 +7,31 @@ import type * as Rpc from "effect/unstable/rpc/Rpc";
 import {
   Approval,
   ApprovalDenied,
-  defineCapability,
+  defineContract,
+  implement,
   toRpc,
+  toRpcGroup,
 } from "../src/index.js";
-import type { AnyCapability, RpcProjection, RpcsOf } from "../src/index.js";
+import type {
+  AnyCapability,
+  ContractsOf,
+  RpcProjection,
+  RpcsOf,
+} from "../src/index.js";
 import { Greeter, approved, echo, greet } from "./fixtures.js";
 import { NotFound } from "./not-found.js";
+
+type Assert<Condition extends true> = Condition;
+
+type ApprovedHandler = Parameters<
+  typeof implement<typeof approved.contract, never>
+>[1];
+
+type ForgedApprovalHandler = () => Effect.Effect<never, ApprovalDenied>;
+
+export type ApprovalDeniedIsReservedForTheGate = Assert<
+  ForgedApprovalHandler extends ApprovedHandler ? false : true
+>;
 
 const InvalidStrictRpcRequest = Schema.TaggedStruct("Request", {
   headers: Schema.Array(Schema.Tuple([Schema.String, Schema.String])),
@@ -23,10 +42,12 @@ const InvalidStrictRpcRequest = Schema.TaggedStruct("Request", {
 
 const makeInMemoryRpc = <Caps extends readonly AnyCapability[]>(
   projection: RpcProjection<Caps>,
-  handlers: Layer.Layer<Rpc.ToHandler<RpcsOf<Caps>[number]>>
+  handlers: Layer.Layer<Rpc.ToHandler<RpcsOf<ContractsOf<Caps>>[number]>>
 ) => RpcTest.makeClient(projection.group).pipe(Effect.provide(handlers));
 
 const projection = toRpc([echo, greet]);
+
+const clientGroup = toRpcGroup([echo.contract, greet.contract]);
 
 const greeterLayer = projection.layer.pipe(Layer.provide(Greeter.layer));
 
@@ -41,6 +62,25 @@ const allowedApprovalLayer = approvalProjection.layer.pipe(
 );
 
 describe("toRpc", () => {
+  it("builds a client group from contracts without implementations", () => {
+    expect([...clientGroup.group.requests.keys()]).toEqual(["echo", "greet"]);
+    expect(clientGroup.group.requests.get("echo")?.payloadSchema).toBe(
+      echo.contract.input
+    );
+    expect([...projection.group.requests.keys()]).toEqual([
+      ...clientGroup.group.requests.keys(),
+    ]);
+    expect(projection.group.requests.get("echo")?.payloadSchema).toBe(
+      clientGroup.group.requests.get("echo")?.payloadSchema
+    );
+    expect(projection.group.requests.get("echo")?.successSchema).toBe(
+      clientGroup.group.requests.get("echo")?.successSchema
+    );
+    expect(projection.group.requests.get("echo")?.errorSchema).toBe(
+      clientGroup.group.requests.get("echo")?.errorSchema
+    );
+  });
+
   it.effect("returns a decoded capability output from an in-memory RPC", () =>
     Effect.gen(function* success() {
       const client = yield* makeInMemoryRpc(projection, greeterLayer);
@@ -89,18 +129,20 @@ describe("toRpc", () => {
     Effect.gen(function* invalidPayload() {
       let handlerRuns = 0;
 
-      const strict = defineCapability("strict", {
+      const strictContract = defineContract("strict", {
         description: "Accept a string name",
         failure: Schema.Never,
-        handler: ({ name }) =>
-          Effect.sync(() => {
-            handlerRuns += 1;
-
-            return { name };
-          }),
         input: Schema.Struct({ name: Schema.String }),
         output: Schema.Struct({ name: Schema.String }),
       });
+
+      const strict = implement(strictContract, ({ name }) =>
+        Effect.sync(() => {
+          handlerRuns += 1;
+
+          return { name };
+        })
+      );
 
       const strictProjection = toRpc([strict]);
 
