@@ -437,11 +437,125 @@ const noFeatureTransport = defineRule({
   },
 });
 
+const surfaceConstructors = new Map<string, ReadonlySet<string>>([
+  ["HttpApi", new Set(["make"])],
+  [
+    "HttpApiEndpoint",
+    new Set([
+      "del",
+      "delete",
+      "get",
+      "head",
+      "make",
+      "options",
+      "patch",
+      "post",
+      "put",
+    ]),
+  ],
+  ["HttpApiGroup", new Set(["make"])],
+  ["Rpc", new Set(["make"])],
+  ["RpcGroup", new Set(["make"])],
+  ["Tool", new Set(["make"])],
+  ["Toolkit", new Set(["make"])],
+]);
+
+const noHandRolledSurface = defineRule({
+  create(context) {
+    if (isCapabilityPackage(workspacePath(context.filename))) {
+      return {};
+    }
+
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+
+        if (
+          callee.type !== "MemberExpression" ||
+          callee.object.type !== "Identifier" ||
+          callee.property.type !== "Identifier"
+        ) {
+          return;
+        }
+
+        const methods = surfaceConstructors.get(callee.object.name);
+
+        if (methods?.has(callee.property.name) === true) {
+          context.report({
+            data: { call: `${callee.object.name}.${callee.property.name}` },
+            messageId: "handRolled",
+            node,
+          });
+        }
+      },
+    };
+  },
+  meta: {
+    docs: {
+      description:
+        "Build RPC, HTTP, and MCP surfaces from contracts through packages/capability projections.",
+    },
+    messages: {
+      handRolled:
+        "{{call}} hand-rolls a surface. Define a contract with defineContract, implement it, and project it with toRpcGroup, toRpc, toHttpApi, or toToolkit so every surface shares one definition.",
+    },
+    type: "problem",
+  },
+});
+
+const browserGlobals = new Set([
+  "document",
+  "localStorage",
+  "navigator",
+  "sessionStorage",
+  "window",
+]);
+
+const isServerSource = (filename: string) =>
+  /^(?:apps|packages)\/[^/]+\/src\/.+/u.test(filename) &&
+  !isBrowserZone(filename);
+
+const noBrowserGlobalsOnServer = defineRule({
+  create(context) {
+    if (!isServerSource(workspacePath(context.filename))) {
+      return {};
+    }
+
+    return {
+      MemberExpression(node) {
+        if (
+          node.object.type === "Identifier" &&
+          browserGlobals.has(node.object.name)
+        ) {
+          context.report({
+            data: { name: node.object.name },
+            messageId: "browserGlobal",
+            node: node.object,
+          });
+        }
+      },
+    };
+  },
+  meta: {
+    docs: {
+      description:
+        "Keep browser-only globals in apps/*/src/client and apps/*/src/features.",
+    },
+    messages: {
+      browserGlobal:
+        "{{name}} exists only in a browser. Server, Worker, and package code runs without it; move this into apps/*/src/client or apps/*/src/features.",
+    },
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "rat-stack-boundaries" },
   rules: {
+    "no-browser-globals-on-server": noBrowserGlobalsOnServer,
     "no-browser-server-imports": noBrowserServerImports,
     "no-cross-layer-imports": noCrossLayerImports,
     "no-feature-transport": noFeatureTransport,
+    "no-hand-rolled-surface": noHandRolledSurface,
   },
 });
