@@ -15,7 +15,19 @@ const decodeSourceMap = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Struct({ sources: Schema.Array(Schema.String) }))
 );
 
-const bundledSources = (nodeEnv: "development" | "production") => {
+const forbiddenStrings = [
+  "rat_call",
+  "rat_test_person",
+  "rat-test-person-password",
+];
+
+const forbiddenModules = [
+  "src/dev/",
+  "../../packages/devtools/",
+  "../../packages/auth/src/devtools",
+];
+
+const build = (nodeEnv: "development" | "production") => {
   const outDir = mkdtempSync(path.join(tmpdir(), "rat-web-bundle-"));
 
   try {
@@ -31,38 +43,69 @@ const bundledSources = (nodeEnv: "development" | "production") => {
 
     expect(result.status, result.stderr).toBe(0);
 
-    const sources = globSync("**/*.map", { cwd: outDir }).flatMap(
-      (file) =>
-        decodeSourceMap(readFileSync(path.join(outDir, file), "utf-8")).sources
-    );
+    const maps = globSync("**/*.map", { cwd: outDir });
 
-    return new Set(
-      sources.map((source) =>
+    const sources = maps.flatMap((file) =>
+      decodeSourceMap(
+        readFileSync(path.join(outDir, file), "utf-8")
+      ).sources.map((source) =>
         path
-          .relative(webRoot, path.resolve(outDir, "server/assets", source))
+          .relative(webRoot, path.resolve(outDir, path.dirname(file), source))
           .split(path.sep)
           .join("/")
           .replace(/\?.*$/u, "")
       )
     );
+
+    const emitted = globSync("**/*.js", { cwd: outDir }).map((file) =>
+      readFileSync(path.join(outDir, file), "utf-8")
+    );
+
+    return {
+      sources: new Set(sources),
+      strings: forbiddenStrings.filter((text) =>
+        emitted.some((code) => code.includes(text))
+      ),
+    };
   } finally {
     rmSync(outDir, { force: true, recursive: true });
   }
 };
 
+const devtoolsModules = (sources: ReadonlySet<string>) =>
+  [...sources].filter((source) =>
+    forbiddenModules.some((prefix) => source.startsWith(prefix))
+  );
+
+const BUILD = 60_000;
+
 describe("production bundle", () => {
-  it("contains no module from src/dev", () => {
-    const sources = bundledSources("production");
+  it(
+    "contains no dev module, no devtools, and no test people",
+    () => {
+      const { sources, strings } = build("production");
 
-    expect(sources.has("src/server/backend.ts")).toBe(true);
-    expect(
-      [...sources].filter((source) => source.startsWith("src/dev/"))
-    ).toEqual([]);
-  });
+      expect(sources.has("src/server/backend.ts")).toBe(true);
+      expect(devtoolsModules(sources)).toEqual([]);
+      expect(strings).toEqual([]);
+    },
+    BUILD
+  );
 
-  it("would contain the dev backend in a development build, so the check can fail", () => {
-    const sources = bundledSources("development");
+  it(
+    "would contain them in a development build, so the checks can fail",
+    () => {
+      const { sources, strings } = build("development");
 
-    expect(sources.has("src/dev/backend.ts")).toBe(true);
-  });
+      expect(sources.has("src/dev/backend.ts")).toBe(true);
+      expect(sources.has("src/dev/features/overlay/overlay.tsx")).toBe(true);
+      expect(
+        [...sources].some((source) =>
+          source.startsWith("../../packages/devtools/")
+        )
+      ).toBe(true);
+      expect(strings).toEqual(forbiddenStrings);
+    },
+    BUILD
+  );
 });

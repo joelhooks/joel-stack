@@ -7,6 +7,10 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { DevtoolsOverlay } from "#devtools-overlay";
+
+import { ClientOnly } from "../features/shared/client-only.js";
+
 import "../styles.css";
 
 const Document = (props: Readonly<{ children: ReactNode }>) => (
@@ -31,6 +35,9 @@ const RootComponent = () => (
         <span>Law and skills</span>
       </header>
       <Outlet />
+      <ClientOnly fallback={<></>}>
+        <DevtoolsOverlay />
+      </ClientOnly>
     </RegistryProvider>
   </Document>
 );

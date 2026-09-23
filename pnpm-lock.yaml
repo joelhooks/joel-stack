@@ -360,12 +360,18 @@ importers:
       '@effect/atom-react':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)(react@19.2.0)(scheduler@0.27.0)
+      '@rat-stack/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@rat-stack/capability':
         specifier: workspace:*
         version: link:../../packages/capability
       '@rat-stack/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@rat-stack/devtools':
+        specifier: workspace:*
+        version: link:../../packages/devtools
       '@rat-stack/mischief':
         specifier: workspace:*
         version: link:../mischief

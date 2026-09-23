@@ -41,11 +41,15 @@ const RpcExit = Schema.fromJsonString(
   ])
 );
 
-const callRpc = async (tag: string, payload: Schema.JsonObject) => {
+const callRpc = async (
+  tag: string,
+  payload: Schema.JsonObject,
+  route = "/rpc"
+) => {
   // oxlint-disable-next-line anti-slop-effect/no-manual-tagged-construction -- This is the Effect RPC wire message the browser sends; the black-box test writes it by hand on purpose.
   const request = { _tag: "Request", headers: [], id: "1", payload, tag };
 
-  const response = await fetch(`${await origin}/rpc`, {
+  const response = await fetch(`${await origin}${route}`, {
     body: JSON.stringify(request),
     headers: { "content-type": "application/json" },
     method: "POST",
@@ -66,31 +70,64 @@ afterAll(() => {
   server.kill();
 });
 
+const FIRST_COMPILE = 30_000;
+
 describe("vite dev", () => {
-  it("serves the search page", async () => {
-    const response = await fetch(`${await origin}/`);
+  it(
+    "serves the search page",
+    async () => {
+      const response = await fetch(`${await origin}/`);
 
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Find the rule or skill you need.");
-  });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain(
+        "Find the rule or skill you need."
+      );
+    },
+    FIRST_COMPILE
+  );
 
-  it("answers search and read over /rpc in process", async () => {
-    const search = await callRpc("search", { limit: 1, query: "capability" });
+  it(
+    "answers search and read over /rpc in process",
+    async () => {
+      const search = await callRpc("search", { limit: 1, query: "capability" });
 
-    const found = Schema.decodeUnknownSync(
-      Schema.Struct({
-        matches: Schema.Array(Schema.Struct({ id: Schema.String })),
-      })
-    )(search.value);
+      const found = Schema.decodeUnknownSync(
+        Schema.Struct({
+          matches: Schema.Array(Schema.Struct({ id: Schema.String })),
+        })
+      )(search.value);
 
-    const [first] = found.matches;
+      const [first] = found.matches;
 
-    expect(search._tag).toBe("Success");
-    expect(first).toBeDefined();
+      expect(search._tag).toBe("Success");
+      expect(first).toBeDefined();
 
-    const read = await callRpc("read", { id: first?.id ?? "" });
+      const read = await callRpc("read", { id: first?.id ?? "" });
 
-    expect(read._tag).toBe("Success");
-    expect(read.value).toMatchObject({ id: first?.id });
-  });
+      expect(read._tag).toBe("Success");
+      expect(read.value).toMatchObject({ id: first?.id });
+    },
+    FIRST_COMPILE
+  );
+
+  it(
+    "records /rpc calls for the devtools at /__rat/rpc",
+    async () => {
+      await callRpc("search", { limit: 1, query: "machine" });
+
+      const calls = await callRpc(
+        "rat_list_calls",
+        { capability: "search" },
+        "/__rat/rpc"
+      );
+
+      const listed = Schema.decodeUnknownSync(
+        Schema.Struct({ matched: Schema.Int })
+      )(calls.value);
+
+      expect(calls._tag).toBe("Success");
+      expect(listed.matched).toBeGreaterThan(0);
+    },
+    FIRST_COMPILE
+  );
 });
