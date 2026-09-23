@@ -94,7 +94,7 @@ Inventory: [`.agent_sources/README.md`](./.agent_sources/README.md).
 | `@xstate/effect` (v6 Effect bridge) | `.agent_sources/github.com/statelyai/xstate/packages/xstate-effect/` (`README.md`, `docs/`, `src/*.test.ts`) |
 | Alchemy resources, Cloudflare, AWS | `.agent_sources/github.com/alchemy-run/alchemy/` and https://alchemy.run/llms.txt |
 
-Refs are derived from the workspace pins, so bumping a package and re-running the script keeps them matched. The script also links `.agent-sources/effect` (what the `pi-effect` tool reads) to the pinned Effect mirror.
+Refs are derived from the workspace pins, so bumping a package and re-running the script keeps them matched. The `pi-effect` tool reads the Effect mirror in place; it needs no link.
 
 Mirrors are reference material, not runtime dependencies. Exclude them from typecheck, test, lint, and format. Do not vendor product-specific corpora in this template.
 

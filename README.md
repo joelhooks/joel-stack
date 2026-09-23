@@ -76,7 +76,7 @@ Code mode is the fourth projection. The model gets `search` (ranked matches with
 - **Vitest `5.0.1` + `@effect/vitest` `4.0.0-rc.117`**: `it.effect` and `it.layer` for every Effect test; running Effects by hand in a test file is a lint error.
 - **`@effect/tsgo` `0.45.0`**: patches TypeScript 7 in `prepare` so Effect language-service diagnostics (leaked requirements, `any`/`unknown` in channels, global Date/fetch/console inside Effect, Node built-ins where Effect has a service) fail `tsc`.
 - **varlock `1.20.0`**: `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.
-- **Vendored agent sources**: Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy) via `./scripts/vendor-agent-sources.sh` (not x-algorithm; that stays app-specific).
+- **Vendored agent sources**: Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy), [Better Auth](https://github.com/better-auth/better-auth), and [TanStack Router/Start](https://github.com/TanStack/router) via `./scripts/vendor-agent-sources.sh`, each at the ref its workspace pin names (not x-algorithm; that stays app-specific).
 - **Agent fence**: lefthook pre-commit + Pi/Cursor/Claude hooks that block `git … --no-verify`. Cheating should be uncomfortable and obvious.
 
 Every dependency is pinned exactly. Upgrade pins as a reviewed stack change, not ambient drift.
