@@ -6,9 +6,15 @@ import {
   toCatalog,
 } from "@rat-stack/capability";
 import type { AnyCapability, AnyContract, Around } from "@rat-stack/capability";
+import { ActorWatch } from "@rat-stack/capability/actor-watch";
+import type { ActorWatchService } from "@rat-stack/capability/actor-watch";
 import type { JsonSchema } from "effect";
-import { Cause, Clock, Effect, Exit, Option, Schema } from "effect";
+import { Cause, Clock, Effect, Exit, Layer, Option, Schema } from "effect";
 
+import { ActorEntrySchema, ActorLog } from "./actor-log.js";
+import type { ActorEntry, ActorLogSnapshot } from "./actor-log.js";
+import { ActorNotFound } from "./actor-not-found.js";
+import { actorWatcher } from "./actor-watcher.js";
 import { CallEntrySchema, CallLog, OutcomeSchema } from "./call-log.js";
 import type { CallEntry, CallLogSnapshot, Outcome } from "./call-log.js";
 import { CallNotFound } from "./call-not-found.js";
@@ -18,9 +24,12 @@ import {
   ratCountCalls,
   ratDescribeContract,
   ratDiffCalls,
+  ratGetActor,
   ratGetCall,
+  ratListActors,
   ratListCalls,
   ratListContracts,
+  ratListTransitions,
   ratReplayCall,
 } from "./contracts.js";
 import type { InvokeResult } from "./contracts.js";
@@ -59,11 +68,15 @@ const outcomeOf = <A, E>(contract: AnyContract, exit: Exit.Exit<A, E>) =>
       });
 
 const recorder =
-  (log: CallLog["Service"]): Around =>
+  (log: CallLog["Service"], watcher: ActorWatchService): Around =>
   (contract, input, run) =>
     Effect.gen(function* recordCall() {
       const startedAt = yield* Clock.currentTimeMillis;
-      const exit = yield* Effect.exit(run);
+
+      const exit = yield* Effect.exit(
+        run.pipe(Effect.provideService(ActorWatch, watcher))
+      );
+
       const finishedAt = yield* Clock.currentTimeMillis;
 
       yield* log.append({
@@ -82,8 +95,9 @@ export const record = <const Caps extends readonly AnyCapability[]>(
 ) =>
   Effect.gen(function* recordCapabilities() {
     const log = yield* CallLog;
+    const watcher = yield* actorWatcher;
 
-    return aroundHandlers(capabilities, recorder(log));
+    return aroundHandlers(capabilities, recorder(log, watcher));
   });
 
 const summaryOf = ({ contract }: AnyCapability) => ({
@@ -138,9 +152,36 @@ const jsonSchemaOf = (schema: JsonSchema.JsonSchema | undefined) =>
     Effect.orElseSucceed((): Schema.Json => ({}))
   );
 
+const latestActors = (snapshot: ActorLogSnapshot) => {
+  const latest = new Map<string, ActorEntry>();
+  const transitions = new Map<string, number>();
+
+  for (const entry of snapshot.entries) {
+    latest.set(entry.actorId, entry);
+
+    if (entry.kind === "transition") {
+      transitions.set(entry.actorId, (transitions.get(entry.actorId) ?? 0) + 1);
+    }
+  }
+
+  return [...latest.values()].map((entry) => ({
+    actorId: entry.actorId,
+    lastIndex: entry.index,
+    machine: entry.machine,
+    rootId: entry.rootId,
+    state: entry.state,
+    status: entry.status,
+    transitions: transitions.get(entry.actorId) ?? 0,
+  }));
+};
+
+const encodeActorEntry = (entry: ActorEntry) =>
+  toJson(ActorEntrySchema, entry).pipe(Effect.map(summarize));
+
 const toolsFor = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps,
-  log: CallLog["Service"]
+  log: CallLog["Service"],
+  actors: ActorLog["Service"]
 ) => {
   const byName = new Map(
     capabilities.map((capability) => [capability.contract.name, capability])
@@ -317,6 +358,80 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
         return { changes: diff(comparableOf(before), comparableOf(after)) };
       })
     ),
+    implement(
+      ratListActors,
+      Effect.fn("Devtools.listActors")(function* listActorsHandler({
+        machine,
+      }) {
+        const snapshot = yield* actors.snapshot;
+
+        return {
+          actors: latestActors(snapshot).filter(
+            (actor) => machine === undefined || actor.machine === machine
+          ),
+          firstIndex: snapshot.firstIndex,
+          nextIndex: snapshot.nextIndex,
+        };
+      })
+    ),
+    implement(
+      ratListTransitions,
+      Effect.fn("Devtools.listTransitions")(function* listTransitionsHandler({
+        actorId,
+        fromEnd,
+        limit,
+        machine,
+        sinceIndex,
+      }) {
+        const { entries, firstIndex, nextIndex } = yield* actors.snapshot;
+        const size = limit ?? DEFAULT_LIST_LIMIT;
+
+        const matching = entries.filter(
+          (entry) =>
+            (actorId === undefined || entry.actorId === actorId) &&
+            (machine === undefined || entry.machine === machine) &&
+            (sinceIndex === undefined || entry.index >= sinceIndex)
+        );
+
+        const page =
+          fromEnd === true ? matching.slice(-size) : matching.slice(0, size);
+
+        return {
+          entries: yield* Effect.forEach(encodeActorEntry)(page),
+          firstIndex,
+          matched: matching.length,
+          nextIndex,
+        };
+      })
+    ),
+    implement(
+      ratGetActor,
+      Effect.fn("Devtools.getActor")(function* getActorHandler({
+        actorId,
+        expand,
+        path,
+      }) {
+        const snapshot = yield* actors.snapshot;
+        const known = latestActors(snapshot);
+        const actor = known.find((candidate) => candidate.actorId === actorId);
+
+        const entry = snapshot.entries.findLast(
+          (candidate) => candidate.actorId === actorId
+        );
+
+        if (actor === undefined || entry === undefined) {
+          return yield* new ActorNotFound({
+            actorId,
+            available: known.map((candidate) => candidate.actorId),
+          });
+        }
+
+        const encoded = yield* toJson(ActorEntrySchema, entry);
+        const value = yield* readPath(encoded, path ?? ROOT);
+
+        return { value: expand === true ? value : summarize(value) };
+      })
+    ),
   ] as const;
 };
 
@@ -325,8 +440,10 @@ export const devtools = <const Caps extends readonly AnyCapability[]>(
 ) =>
   Effect.gen(function* buildDevtools() {
     const log = yield* CallLog;
-    const recorded = aroundHandlers(capabilities, recorder(log));
-    const tools = toolsFor(recorded, log);
+    const actors = yield* ActorLog;
+    const watcher = yield* actorWatcher;
+    const recorded = aroundHandlers(capabilities, recorder(log, watcher));
+    const tools = toolsFor(recorded, log, actors);
 
     return {
       capabilities: [...recorded, ...tools] as const,
@@ -334,3 +451,6 @@ export const devtools = <const Caps extends readonly AnyCapability[]>(
       tools,
     };
   });
+
+export const devtoolsLayer = (capacity?: number) =>
+  Layer.mergeAll(CallLog.layer(capacity), ActorLog.layer(capacity));

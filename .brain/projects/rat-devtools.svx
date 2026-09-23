@@ -161,3 +161,19 @@ The five lint rules from the translation table landed on the same branch, each w
 
 All five start at zero findings. The only renames were code mode's `contract` to `executeContract` and the devtools contracts to `ratListCalls` and friends.
 
+## Slice 3 status: machines
+
+- `@rat-stack/capability/actor-watch`: `ActorWatch`, a `Context.Reference` whose default does nothing, and `watchActor(machine, actor)`. `WatchableActor` is structural (`sessionId`, `getSnapshot`, `inspect`), so the capability package needs no XState import. Core calls it once, in `runInspectMachine`.
+- The devtools recorder provides a real watcher to every recorded call. It subscribes to `actor.inspect` synchronously, so fast transitions are not missed. It parses each XState inspection event with a Schema, learns child actor names from every snapshot's `children`, and drains its queue when the machine's scope closes, so final transitions are not lost. Pulling devtools out leaves the no-op in place.
+- `ActorLog` shares the ring buffer with `CallLog`. New tools: `rat_list_actors`, `rat_list_transitions`, `rat_get_actor`.
+- Proved end to end: a REST `inspectFile` call on `serve --devtools` records `inspectMachine` going `reading` to `inspected`, and its `readStats` child. Deleting the `watchActor` line fails that test.
+- `rat-stack-patterns/watch-effect-actors` fails lint when runtime source calls `createEffectActor` without `watchActor`.
+
+## Queued
+
+Joel, 2026-09-23: queue all three; Rubicon's badass-devtools "are broken and suck", so nothing is copied from them.
+
+1. **Client atoms, slice 4.** Blocked on `apps/web`. A browser bridge reports the AtomRpc registry (atom keys, values by path, refresh history) to the same devtools process, so `rat_list_atoms` and `rat_get_atom` read the client replica. The open design question is transport: the dev server's `/__rat` route, or the `/rpc` route the web lane builds.
+2. **🐀 overlay, slice 5.** Blocked on `apps/web`. A feature plus a client in `apps/web`, reading only the devtools contracts through `toRpcGroup`: Calls, Contracts with a dispatch form generated from JSON Schema, Machines, Atoms. It replaces badass-devtools in vendoring apps instead of sitting beside it.
+3. **Session and test person, slice 6.** Blocked on `packages/auth`. A Session tab and a `rat_as_person` dev-only capability that runs a call as a chosen test `PersonId`, the replacement for Rubicon's test athlete toggle.
+

@@ -1,7 +1,12 @@
 import { NodeHttpServer, NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { capabilities, FileInspector } from "@rat-stack/core";
-import { CallLog, OutcomeSchema } from "@rat-stack/devtools";
+import {
+  ActorLog,
+  CallLog,
+  OutcomeSchema,
+  devtoolsLayer,
+} from "@rat-stack/devtools";
 import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { HttpClient, HttpRouter } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
@@ -84,6 +89,20 @@ describe("serve routes", () => {
           ? entry.outcome.output
           : undefined
       ).toMatchObject({ lines: 2, words: 3 });
+
+      const machine = yield* (yield* ActorLog).snapshot;
+
+      const root = machine.entries.filter(
+        (step) => step.machine === "inspectMachine"
+      );
+
+      expect(root.map((step) => step.state)).toEqual(["reading", "inspected"]);
+      expect(root.at(-1)?.status).toBe("done");
+      expect(
+        machine.entries
+          .filter((step) => step.machine !== "inspectMachine")
+          .map((step) => step.machine)
+      ).toEqual(["readStats", "readStats"]);
     }).pipe(
       Effect.provide(
         HttpRouter.serve(devtoolsRoutes, {
@@ -91,7 +110,7 @@ describe("serve routes", () => {
           disableLogger: true,
         }).pipe(
           Layer.provideMerge(NodeHttpServer.layerTest),
-          Layer.provideMerge(CallLog.layer()),
+          Layer.provideMerge(devtoolsLayer()),
           Layer.provide(
             FileInspector.layer.pipe(Layer.provide(NodeServices.layer))
           )

@@ -94,7 +94,7 @@ Delete:
 - the `--devtools` flag from `apps/cli/src/command.ts`
 - the devtools cases from `apps/cli/test/serve.test.ts` and `apps/cli/test/cli.e2e.test.ts`
 
-`aroundHandlers` and `invokerFor` stay in `packages/capability`; code mode uses `invokerFor`.
+`aroundHandlers`, `invokerFor`, and `watchActor` stay in `packages/capability`. Code mode uses `invokerFor`, and `watchActor` falls back to a no-op, so machines keep calling it.
 
 ## Clean up after each cut
 

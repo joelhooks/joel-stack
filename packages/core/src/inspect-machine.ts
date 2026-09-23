@@ -1,3 +1,4 @@
+import { watchActor } from "@rat-stack/capability/actor-watch";
 import {
   createEffectActor,
   fromEffect,
@@ -65,6 +66,7 @@ export const inspectMachine = setupEffect({
 export const runInspectMachine = Effect.fn("runInspectMachine")(
   function* runInspectMachine(path: string) {
     const actor = yield* createEffectActor(inspectMachine, { input: { path } });
+    yield* watchActor("inspectMachine", actor);
     // @effect-diagnostics-next-line anyUnknownInErrorContext:off -- A machine-level error or an early stop is a programming error here: the domain failure travels through the `unreadable` state, not the actor. A machine's ErrorFrom is unknown by design (statelyai/xstate#5725), so the unknown-error diagnostic is off for this one call and orDie closes it.
     const outcome = yield* join(actor).pipe(Effect.orDie);
 

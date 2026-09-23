@@ -5,11 +5,18 @@ import {
   implement,
   toToolkit,
 } from "@rat-stack/capability";
+import { watchActor } from "@rat-stack/capability/actor-watch";
+import type {
+  ActorEvent,
+  WatchableActor,
+} from "@rat-stack/capability/actor-watch";
 import { Clock, Effect, Layer, Schema } from "effect";
 import { TestClock } from "effect/testing";
 import { Tool } from "effect/unstable/ai";
 
 import {
+  ActorLog,
+  ActorNotFound,
   CallLog,
   CallNotFound,
   OutcomeSchema,
@@ -17,6 +24,7 @@ import {
   SideSchema,
   UnknownCapability,
   devtools,
+  devtoolsLayer,
   summarize,
 } from "../src/index.js";
 import type { InvokeResult } from "../src/index.js";
@@ -80,7 +88,76 @@ const gated = implement(
   () => Effect.succeed({ done: true })
 );
 
-const app = [echo, lookup, boom, now, gated] as const;
+const counterActor = (
+  observers: Set<(event: ActorEvent) => void>
+): WatchableActor => ({
+  getSnapshot: () => ({
+    context: { count: 0 },
+    status: "active",
+    value: "idle",
+  }),
+  inspect: (observer) => {
+    observers.add(observer);
+
+    return {
+      unsubscribe: () => {
+        observers.delete(observer);
+      },
+    };
+  },
+  sessionId: "root-1",
+});
+
+const emit = (
+  observers: Set<(event: ActorEvent) => void>,
+  event: ActorEvent & Schema.JsonObject
+) => {
+  for (const observer of observers) {
+    observer(event);
+  }
+};
+
+const counter = implement(
+  defineContract("counter", {
+    description: "Run a tiny counter machine",
+    failure: Schema.Never,
+    input: Schema.Struct({ by: Schema.Int }),
+    output: Schema.Struct({ ran: Schema.Boolean }),
+  }),
+  ({ by }) =>
+    Effect.scoped(
+      Effect.gen(function* runCounter() {
+        const observers = new Set<(event: ActorEvent) => void>();
+
+        yield* watchActor("counter", counterActor(observers));
+
+        emit(observers, {
+          actorRef: { sessionId: "child-1" },
+          id: "tick",
+          rootId: "root-1",
+          snapshot: { status: "active" },
+          src: "ticker",
+          type: "@xstate.actor",
+        });
+        emit(observers, {
+          actorRef: { sessionId: "root-1" },
+          event: { by, type: "inc" },
+          eventType: "inc",
+          rootId: "root-1",
+          snapshot: {
+            context: { count: by },
+            status: "done",
+            value: "counted",
+          },
+          type: "@xstate.transition",
+        });
+
+        return { ran: true };
+      })
+    )
+);
+
+const app = [echo, lookup, boom, now, gated, counter] as const;
 
 const setup = devtools(app);
 
@@ -95,6 +172,9 @@ const tools = setup.pipe(
       call,
       replayCall,
       diffCalls,
+      listActors,
+      listTransitions,
+      getActor,
     ] = devtoolsTools;
 
     return {
@@ -102,9 +182,12 @@ const tools = setup.pipe(
       countCalls,
       describeContract,
       diffCalls,
+      getActor,
       getCall,
+      listActors,
       listCalls,
       listContracts,
+      listTransitions,
       replayCall,
     };
   })
@@ -128,7 +211,7 @@ const runTraffic = Effect.gen(function* runTraffic() {
 });
 
 const withLog = (capacity?: number) =>
-  Layer.mergeAll(CallLog.layer(capacity), Approval.allowAll);
+  Layer.mergeAll(devtoolsLayer(capacity), Approval.allowAll);
 
 describe("devtools", () => {
   it.effect("records successes, declared failures, and defects in order", () =>
@@ -251,7 +334,7 @@ describe("devtools", () => {
       const denied = yield* call.handler({ capability: "gated", input: {} });
 
       expect(errorTagOf(denied.result)).toBe("ApprovalDenied");
-    }).pipe(Effect.provide(Layer.mergeAll(CallLog.layer(), Approval.denyAll)))
+    }).pipe(Effect.provide(Layer.mergeAll(devtoolsLayer(), Approval.denyAll)))
   );
 
   it.effect(
@@ -307,6 +390,7 @@ describe("devtools", () => {
           "boom",
           "now",
           "gated",
+          "counter",
         ]);
         expect(queried.contracts.map((contract) => contract.name)).toEqual([
           "now",
@@ -328,6 +412,7 @@ describe("devtools", () => {
         "boom",
         "now",
         "gated",
+        "counter",
         "rat_list_contracts",
         "rat_describe_contract",
         "rat_list_calls",
@@ -336,6 +421,9 @@ describe("devtools", () => {
         "rat_call",
         "rat_replay_call",
         "rat_diff_calls",
+        "rat_list_actors",
+        "rat_list_transitions",
+        "rat_get_actor",
       ]);
     }).pipe(Effect.provide(withLog()))
   );
@@ -354,6 +442,64 @@ describe("devtools", () => {
           });
         }
       }).pipe(Effect.provide(withLog()))
+  );
+
+  it.effect(
+    "records machine transitions from a recorded call, including ones emitted just before the scope closes",
+    () =>
+      Effect.gen(function* recordsMachines() {
+        const { call, getActor, listActors, listTransitions } = yield* tools;
+
+        yield* call.handler({ capability: "counter", input: { by: 3 } });
+
+        const { actors } = yield* listActors.handler({});
+
+        const counted = yield* getActor.handler({
+          actorId: "root-1",
+          path: "root.context.count",
+        });
+
+        const transitions = yield* listTransitions.handler({
+          machine: "counter",
+        });
+
+        const missing = yield* Effect.flip(
+          getActor.handler({ actorId: "nope" })
+        );
+
+        expect(actors).toEqual([
+          {
+            actorId: "root-1",
+            lastIndex: 2,
+            machine: "counter",
+            rootId: "root-1",
+            state: "counted",
+            status: "done",
+            transitions: 1,
+          },
+          {
+            actorId: "child-1",
+            lastIndex: 1,
+            machine: "ticker",
+            rootId: "root-1",
+            state: null,
+            status: "active",
+            transitions: 0,
+          },
+        ]);
+        expect(counted.value).toBe(3);
+        expect(transitions.matched).toBe(2);
+        expect(Schema.is(ActorNotFound)(missing)).toBe(true);
+      }).pipe(Effect.provide(withLog()))
+  );
+
+  it.effect("records nothing when a machine runs outside devtools", () =>
+    Effect.gen(function* watchesNothing() {
+      yield* counter.handler({ by: 1 });
+      const { entries } = yield* (yield* ActorLog).snapshot;
+
+      expect(entries).toEqual([]);
+    }).pipe(Effect.provide(withLog()))
   );
 
   it("summarizes long arrays, long strings, and deep records", () => {
