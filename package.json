@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "dev": "pnpm --filter @rat-stack/web dev",
     "acceptance:cold-clone": "bash scripts/acceptance-cold-clone.sh",
     "alchemy": "pnpm --filter @rat-stack/infra exec alchemy",
     "build": "turbo run build",
@@ -37,6 +38,7 @@
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
     "oxlint-tsgolint": "7.0.2002",
+    "portless": "0.15.6",
     "turbo": "2.11.2",
     "typescript": "7.0.2",
     "ultracite": "7.12.0",

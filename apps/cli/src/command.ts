@@ -4,7 +4,7 @@ import { Console, Effect, Layer } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
 import {
-  DEVTOOLS_HOST,
+  SERVE_HOST,
   DEVTOOLS_MCP_PATH,
   codeMode,
   devtoolsWebServer,
@@ -51,7 +51,7 @@ const serveCommand = Command.make(
   ({ devtools, port }) =>
     devtools
       ? Console.error(
-          `🐀 devtools MCP: http://${DEVTOOLS_HOST}:${port}${DEVTOOLS_MCP_PATH}`
+          `🐀 devtools MCP: http://${SERVE_HOST}:${port}${DEVTOOLS_MCP_PATH}`
         ).pipe(
           Effect.andThen(Layer.launch(devtoolsWebServer(port))),
           Effect.orDie

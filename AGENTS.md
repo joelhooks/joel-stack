@@ -49,6 +49,7 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 | Command | Purpose |
 | --- | --- |
 | `pnpm install` | Install workspace dependencies |
+| `pnpm dev` | Run `apps/web` under `vite dev` through portless at `http://rat-stack.localhost:1355` (worktrees get their own prefix); `portless list` shows the route |
 | `pnpm check` | Typecheck, verify formatting, and run type-aware linting |
 | `pnpm lint` | Type-aware lint plus format check only; `turbo run check` runs this once at the root as `//#lint` |
 | `pnpm fix` | Apply Oxfmt and safe Oxlint fixes |
@@ -142,5 +143,6 @@ One send follows one path: feature → named client command → AtomRpc → shar
 
 A child project replaces this section on day one with its own boundaries. This section names changes agents may make directly and changes that need owner approval.
 
-- Safe by default: adding a capability in `packages/core` and wiring it into `capabilities`; new or tightened tests; a targeted diagnostic override with a written reason; README, AGENTS.md, and `.brain/` edits; tightening a lint rule; removing a surface by following Keep or cut.
-- Needs owner sign-off: adding or changing a dependency version (pins are exact and CI installs cold); any edit to `oxlint.config.ts`, the diagnostics map in `tsconfig.base.json`, `lefthook.yml`, or `scripts/vcs-command-policy.js` that loosens the fence; anything under `apps/infra` and any `pnpm infra:deploy` or `infra:destroy`; widening sandbox permissions or adding a runtime that reaches the network; exposing `serve` or `mcp` beyond localhost; vendoring a package as a `file:` tarball; deleting `.agent_sources/` or `vendor/`.
+- Safe by default: adding a capability in `packages/core` and wiring it into `capabilities`; new or tightened tests; a targeted diagnostic override with a written reason; README, AGENTS.md, and `.brain/` edits; tightening a lint rule; removing a surface by following Keep or cut; any change under `apps/infra`, and `pnpm infra:deploy` once `pnpm infra:plan` shows only the intended diff and the gate passes, followed by `pnpm mischief:smoke`.
+- When a call is unclear, get a second opinion from a Pi session on `openai-codex/gpt-6-astra:xhigh` before asking the owner.
+- Needs owner sign-off: adding or changing a dependency version (pins are exact and CI installs cold); any edit to `oxlint.config.ts`, the diagnostics map in `tsconfig.base.json`, `lefthook.yml`, or `scripts/vcs-command-policy.js` that loosens the fence; `pnpm infra:destroy`, and a deploy whose plan replaces or deletes a resource; widening sandbox permissions or adding a runtime that reaches the network; exposing `serve` or `mcp` beyond localhost; vendoring a package as a `file:` tarball; deleting `.agent_sources/` or `vendor/`.

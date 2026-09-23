@@ -4,6 +4,7 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
 import Mischief from "../mischief/src/worker.js";
+import { Website } from "../web/src/website.js";
 
 export default Alchemy.Stack(
   "RatStack",
@@ -56,7 +57,8 @@ export default Alchemy.Stack(
     }
 
     const mischief = yield* Mischief;
+    const website = yield* Website;
 
-    return { mischiefUrl: mischief.url };
+    return { mischiefUrl: mischief.url, websiteUrl: website.url };
   })
 );
