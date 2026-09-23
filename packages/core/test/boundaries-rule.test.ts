@@ -35,9 +35,11 @@ const lintFixture = (area: string, source: string): LintResult => {
     JSON.stringify({
       jsPlugins: [{ name: "rat-stack-boundaries", specifier: plugin }],
       rules: {
+        "rat-stack-boundaries/no-browser-globals-on-server": "error",
         "rat-stack-boundaries/no-browser-server-imports": "error",
         "rat-stack-boundaries/no-cross-layer-imports": "error",
         "rat-stack-boundaries/no-feature-transport": "error",
+        "rat-stack-boundaries/no-hand-rolled-surface": "error",
       },
     })
   );
@@ -249,5 +251,59 @@ describe("architecture boundary rules", () => {
     );
 
     expect(result.status).toBe(0);
+  });
+
+  it("blocks hand-rolled RPC, HTTP, and MCP surfaces outside the capability package", () => {
+    const rpc = lintFixture(
+      "apps/web/src/server",
+      'import { Rpc } from "effect/unstable/rpc";\n\nexport const athlete = Rpc.make("athlete");\n'
+    );
+
+    const endpoint = lintFixture(
+      "packages/core/src",
+      'import { HttpApiEndpoint } from "effect/unstable/httpapi";\n\nexport const route = HttpApiEndpoint.post("route", "/route");\n'
+    );
+
+    expectRule(rpc, "Rpc.make hand-rolls a surface.");
+    expectRule(endpoint, "HttpApiEndpoint.post hand-rolls a surface.");
+  });
+
+  it("lets packages/capability build surfaces", () => {
+    const result = lintFixture(
+      "packages/capability/src",
+      'import { Rpc } from "effect/unstable/rpc";\n\nexport const projected = Rpc.make("projected");\n'
+    );
+
+    expect(result.status).toBe(0);
+  });
+
+  it("keeps browser globals out of server and package code", () => {
+    const route = lintFixture(
+      "apps/web/src/routes",
+      "export const here = () => window.location.href;\n"
+    );
+
+    const core = lintFixture(
+      "packages/core/src",
+      "export const title = () => document.title;\n"
+    );
+
+    expectRule(route, "window exists only in a browser.");
+    expectRule(core, "document exists only in a browser.");
+  });
+
+  it("allows browser globals in client and feature modules", () => {
+    const client = lintFixture(
+      "apps/web/src/client",
+      'export const saved = () => localStorage.getItem("rat");\n'
+    );
+
+    const guard = lintFixture(
+      "apps/web/src/routes",
+      'export const inBrowser = () => typeof window !== "undefined";\n'
+    );
+
+    expect(client.status).toBe(0);
+    expect(guard.status).toBe(0);
   });
 });

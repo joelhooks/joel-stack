@@ -23,6 +23,10 @@ export default defineConfig({
       name: "rat-stack-boundaries",
       specifier: "./scripts/oxlint-plugin-boundaries.ts",
     },
+    {
+      name: "rat-stack-patterns",
+      specifier: "./scripts/oxlint-plugin-patterns.ts",
+    },
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
     {
       name: "anti-slop-effect",
@@ -75,7 +79,12 @@ export default defineConfig({
     "jsdoc/require-returns-description": "off",
     "no-comments/no-comments": "error",
     "oxc/no-accumulating-spread": "error",
+    "rat-stack-boundaries/no-browser-globals-on-server": "error",
     "rat-stack-boundaries/no-cross-layer-imports": "error",
+    "rat-stack-boundaries/no-hand-rolled-surface": "error",
+    "rat-stack-patterns/acquire-release-constructs-in-acquire-body": "error",
+    "rat-stack-patterns/contract-binding-matches-name": "error",
+    "rat-stack-patterns/no-module-level-mutable-state": "error",
     "unicorn/throw-new-error": "off",
     "xstate-effect/no-inline-effect": "error",
   },

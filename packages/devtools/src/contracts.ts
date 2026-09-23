@@ -60,7 +60,7 @@ const ExpandField = Schema.optional(
   })
 );
 
-export const listContracts = defineContract("rat_list_contracts", {
+export const ratListContracts = defineContract("rat_list_contracts", {
   annotations: readOnly,
   description:
     "List every capability in this runtime: name, description, approval, and annotations. Call rat_describe_contract for its schemas.",
@@ -76,7 +76,7 @@ export const listContracts = defineContract("rat_list_contracts", {
   output: Schema.Struct({ contracts: Schema.Array(ContractSummary) }),
 });
 
-export const describeContract = defineContract("rat_describe_contract", {
+export const ratDescribeContract = defineContract("rat_describe_contract", {
   annotations: readOnly,
   description:
     "Describe one capability's input, output, and failure as JSON Schema, so a valid rat_call input can be built without reading source.",
@@ -90,7 +90,7 @@ export const describeContract = defineContract("rat_describe_contract", {
   }),
 });
 
-export const listCalls = defineContract("rat_list_calls", {
+export const ratListCalls = defineContract("rat_list_calls", {
   annotations: readOnly,
   description:
     "List recorded capability calls in order, summarized. Filter by capability and outcome; page forward with sinceIndex; set fromEnd for the latest calls first ('what just happened').",
@@ -111,7 +111,7 @@ export const listCalls = defineContract("rat_list_calls", {
   }),
 });
 
-export const countCalls = defineContract("rat_count_calls", {
+export const ratCountCalls = defineContract("rat_count_calls", {
   annotations: readOnly,
   description:
     "Count recorded calls by capability and outcome, without payloads. The cheap first call before paging history.",
@@ -135,7 +135,7 @@ export const countCalls = defineContract("rat_count_calls", {
   }),
 });
 
-export const getCall = defineContract("rat_get_call", {
+export const ratGetCall = defineContract("rat_get_call", {
   annotations: readOnly,
   description:
     "Read one recorded call, or one path inside it, such as 'root.outcome.output'.",
@@ -144,7 +144,7 @@ export const getCall = defineContract("rat_get_call", {
   output: Schema.Struct({ value: Schema.Json }),
 });
 
-export const call = defineContract("rat_call", {
+export const ratCall = defineContract("rat_call", {
   annotations: { destructive: true, openWorld: true },
   description:
     "Call a capability by name. The input is decoded by that capability's contract first, approval-gated capabilities stay gated, and the call is recorded like any other.",
@@ -153,7 +153,7 @@ export const call = defineContract("rat_call", {
   output: Schema.Struct({ result: InvokeResultSchema }),
 });
 
-export const replayCall = defineContract("rat_replay_call", {
+export const ratReplayCall = defineContract("rat_replay_call", {
   annotations: { destructive: true, openWorld: true },
   description:
     "Run a recorded call's input again and diff the new result against the recorded one, path by path.",
@@ -166,7 +166,7 @@ export const replayCall = defineContract("rat_replay_call", {
   }),
 });
 
-export const diffCalls = defineContract("rat_diff_calls", {
+export const ratDiffCalls = defineContract("rat_diff_calls", {
   annotations: readOnly,
   description: "Diff two recorded calls' inputs and outcomes, path by path.",
   failure: CallNotFound,
@@ -175,12 +175,12 @@ export const diffCalls = defineContract("rat_diff_calls", {
 });
 
 export const devtoolsContracts = [
-  listContracts,
-  describeContract,
-  listCalls,
-  countCalls,
-  getCall,
-  call,
-  replayCall,
-  diffCalls,
+  ratListContracts,
+  ratDescribeContract,
+  ratListCalls,
+  ratCountCalls,
+  ratGetCall,
+  ratCall,
+  ratReplayCall,
+  ratDiffCalls,
 ] as const;
