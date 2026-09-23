@@ -1,7 +1,7 @@
 ---
 title: "🐀 Rat devtools: what an agent can see and do in a running rat-stack app"
 type: project
-status: active
+status: complete
 created_at: "2026-09-23"
 privacy: "public"
 ---
@@ -227,4 +227,34 @@ Built on `a68fb4b` after `apps/web` landed.
 - **One bug found and fixed on the way.** The selected person was a plain `Atom.make` and reset to `null` when the Session tab unmounted. It is now `Atom.keepAlive`.
 - **Guardrail test.** `apps/web/test/production-bundle.test.ts` builds with source maps. It asserts no module from `src/dev/`, `packages/devtools`, or `packages/auth/src/devtools`, and no `rat_call`, `rat_test_person`, or test-password string. A `NODE_ENV=development` control build must contain all of them.
 - **Known noise.** Better Auth logs "User not found" once per dev-server start, before `rat_test_person` falls back to sign-up.
+
+## Closed out, 2026-09-23
+
+Everything Joel queued has shipped on main:
+
+- the call log and contract dispatch (slice 1);
+- the five Foldkit lint rules (slice 2);
+- machines (slice 3);
+- browser atoms (slice 4);
+- the 🐀 overlay (slice 5);
+- run as a test person (slice 6);
+- the production guardrail;
+- the web dev loop.
+
+Main has since deployed `Website` and `RpcBackend` to prod, where `/__rat/mcp` returns 404, and moved `pnpm dev` to portless at `http://rat-stack.localhost:1355`. The last pass added two things:
+
+- `rat-stack-patterns/no-empty-contract-input`, which turns the MCP trap above into a lint error;
+- `baseURL` for the dev Better Auth, read from `PORTLESS_URL` (declared in `.env.schema`). It silences the "Base URL could not be determined" warning on every `pnpm dev`. Without portless, for example the `vite dev` tests, the URL is unset and the warning returns, which is harmless.
+
+`rat serve` binding to `127.0.0.1` also landed on main, in `91a6dcc`.
+
+Not built, on purpose, until a consumer needs them:
+
+- **`rat_list_runtimes`.** Each process has one devtools runtime today, so there is nothing to choose between.
+- **`rat_list_runs`.** Nothing writes to `RunLog` yet. Build it beside the first capability that records runs, as a dev tool in `packages/database` like `rat_test_person` in auth, so devtools does not import database.
+- **A Worker-side call log in a Durable Object.** The dev loop runs in Node under `vite dev`. Revisit if `alchemy dev` becomes the dev loop.
+
+Gotcha: portless can choose an app port that another unregistered dev server already holds (seen with a pi-notes `vite dev`). `PORTLESS_APP_PORT=<port> pnpm dev` pins one.
+
+Checks for future slices: the gate plus `bash scripts/acceptance-cold-clone.sh`.
 
