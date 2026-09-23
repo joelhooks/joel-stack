@@ -1,5 +1,6 @@
 import { Clock, Context, Crypto, Effect, Layer, Match, Schema } from "effect";
 
+import { InvalidDatabaseInput } from "./invalid-database-input.js";
 import {
   DatabaseError,
   ListRecentRunsInputSchema,
@@ -23,11 +24,14 @@ export class RunLog extends Context.Service<
   {
     readonly record: (
       input: RecordRunInput
-    ) => Effect.Effect<RunLogEntry, DatabaseError>;
+    ) => Effect.Effect<RunLogEntry, DatabaseError | InvalidDatabaseInput>;
     readonly listRecent: (
       personId: ListRecentRunsInput["personId"],
       limit: number
-    ) => Effect.Effect<readonly RunLogEntry[], DatabaseError>;
+    ) => Effect.Effect<
+      readonly RunLogEntry[],
+      DatabaseError | InvalidDatabaseInput
+    >;
   }
 >()("@rat-stack/database/RunLog") {}
 
@@ -40,7 +44,8 @@ const makeRunLogService = (store: RunLogRepository, crypto: Crypto.Crypto) =>
           personId,
         }).pipe(
           Effect.mapError(
-            (cause) => new DatabaseError({ cause, operation: "listRecent" })
+            (cause) =>
+              new InvalidDatabaseInput({ cause, operation: "listRecent" })
           )
         );
 
@@ -52,7 +57,7 @@ const makeRunLogService = (store: RunLogRepository, crypto: Crypto.Crypto) =>
         input
       ).pipe(
         Effect.mapError(
-          (cause) => new DatabaseError({ cause, operation: "record" })
+          (cause) => new InvalidDatabaseInput({ cause, operation: "record" })
         )
       );
 
