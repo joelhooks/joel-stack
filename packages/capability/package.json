@@ -14,6 +14,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./actor-watch": {
+      "types": "./src/actor-watch.ts",
+      "import": "./dist/actor-watch.js",
+      "default": "./dist/actor-watch.js"
+    },
     "./contract": {
       "types": "./src/contract.ts",
       "import": "./dist/contract.js",
