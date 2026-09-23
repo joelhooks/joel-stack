@@ -91,12 +91,10 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       const view = new DataView(ico.buffer);
 
       expect([...ico.subarray(0, 6)]).toEqual([0, 0, 1, 0, 2, 0]);
-      // Entry 1: 16px, 32 bits, 3 bytes at offset 6 + 2 * 16.
       expect(ico[6]).toBe(16);
       expect(view.getUint16(6 + 6, true)).toBe(32);
       expect(view.getUint32(6 + 8, true)).toBe(3);
       expect(view.getUint32(6 + 12, true)).toBe(38);
-      // 256px is written as 0; its bytes follow the first image.
       expect(ico[22]).toBe(0);
       expect(view.getUint32(22 + 12, true)).toBe(41);
       expect(ico.length).toBe(38 + 3 + 5);

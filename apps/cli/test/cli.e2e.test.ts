@@ -1,8 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off asyncFunction:off newPromise:off globalTimers:off
-// Black-box tests of the built binary: they spawn dist/cli.js as a child
-// process and assert on stdout, stderr, and exit codes. Node built-ins and a
-// Promise-based stdio conversation are the right tools at that boundary, so
-// the Effect-native diagnostics are off here.
+// @effect-diagnostics nodeBuiltinImport:off asyncFunction:off newPromise:off globalTimers:off -- Black-box tests of the built binary: they spawn dist/cli.js as a child process and assert on stdout, stderr, and exit codes. Node built-ins and a Promise-based stdio conversation are the right tools at that boundary, so the Effect-native diagnostics are off here.
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -57,13 +53,11 @@ const runCli = (arguments_: readonly string[]) =>
     encoding: "utf-8",
   });
 
-/** Runs `rat-stack mcp [flags]` and speaks newline-delimited JSON-RPC to it. */
 const mcpConversation = async (
   messages: readonly object[],
   flags: readonly string[] = []
 ): Promise<(typeof JsonRpcResponse.Type)[]> =>
-  // A child process conversation has no library Promise to return.
-  // oxlint-disable-next-line promise/avoid-new
+  // oxlint-disable-next-line promise/avoid-new -- A child process conversation has no library Promise to return.
   await new Promise<(typeof JsonRpcResponse.Type)[]>((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, "mcp", ...flags], {
       cwd: repoRoot,

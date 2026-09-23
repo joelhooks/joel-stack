@@ -16,8 +16,6 @@ export {
   staticContentVersion,
 } from "./bundled-content.generated.js";
 
-// Every page has a 1200x630 preview image built at generation time. The URL
-// is derived from the route so the shell and the router agree without a map.
 export const ogImagePath = (routePath: string): `/${string}` =>
   `/og${routePath === "/" ? "/home" : routePath}.png`;
 
@@ -39,7 +37,6 @@ export interface ContentResource {
 export const lawResources: readonly ContentResource[] = lawSources.map(
   (source) => ({
     ...source,
-    // Generated pages (pins, log) have no file behind them; use the route.
     id: `ratstack://repo/${
       source.sourcePath.includes(" ")
         ? source.routePath.slice(1)
@@ -101,7 +98,6 @@ export const mcpToolsListExample = (origin: string) =>
     `  --data '${mcpToolsListBody}'`,
   ].join("\n");
 
-/** Every MCP revision the endpoint answers, newest first. */
 export const mcpProtocolVersions = [
   "2026-07-28",
   "2025-11-25",

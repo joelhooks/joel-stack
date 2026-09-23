@@ -18,17 +18,6 @@ const escapeHtml = (value: string) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-/**
- * Smart mdsvex blocks are source-level audience components:
- *
- * - `<AgentOnly>` keeps its contents for agents and drops them from HTML.
- * - `<HumanOnly>` keeps its contents for HTML and drops them for agents.
- * - `<Diagram alt="...">` keeps a text fence plus `Diagram: ...` for agents,
- *   and becomes an accessible figure for HTML.
- *
- * Tags must occupy their own block lines. Sources without these tags return
- * byte-for-byte unchanged.
- */
 export const deriveAgentMarkdown = (source: string): string => {
   if (!audienceTag.test(source)) {
     return source;
@@ -38,7 +27,6 @@ export const deriveAgentMarkdown = (source: string): string => {
 
   const withDiagramText = withoutHuman.replaceAll(
     diagramBlock,
-    // The pattern's groups are positional: 1 is `alt`, 2 is `fence`.
     (_match: string, alt: string, fence: string) => `${fence}\nDiagram: ${alt}`
   );
 
@@ -52,9 +40,6 @@ export const deriveHtmlMarkdown = (source: string): string => {
 
   const withDiagrams = source.replaceAll(
     diagramBlock,
-    // The fence stays Markdown so it takes the same code path as every other
-    // block. Raw HTML must fit one Markdown block, and folding the diagram
-    // into it lost its line breaks.
     (_match: string, alt: string, fence: string) =>
       `<figure role="img" aria-label="${escapeHtml(alt)}">\n\n${fence}\n\n<figcaption>${escapeHtml(alt)}</figcaption></figure>`
   );
@@ -71,11 +56,6 @@ interface IcoImage {
   readonly size: number;
 }
 
-/**
- * Packs PNG images into one `.ico` file. Every browser since IE Vista reads
- * PNG entries, so there is no bitmap conversion: a 6-byte header, one 16-byte
- * directory entry per image, then the PNG bytes in order.
- */
 export const encodeIco = (images: readonly IcoImage[]): Uint8Array => {
   const headerSize = 6 + images.length * 16;
 
@@ -92,7 +72,6 @@ export const encodeIco = (images: readonly IcoImage[]): Uint8Array => {
 
   for (const [index, image] of images.entries()) {
     const entry = 6 + index * 16;
-    // Width and height are one byte each; 0 means 256.
     view.setUint8(entry, image.size % 256);
     view.setUint8(entry + 1, image.size % 256);
     view.setUint16(entry + 4, 1, true);

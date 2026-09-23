@@ -1,5 +1,4 @@
-// The Worker runtime module has no Node-resolvable declaration of its own.
-// oxlint-disable-next-line typescript/triple-slash-reference
+// oxlint-disable-next-line typescript/triple-slash-reference -- The Worker runtime module has no Node-resolvable declaration of its own.
 /// <reference path="./cloudflare-workers.d.ts" />
 
 import {
@@ -15,14 +14,11 @@ import type {
 import type { RpcTarget as RpcTargetType } from "cloudflare:workers";
 import { Duration, Effect, Layer, Option, Schema } from "effect";
 
-// Cloudflare RPC stubs may hold a resource the host should release.
 interface ReleasableStub {
   readonly [Symbol.dispose]?: () => void;
 }
 
 export interface DynamicWorkerEntrypoint extends ReleasableStub {
-  // Our guest module's contract. The guest runs model code, so the host still
-  // decodes the reply before trusting it.
   readonly run: (dispatcher: RpcTargetType) => Promise<GuestOutcomeWire>;
 }
 
@@ -80,13 +76,7 @@ const sandboxError = (
 ) => new SandboxError({ logs, message, reason });
 
 const disposeQuietly = (stub: ReleasableStub): Effect.Effect<void> =>
-  Effect.sync(() => {
-    try {
-      stub[Symbol.dispose]?.();
-    } catch {
-      // Cleanup must not mask the sandbox result.
-    }
-  });
+  Effect.try(() => stub[Symbol.dispose]?.()).pipe(Effect.ignore);
 
 const decodeCallInput = Schema.decodeUnknownOption(Schema.Json);
 
@@ -97,19 +87,14 @@ const makeRpcDispatcher = (invoke: Invoke) =>
         "protocol",
         `Unable to load the Cloudflare RPC runtime: ${messageOf(error)}`
       ),
-    // The built-in exists only inside workerd; keeping it lazy lets Alchemy
-    // import the Stack under Node without resolving the special URL.
-    // oxlint-disable-next-line typescript/promise-function-async
+    // oxlint-disable-next-line typescript/promise-function-async -- The built-in exists only inside workerd; keeping it lazy lets Alchemy import the Stack under Node without resolving the special URL.
     try: () => import("cloudflare:workers"),
   }).pipe(
     Effect.map(({ RpcTarget }) => {
       class InvokeDispatcher extends RpcTarget {
         readonly #invoke = invoke;
 
-        // Cloudflare RPC requires a Promise-returning method at this boundary.
-        // This is the sandbox's way out, so `input` arrives untrusted and is
-        // parsed as JSON before any capability sees it.
-        // @effect-diagnostics-next-line asyncFunction:off
+        // @effect-diagnostics-next-line asyncFunction:off -- Cloudflare RPC requires a Promise-returning method at this boundary. This is the sandbox's way out, so `input` arrives untrusted and is parsed as JSON before any capability sees it.
         async call(
           name: string,
           // oxlint-disable-next-line anti-slop/no-unknown-parameters
@@ -181,8 +166,6 @@ export default class CodeExecutor extends WorkerEntrypoint {
 }
 `;
 
-/** A fresh, network-denied Dynamic Worker for every program run. */
-/** The limits every code-mode program runs under, from any surface. */
 export const sandboxLimits: WorkerLoaderSandboxOptions = {
   compatibilityDate: "2026-05-28",
   cpuMs: 100,
@@ -242,15 +225,13 @@ export const layerWorkerLoader = (
                       message
                     );
                   },
-                  // Effect.tryPromise accepts the platform Promise directly.
-                  // oxlint-disable-next-line typescript/promise-function-async
+                  // oxlint-disable-next-line typescript/promise-function-async -- Effect.tryPromise accepts the platform Promise directly.
                   try: () => entrypoint.run(dispatcher),
                 })
               ),
               Effect.flatMap((outcome) =>
                 decodeGuestOutcome(outcome).pipe(
-                  // Oxlint mistakes this Effect handler for a Promise callback.
-                  // oxlint-disable-next-line promise/prefer-await-to-callbacks
+                  // oxlint-disable-next-line promise/prefer-await-to-callbacks -- Oxlint mistakes this Effect handler for a Promise callback.
                   Effect.mapError((error) =>
                     sandboxError(
                       "protocol",

@@ -1,6 +1,3 @@
-// Capability commands derive from the same registry used by the other
-// projections. `stats` remains the legacy alias for `inspectFile`; the other
-// capability names become their command names automatically.
 import { toCommand } from "@rat-stack/capability";
 import { capabilities, formatFileStats, inspectFile } from "@rat-stack/core";
 import { Console, Effect, Layer } from "effect";

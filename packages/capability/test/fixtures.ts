@@ -16,7 +16,6 @@ export class Greeter extends Context.Service<
   static readonly layer = Layer.effect(this, this.make);
 }
 
-/** Pure, read-only, no requirements. */
 export const echo = defineCapability("echo", {
   annotations: { idempotent: true, readOnly: true },
   description: "Repeat text a number of times",
@@ -30,7 +29,6 @@ export const echo = defineCapability("echo", {
   output: Schema.Struct({ text: Schema.String }),
 });
 
-/** Needs a service and has a typed failure. */
 export const greet = defineCapability("greet", {
   description: "Greet someone by name",
   failure: NotFound,
@@ -44,7 +42,6 @@ export const greet = defineCapability("greet", {
   output: Schema.Struct({ greeting: Schema.String }),
 });
 
-/** Requires a host decision before the handler can run. */
 export const approved = defineCapability("approved", {
   description: "A capability that requires approval",
   failure: Schema.Never,
@@ -54,7 +51,6 @@ export const approved = defineCapability("approved", {
   output: Schema.Struct({ ok: Schema.Boolean }),
 });
 
-/** Exercises the remaining flag kinds. */
 export const mixed = defineCapability("mixed", {
   description: "Echo a mixed input back",
   failure: Schema.Never,

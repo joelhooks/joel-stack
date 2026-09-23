@@ -1,7 +1,3 @@
-// The first Capability: the same file inspection the CLI has always done,
-// now stated once and projected to the CLI, REST, and MCP surfaces by
-// @rat-stack/capability. The handler runs the lifecycle machine, so every
-// surface shares the same states and the same typed failure.
 import { defineCapability } from "@rat-stack/capability";
 import { Schema } from "effect";
 
@@ -19,5 +15,4 @@ export const inspectFile = defineCapability("inspectFile", {
   output: FileStatsSchema,
 });
 
-/** Every capability this package offers, in catalog order. */
 export const capabilities = [inspectFile] as const;

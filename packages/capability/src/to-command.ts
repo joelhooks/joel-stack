@@ -1,14 +1,3 @@
-// Projection: Capability -> effect/unstable/cli Command.
-//
-// The input Struct's fields become flags (or positional arguments when named
-// in `positional`). The primitive field kinds map to the matching Flag
-// primitive so help text and parsing stay native; anything else is a JSON
-// string flag decoded through the field's own schema. The handler decodes the
-// parsed values through the input schema once more, so the Command cannot
-// call the capability with anything the schema would reject.
-//
-// Output is the encoded output schema as JSON, or `render(output)` when a
-// renderer is supplied, in which case `--json` switches back to JSON.
 import { Console, Effect, Option, Predicate, Schema, SchemaAST } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
@@ -23,11 +12,8 @@ import type {
 } from "./capability.js";
 
 export interface ToCommandOptions<Output> {
-  /** Command name; defaults to the capability's name. */
   readonly name?: string | undefined;
-  /** Input fields to take as positional arguments, in order. */
   readonly positional?: readonly string[] | undefined;
-  /** Human-readable rendering; enables a `--json` flag for the raw output. */
   readonly render?: ((output: Output) => string) | undefined;
 }
 
@@ -97,9 +83,7 @@ const describe = (field: PlainSchema): FieldSpec => {
 
 const jsonFlag = (name: string, field: PlainSchema) =>
   Flag.String(name).pipe(
-    // SAFETY: a JSON-string flag decoded by the field's own schema.
-    // `withSchema` wants a codec with the CLI environment as its services; a
-    // plain field schema needs none, which `never` satisfies.
+    // SAFETY: a JSON-string flag decoded by the field's own schema. `withSchema` wants a codec with the CLI environment as its services; a plain field schema needs none, which `never` satisfies.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     Flag.withSchema(Schema.fromJsonString(field) as never),
     Flag.withMetavar("JSON")
@@ -193,8 +177,7 @@ export const toCommand = <C extends AnyCapability>(
   const decodeInput = Schema.decodeUnknownEffect(capability.input);
   const encodeOutput = Schema.encodeEffect(capability.output);
 
-  // SAFETY: `C extends Any` widens the handler's channels to `unknown`; the
-  // extractors recover the concrete ones from `C`.
+  // SAFETY: `C extends Any` widens the handler's channels to `unknown`; the extractors recover the concrete ones from `C`.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const run = capability.handler as (
     input: InputOf<C>["Type"]
@@ -211,8 +194,7 @@ export const toCommand = <C extends AnyCapability>(
       const { [APPROVAL_FLAG]: yes, [JSON_FLAG]: json, ...fields } = parsed;
       const input = yield* decodeInput(fields);
 
-      // Decoded through `capability.input`, whose Type `C` makes precise.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Decoded through `capability.input`, whose Type `C` makes precise.
       const output = yield* run(input).pipe(
         Effect.provide(yes === true ? Approval.allowAll : Approval.denyAll)
       );

@@ -1,10 +1,3 @@
-// One real lifecycle machine run through @xstate/effect.
-//
-// The machine owns the states (reading, inspected, unreadable). Effect owns the
-// side effect (`FileInspector.inspect`), its typed failure, and the service
-// requirement, which `createEffectActor` collects into its `R` channel. Neither
-// side re-implements the other's job: no boolean soup in the machine, no
-// hand-rolled state tracking around the Effect.
 import {
   createEffectActor,
   fromEffect,
@@ -29,9 +22,6 @@ interface InspectContext {
   readonly path: string;
 }
 
-// Declared actor: only declared logic contributes to RequirementsFrom, so the
-// FileInspector requirement surfaces in the actor's type and the composition
-// root must provide it.
 const readStats = fromEffect({
   effect: ({ input }) =>
     FileInspector.use((inspector) => inspector.inspect(input.path)),
@@ -40,8 +30,6 @@ const readStats = fromEffect({
 
 export const inspectMachine = setupEffect({
   actors: { readStats },
-  // Effect and type-only schemas mix freely; the context carries a class
-  // instance (FileStatsError), so it is typed rather than decoded.
   schemas: {
     context: types<InspectContext>(),
     input: Schema.Struct({ path: Schema.String }),
@@ -74,17 +62,10 @@ export const inspectMachine = setupEffect({
   },
 });
 
-// Runs the machine to completion as a scoped Effect. `join` waits for the
-// machine's output; the outcome union is then lifted back into Effect's error
-// channel so callers keep `FileStatsError` typed.
 export const runInspectMachine = Effect.fn("runInspectMachine")(
   function* runInspectMachine(path: string) {
     const actor = yield* createEffectActor(inspectMachine, { input: { path } });
-    // A machine-level error or an early stop is a programming error here: the
-    // domain failure travels through the `unreadable` state, not the actor.
-    // A machine's ErrorFrom is unknown by design (statelyai/xstate#5725), so
-    // the unknown-error diagnostic is off for this one call and orDie closes it.
-    // @effect-diagnostics-next-line anyUnknownInErrorContext:off
+    // @effect-diagnostics-next-line anyUnknownInErrorContext:off -- A machine-level error or an early stop is a programming error here: the domain failure travels through the `unreadable` state, not the actor. A machine's ErrorFrom is unknown by design (statelyai/xstate#5725), so the unknown-error diagnostic is off for this one call and orDie closes it.
     const outcome = yield* join(actor).pipe(Effect.orDie);
 
     if (outcome === undefined) {

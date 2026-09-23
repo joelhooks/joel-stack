@@ -23,7 +23,6 @@ const unwrap = (outcome: {
     ? Effect.succeed(outcome.value)
     : Effect.fail(protocolError(`Capability failed: ${String(outcome.error)}`));
 
-/** Deterministic test double for the Worker Loader boundary. */
 export const TestSandbox = Layer.succeed(Sandbox, {
   run: (code, invoke) =>
     Effect.gen(function* runTestProgram() {

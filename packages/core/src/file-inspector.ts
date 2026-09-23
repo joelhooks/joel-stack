@@ -1,7 +1,3 @@
-// The reference service shape for this scaffold: a Context.Service class with
-// a `make` that captures its own dependencies (FileSystem) so the methods it
-// exposes carry no requirements, and a `static layer` co-located with it.
-// Consumers depend on FileInspector, never on FileSystem.
 import { Context, Effect, FileSystem, Layer } from "effect";
 
 import { FileStatsError, summarizeBytes } from "./stats.js";

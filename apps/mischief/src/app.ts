@@ -65,13 +65,6 @@ const json = (body: Schema.Json, contentType = "application/json") =>
 const originOf = (request: HttpServerRequest.HttpServerRequest) =>
   new URL(request.url, "https://ratstack.sh").origin;
 
-// Markdown is the default representation for agents. HTML is for people and
-// for the tools that render previews to people. Three signals pick HTML:
-// an Accept header that wants text/html (browsers), a known link-preview
-// crawler, or a client that claims to be a browser ("Mozilla/") without saying
-// what it accepts, which is what Open Graph validators and most unfurl
-// services send. Named AI crawlers keep Markdown even when they borrow a
-// browser user agent, and bare CLI clients (curl, fetch) keep Markdown.
 const previewCrawler =
   /(?:Twitterbot|facebookexternalhit|Facebot|Slackbot|Discordbot|LinkedInBot|WhatsApp|TelegramBot|Bluesky|Mastodon|Pinterestbot|redditbot|Applebot)/iu;
 
@@ -122,11 +115,6 @@ export interface StaticResponseCache {
   readonly put: (request: Request, response: Response) => Promise<void>;
 }
 
-// The rat icons are cached like every other static file but stay out of the
-// sitemap and agent catalogue, so they are not public content paths.
-// Preview images are pure functions of the content version, so they ride the
-// same versioned edge cache as every other static file. Decoded once at
-// module load; the Worker never touches the base64 again.
 const decodeBase64 = (base64: string) =>
   Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
 
@@ -225,8 +213,7 @@ const staticCaching = (cache: StaticResponseCache) =>
         const key = staticCacheKey(request, representation);
 
         const cached = yield* Effect.tryPromise(
-          // Cloudflare's Cache API owns this Promise-returning boundary.
-          // oxlint-disable-next-line typescript/promise-function-async
+          // oxlint-disable-next-line typescript/promise-function-async -- Cloudflare's Cache API owns this Promise-returning boundary.
           () => cache.match(key)
         ).pipe(Effect.orElseSucceed(() => null));
 
@@ -250,8 +237,7 @@ const staticCaching = (cache: StaticResponseCache) =>
         if (response.status === 200) {
           const webResponse = HttpServerResponse.toWeb(response);
           yield* Effect.tryPromise(
-            // Cloudflare's Cache API owns this Promise-returning boundary.
-            // oxlint-disable-next-line typescript/promise-function-async
+            // oxlint-disable-next-line typescript/promise-function-async -- Cloudflare's Cache API owns this Promise-returning boundary.
             () => cache.put(key, webResponse)
           ).pipe(Effect.orElseSucceed(() => null));
         }
@@ -263,9 +249,6 @@ const staticCaching = (cache: StaticResponseCache) =>
 
 export const toolkitProjection = toToolkit(capabilities);
 
-// The rate limiter answers before any handler runs, as text with
-// Retry-After. Declaring it here puts the 429 in the OpenAPI document so a
-// client can see the fail-closed path without tripping it.
 const RateLimited = Schema.String.annotate({
   description:
     "Rate limit exceeded for this IP or for execute globally. Retry after the number of seconds in Retry-After.",
@@ -285,13 +268,8 @@ const apiRoutes = HttpApiBuilder.layer(apiProjection.api, {
   Layer.provide(AlchemyHttp.Platform)
 );
 
-/** The 2026-07-28 revision is stateless, so the Worker serves it directly. */
 export const modernMcpProtocols = [McpProtocol.v2026_07_28] as const;
 
-/**
- * Older revisions need a session. They run in the LegacyMcp Durable Object,
- * one object per session, so the session outlives any single isolate.
- */
 export const legacyMcpProtocols = [
   McpProtocol.v2025_11_25,
   McpProtocol.v2025_06_18,
@@ -315,7 +293,6 @@ const mcpTransport = (
     websiteUrl: "https://ratstack.sh/",
   });
 
-/** One set of tools, resources, and prompts, served on either protocol era. */
 export const mcpLayer = (
   protocols: typeof modernMcpProtocols | typeof legacyMcpProtocols
 ) =>
@@ -462,9 +439,6 @@ const contentRoutes = Layer.mergeAll(
     ),
     HttpRouter.add("GET", agentSkillPath(skill.name), markdown(skill.text)),
   ]),
-  // One 404 per explicit method rather than "*": the router only maps HEAD
-  // onto GET routes when nothing matched HEAD, and a wildcard would match
-  // first and turn every HEAD into a 404. Validators and CDNs HEAD first.
   ...(
     ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY"] as const
   ).map((method) =>
@@ -496,8 +470,7 @@ const inspectMcpRequest = (request: HttpServerRequest.HttpServerRequest) =>
     const body: unknown =
       source instanceof Request
         ? yield* Effect.tryPromise(
-            // The Fetch Request owns this Promise-returning boundary.
-            // oxlint-disable-next-line typescript/promise-function-async
+            // oxlint-disable-next-line typescript/promise-function-async -- The Fetch Request owns this Promise-returning boundary.
             () => source.clone().json()
           )
         : yield* request.json;
@@ -547,7 +520,6 @@ const rateLimitResponse = (
   );
 };
 
-/** Sends one legacy MCP request to the object that owns its session. */
 export interface LegacyMcpRouter {
   readonly forward: (
     session: string,
@@ -569,8 +541,6 @@ interface McpRequestRouting {
   readonly modernMcp: boolean;
 }
 
-// Modern MCP clients name the method and tool in headers. Legacy clients name
-// them only in the JSON body, so rate limits read both.
 const routingOf = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* routeRequest() {
     const path = new URL(request.url, "https://ratstack.sh").pathname;
@@ -626,8 +596,6 @@ const firstExceededLimit = (
     return null;
   });
 
-// The session a legacy request belongs to: the client's, or a new one for
-// `initialize`. Modern and session-less requests stay in the Worker.
 const legacySessionOf = (
   request: HttpServerRequest.HttpServerRequest,
   routing: McpRequestRouting
@@ -668,7 +636,6 @@ const routeLegacyMcp = (
     return HttpServerResponse.fromWeb(yield* router.forward(session, web));
   });
 
-// Without a legacy router (tests), explain the version instead of failing.
 const needsVersionHelp = (
   request: HttpServerRequest.HttpServerRequest,
   routing: McpRequestRouting
@@ -766,9 +733,6 @@ const securityHeadersMiddleware = HttpRouter.middleware(
           securityHeaders
         );
 
-        // Preview images and the favicon exist to be embedded elsewhere:
-        // link-preview cards, validators, chat clients. A same-origin resource
-        // policy makes browsers refuse them on other origins.
         const embeddable = contentType.startsWith("image/")
           ? HttpServerResponse.setHeader(
               secured,
@@ -840,7 +804,6 @@ export const mischiefRoutes = (options: MischiefRouteOptions = {}) =>
     apiRoutes,
     mcp,
     securityHeadersMiddleware,
-    // Tests without bindings and the default `routes` skip protection.
     options.rateLimits === undefined && options.legacyMcp === undefined
       ? Layer.empty
       : requestProtection(options),

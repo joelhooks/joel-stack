@@ -1,5 +1,3 @@
-// The `serve` routes on an in-process Node test server: the OpenAPI document,
-// the Scalar page, and one capability call through the generated client.
 import { NodeHttpServer, NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
 import { capabilities, FileInspector } from "@rat-stack/core";
@@ -27,7 +25,6 @@ describe("serve routes", () => {
       const openapi = yield* HttpClient.get("/openapi.json");
       expect(openapi.status).toBe(200);
       const document = decodeOpenApi(yield* openapi.json);
-      // One route per registered capability, so adding one cannot break this.
       expect(Object.keys(document.paths)).toEqual(
         capabilities.map((capability) => `/${capability.name}`)
       );

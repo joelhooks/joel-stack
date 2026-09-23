@@ -1,8 +1,3 @@
-// The catalog is the code-mode projection's wire form: every capability as
-// JSON Schema (the same schemas MCP and OpenAPI publish), plus a TypeScript
-// declaration of the `tools` object a sandboxed program sees, and a small
-// ranked search over it. After Executor's kernel IR and Cloudflare's Code
-// Mode: types are generated from JSON Schema, never from Effect internals.
 import { Option, Schema } from "effect";
 import type { JsonSchema } from "effect";
 import { Tool } from "effect/unstable/ai";
@@ -38,14 +33,8 @@ export const toCatalog = (capabilities: readonly AnyCapability[]): Catalog => ({
   version: "1",
 });
 
-// ---------------------------------------------------------------------------
-// JSON Schema -> TypeScript
-// ---------------------------------------------------------------------------
-
-/** A JSON value the printer can render as a TypeScript literal type. */
 type JsonLiteral = string | number | boolean | null;
 
-/** The JSON Schema keywords the printer reads, parsed once at the boundary. */
 interface JsonSchemaNode {
   readonly $defs?: Readonly<Record<string, JsonSchemaNode>>;
   readonly $ref?: string;
@@ -121,8 +110,7 @@ const objectType = (node: JsonSchemaNode): string => {
     const description =
       value.description === undefined ? "" : `/** ${value.description} */ `;
 
-    // printNode and the object/primitive printers are mutually recursive.
-    // oxlint-disable-next-line no-use-before-define
+    // oxlint-disable-next-line no-use-before-define -- printNode and the object/primitive printers are mutually recursive.
     return `${description}readonly ${quoteKey(key)}${optional}: ${printNode(value)}`;
   });
 
@@ -188,7 +176,6 @@ const printNode = (node: JsonSchemaNode): string => {
     return variants.map(printNode).join(" | ");
   }
 
-  // `type` is one name or a list of names; flattening covers both.
   const types = [node.type ?? []].flat();
 
   if (types.length > 0) {
@@ -202,7 +189,6 @@ const printNode = (node: JsonSchemaNode): string => {
   return "unknown";
 };
 
-/** Prints a TypeScript type for a JSON Schema fragment; `unknown` when unsure. */
 export const typeOf = (schema: JsonSchema.JsonSchema): string =>
   Option.match(parseNode(schema), {
     onNone: () => "unknown",
@@ -220,7 +206,6 @@ const definitions = (
 const docComment = (lines: readonly string[]): string =>
   ["/**", ...lines.map((line) => ` * ${line}`), " */"].join("\n");
 
-/** One capability as a member of the `tools` object. */
 export const signatureOf = (entry: CatalogEntry): string => {
   const notes = [entry.description];
 
@@ -245,7 +230,6 @@ export const signatureOf = (entry: CatalogEntry): string => {
   return `${docComment(notes)}\nreadonly ${quoteKey(entry.name)}: (input: ${typeOf(entry.input)}) => Promise<${typeOf(entry.output)}>;`;
 };
 
-/** The `.d.ts` a sandboxed program can rely on: named failures, then `tools`. */
 export const toTypeScript = (catalog: Catalog): string => {
   const named = new Map<string, JsonSchemaNode>();
 
@@ -275,10 +259,6 @@ export const toTypeScript = (catalog: Catalog): string => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Search
-// ---------------------------------------------------------------------------
-
 const tokens = (text: string): readonly string[] =>
   text
     .replaceAll(/(?<lower>[a-z])(?<upper>[A-Z])/gu, "$<lower> $<upper>")
@@ -293,11 +273,6 @@ export interface SearchMatch {
   readonly signature: string;
 }
 
-/**
- * Token overlap between the query and each capability's name, description,
- * and input field names. Deterministic and dependency-free; a real deployment
- * can swap in embeddings behind the same shape.
- */
 export const searchCatalog = (
   catalog: Catalog,
   query: string,

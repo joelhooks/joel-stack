@@ -1,38 +1,24 @@
-// A legacy MCP session that outlives the memory it runs in.
-//
-// MCP revisions before 2026-07-28 are stateful: `initialize` opens a session
-// and every later request names it. Effect keeps those sessions in memory, so
-// one Durable Object per session holds the runtime. Cloudflare evicts idle
-// objects, which would drop the session, so the object also stores the
-// client's `initialize` request. When a request arrives for a session the
-// runtime no longer knows, the object replays `initialize` into a fresh
-// runtime and keeps answering under the id the client already has.
 import { Effect, Option, Ref, Schema } from "effect";
 
-/** What an object must remember to rebuild its session after eviction. */
 export interface StoredSession {
   readonly body: string;
   readonly headers: Readonly<Record<string, string>>;
 }
 
-/** Durable Object storage in production, a Ref in tests. */
 export interface SessionStorage<R = never> {
   readonly load: Effect.Effect<StoredSession | undefined, never, R>;
   readonly save: (session: StoredSession) => Effect.Effect<void, never, R>;
 }
 
 export interface LegacySessionOptions<R = never> {
-  /** Effect's in-memory MCP runtime for the legacy protocols. */
   readonly forward: (request: Request) => Effect.Effect<Response, never, R>;
   readonly storage: SessionStorage<R>;
 }
 
-/** The Worker names the client's session to the object in this header. */
 export const LEGACY_SESSION_HEADER = "x-ratstack-mcp-session";
 
 const SESSION_HEADER = "mcp-session-id";
 
-// Only these headers matter to the runtime when it replays `initialize`.
 const replayHeaders = ["accept", "content-type", "mcp-protocol-version"];
 
 const JsonRpcEnvelope = Schema.fromJsonString(
@@ -68,7 +54,6 @@ const withSessionId = (
   });
 };
 
-// The client only ever sees the id it was given, never the runtime's.
 const presentAs = (response: Response, externalId: string) => {
   if (!response.headers.has(SESSION_HEADER)) {
     return response;
@@ -84,7 +69,6 @@ const presentAs = (response: Response, externalId: string) => {
   });
 };
 
-/** The spec's answer to an unknown session: start a new one. */
 export const legacySessionNotFound = (id: string | number | null | undefined) =>
   Response.json(
     {
@@ -105,7 +89,6 @@ export const openLegacySession = <R = never>(
 ) =>
   Effect.gen(function* buildSession() {
     const { forward, storage } = options;
-    // The runtime's own id for this session, while the runtime remembers it.
     const runtimeId = yield* Ref.make(Option.none<string>());
 
     const open = (request: Request, body: string) =>
@@ -123,7 +106,6 @@ export const openLegacySession = <R = never>(
         return response;
       });
 
-    // Rebuild the session in a runtime that has forgotten it.
     const restore = (request: Request) =>
       Effect.gen(function* restoreSession() {
         const stored = yield* storage.load;
@@ -203,7 +185,6 @@ export const openLegacySession = <R = never>(
           return presentAs(response, externalId);
         }
 
-        // The runtime dropped a session it held a moment ago. Rebuild once.
         yield* Ref.set(runtimeId, Option.none());
         const rebuilt = yield* restore(request);
 

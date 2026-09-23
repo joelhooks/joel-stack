@@ -1,8 +1,5 @@
 import { Effect } from "effect";
 
-// Cloudflare rejects non-numeric namespace ids at deploy time ("must have
-// valid namespace_id") even though Alchemy's type allows strings and its
-// local provider accepts them. Ids are account-unique; 1001-1003 are ours.
 export const rateLimitDeclarations = {
   API_PER_IP: {
     namespaceId: 1001,
@@ -39,12 +36,10 @@ export interface RateLimits {
 export const rateLimitsFrom = (bindings: RateLimitBindings): RateLimits => ({
   limit: (name, key) =>
     Effect.tryPromise(
-      // Cloudflare owns this Promise-returning runtime boundary.
-      // oxlint-disable-next-line typescript/promise-function-async
+      // oxlint-disable-next-line typescript/promise-function-async -- Cloudflare owns this Promise-returning runtime boundary.
       () => bindings[name].limit({ key })
     ).pipe(
       Effect.map(({ success }) => success),
-      // A broken cost-control binding must not fail open and create workers.
       Effect.orDie
     ),
 });

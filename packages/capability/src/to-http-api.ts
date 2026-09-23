@@ -1,13 +1,4 @@
-// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off
-// See to-toolkit.ts: a projection over a heterogeneous list erases error and
-// requirement types at the boundary and recovers them for callers.
-// Projection: Capabilities -> effect/unstable/httpapi HttpApi (REST + OpenAPI).
-//
-// Every capability becomes `POST /<name>` in one group, with the input as the
-// JSON payload, the output as the success body, and the failure as the error
-// body. POST for everything is deliberate: it keeps the projection total (any
-// Struct input fits a JSON body) and keeps one rule for agents to learn.
-// `OpenApi.fromApi(api)` then derives the document for free.
+// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off -- See to-toolkit.ts: a projection over a heterogeneous list erases error and requirement types at the boundary and recovers them for callers.
 import type { Effect, Layer, Schema } from "effect";
 import {
   HttpApi,
@@ -32,13 +23,7 @@ import type { RequirementsOf } from "./to-toolkit.js";
 
 export const GROUP = "capabilities";
 
-/**
- * SAFETY: `HttpApiEndpoint.post` checks at the type level that the error
- * schema is not a streaming schema, through a non-exported conditional type
- * that a generic `Failure` cannot satisfy. A plain schema is never a stream,
- * so the runtime call goes through this loosely typed alias and `EndpointOf`
- * names the precise endpoint type separately.
- */
+// SAFETY: `HttpApiEndpoint.post` checks at the type level that the error schema is not a streaming schema, through a non-exported conditional type that a generic `Failure` cannot satisfy. A plain schema is never a stream, so the runtime call goes through this loosely typed alias and `EndpointOf` names the precise endpoint type separately.
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
 const post = HttpApiEndpoint.post as unknown as (
   name: string,
@@ -50,11 +35,6 @@ const post = HttpApiEndpoint.post as unknown as (
   }
 ) => HttpApiEndpoint.Constraint;
 
-/**
- * A declared failure is the caller's problem, so it answers 422 unless the
- * capability annotated its failure schema with a status of its own (for
- * example `HttpApiSchema.status(404)`). Undeclared errors stay 500.
- */
 const DEFAULT_FAILURE_STATUS = 422;
 
 const withFailureStatus = (failure: PlainSchema): Schema.Top =>
@@ -118,12 +98,6 @@ export type ApiOf<
 > = ReturnType<typeof apiFor<Id, GroupOf<Caps>>>;
 
 export interface HttpApiProjectionOptions {
-  /**
-   * Failures the host can produce on any route before a handler runs, such
-   * as a 429 from a rate limiter. Each schema carries its own `httpApiStatus`
-   * annotation. They are documented on every endpoint; the capabilities'
-   * own failure schemas are unchanged.
-   */
   readonly errors?: readonly Schema.Top[] | undefined;
   readonly prefix?: `/${string}` | undefined;
 }
@@ -133,7 +107,6 @@ export interface HttpApiProjection<
   Caps extends readonly AnyCapability[],
 > {
   readonly api: ApiOf<Id, Caps>;
-  /** Handlers for every endpoint; requires whatever the capabilities require. */
   readonly layer: Layer.Layer<
     HttpApiGroup.ToService<Id, GroupOf<Caps>>,
     never,
@@ -166,16 +139,12 @@ export const toHttpApi = <
     throw new Error("toHttpApi needs at least one capability");
   }
 
-  // `map` over a tuple returns an array; `EndpointsOf<Caps>` is the tuple
-  // type the group needs. One cast at this boundary keeps callers typed.
   const baseApi = apiFor(id, groupFor(first, ...rest));
 
   const projectedApi =
     options?.prefix === undefined ? baseApi : baseApi.prefix(options.prefix);
 
-  // SAFETY: prefixing changes endpoint paths but not the API id, group id,
-  // schemas, or handler service. Keep the stable public type while preserving
-  // that runtime path transformation for HttpApiBuilder and OpenAPI.
+  // SAFETY: prefixing changes endpoint paths but not the API id, group id, schemas, or handler service. Keep the stable public type while preserving that runtime path transformation for HttpApiBuilder and OpenAPI.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
   const api = projectedApi as unknown as ApiOf<Id, Caps>;
 
@@ -187,8 +156,7 @@ export const toHttpApi = <
   > = {};
 
   for (const capability of capabilities) {
-    // SAFETY: `Any` erased this capability's requirements to `unknown`; they
-    // are a subset of `RequirementsOf<Caps>`. HttpApi decodes the payload.
+    // SAFETY: `Any` erased this capability's requirements to `unknown`; they are a subset of `RequirementsOf<Caps>`. HttpApi decodes the payload.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const run = capability.handler as (
       // oxlint-disable-next-line anti-slop/no-unknown-parameters
@@ -198,18 +166,13 @@ export const toHttpApi = <
     implementations[capability.name] = ({ payload }) => run(payload);
   }
 
-  // SAFETY: `handleAll` wants a record keyed by the group's endpoint
-  // identifiers with each handler typed to its endpoint; that is what
-  // `implementations` is at runtime, but a loop cannot say so. `never` is
-  // accepted by every parameter type, so the call stays checked on its return
-  // side.
+  // SAFETY: `handleAll` wants a record keyed by the group's endpoint identifiers with each handler typed to its endpoint; that is what `implementations` is at runtime, but a loop cannot say so. `never` is accepted by every parameter type, so the call stays checked on its return side.
   const built = HttpApiBuilder.group(api, GROUP, (handlers) =>
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     handlers.handleAll(implementations as never)
   );
 
-  // SAFETY: `built` is the layer for exactly the group `api` names, which is
-  // what `HttpApiProjection<Id, Caps>["layer"]` spells out.
+  // SAFETY: `built` is the layer for exactly the group `api` names, which is what `HttpApiProjection<Id, Caps>["layer"]` spells out.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
   const layer = built as unknown as HttpApiProjection<Id, Caps>["layer"];
 

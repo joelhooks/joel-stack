@@ -1,31 +1,14 @@
-// The one domain object this package projects from.
-//
-// A Capability is a named, described unit of work with an Effect Schema for
-// its input, output, and failure, an Effect handler, and the annotations every
-// agent surface agrees on (read-only, destructive, idempotent, open-world,
-// approval). Projections (to-command, to-http-api, to-toolkit) are pure
-// functions from Capabilities to an Effect surface; they add nothing the
-// Capability did not already say.
 import { Data, Effect, Schema } from "effect";
 
 import { Approval, ApprovalDenied } from "./approval.js";
 
 export interface Annotations {
-  /** The handler does not mutate anything observable. */
   readonly readOnly: boolean;
-  /** The handler may destroy or irreversibly change state. */
   readonly destructive: boolean;
-  /** Repeating the call with the same input has no additional effect. */
   readonly idempotent: boolean;
-  /** The handler talks to systems outside the process (network, other hosts). */
   readonly openWorld: boolean;
 }
 
-/**
- * A schema whose codecs need no services. Projections decode and encode at
- * process edges (argv, HTTP bodies, MCP messages) where no service exists to
- * provide, so every Capability schema must be plain.
- */
 export type PlainSchema = Schema.Top & {
   readonly DecodingServices: never;
   readonly EncodingServices: never;
@@ -58,7 +41,6 @@ export interface Capability<
   readonly output: O;
   readonly failure: F;
   readonly annotations: Annotations;
-  /** A host should ask a human before running this. */
   readonly needsApproval: NeedsApproval;
   readonly handler: (
     input: I["Type"]
@@ -69,13 +51,6 @@ export interface Capability<
   >;
 }
 
-/**
- * Any capability, for projections that take a heterogeneous list.
- *
- * The handler takes `never` so that every concrete handler is assignable
- * (parameters are contravariant), and returns `unknown` in every channel; the
- * extractors below recover the real types from a concrete capability type.
- */
 export interface AnyCapability {
   readonly _tag: "Capability";
   readonly name: string;
@@ -88,14 +63,10 @@ export interface AnyCapability {
   readonly handler: (input: never) => Effect.Effect<unknown, unknown, unknown>;
 }
 
-/** The runtime value behind every capability; the tag comes from the class. */
 class CapabilityRecord extends Data.TaggedClass("Capability")<
   Omit<AnyCapability, "_tag">
 > {}
 
-// Extractors infer every parameter at once: matching against a partly fixed
-// `Capability<...>` would compare handler parameter types contravariantly and
-// fail for any concrete input.
 export type NameOf<C> =
   C extends Capability<
     infer N,
@@ -252,7 +223,6 @@ export function defineCapability<
   });
 }
 
-/** Adds ApprovalDenied to a projected failure schema when required. */
 export const failureSchemaOf = <
   F extends PlainSchema,
   const NeedsApproval extends boolean,
@@ -264,8 +234,7 @@ export const failureSchemaOf = <
     ? Schema.Union([capability.failure, ApprovalDenied])
     : capability.failure;
 
-  // SAFETY: the runtime branch preserves the exact schema members represented
-  // by the literal `NeedsApproval` type supplied by the capability.
+  // SAFETY: the runtime branch preserves the exact schema members represented by the literal `NeedsApproval` type supplied by the capability.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return schema as FailureSchemaOf<F, NeedsApproval>;
 };

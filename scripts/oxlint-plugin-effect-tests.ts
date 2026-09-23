@@ -1,11 +1,3 @@
-// Adapted from t3code's oxlint-plugin-t3code/rules/no-manual-effect-runtime-in-tests.ts.
-//
-// `no-manual-effect-runtime-in-tests` reports `Effect.run*` and
-// `ManagedRuntime.make` inside test files. Tests run Effects through
-// `@effect/vitest` (`it.effect`, `it.layer`) so every test gets a Scope, the
-// TestClock, and layer memoization for free, and a forgotten `await` cannot
-// silently pass. Application entry points are the only place a runtime is
-// built by hand.
 import { definePlugin, defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 

@@ -19,8 +19,7 @@ class FakeLimit {
   constructor(results: readonly boolean[] = []) {
     this.#results = [...results];
   }
-  // Matches Cloudflare's Promise-returning binding.
-  // oxlint-disable-next-line typescript/promise-function-async
+  // oxlint-disable-next-line typescript/promise-function-async -- Matches Cloudflare's Promise-returning binding.
   limit() {
     return Promise.resolve({ success: this.#results.shift() ?? true });
   }
@@ -28,11 +27,7 @@ class FakeLimit {
 
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
 
-// A stand-in for the LegacyMcp namespace: one session object per name, each
-// with its own MCP runtime and storage, created on first use.
 const fakeNamespace = Effect.gen(function* makeFakeNamespace() {
-  // Objects outlive the request that creates them, so their runtimes live
-  // in the namespace's scope.
   const scope = yield* Effect.scope;
 
   const objects = new Map<
@@ -165,7 +160,6 @@ it.effect("gives each legacy MCP client its own session object", () =>
       expect(secondId).not.toBe(firstId);
       expect([...objects.keys()]).toEqual([firstId, secondId]);
 
-      // The 2026-07-28 protocol stays stateless in the Worker.
       const modern = yield* send(
         handler,
         new Request("https://ratstack.sh/mcp", {

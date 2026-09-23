@@ -1,9 +1,3 @@
-/**
- * VCS command policy for agent shells.
- * Blocks `git … --no-verify` so hook bypass is uncomfortable and obvious.
- * Also forces non-interactive editors for git/jj when the harness can rewrite.
- */
-
 const GIT_COMMAND = /(?:^|[\s;&|()])(?:[^\s;&|()]*\/)?git(?=$|[\s;&|()])/mu;
 
 const VCS_COMMAND =
@@ -17,14 +11,11 @@ export const NONINTERACTIVE_VCS_ENV =
 export const HOOK_BYPASS_REASON =
   "Blocked hook bypass. Do not use --no-verify. Fix the hook failure, or ask before changing the hook policy.";
 
-/**
- * @typedef {{ action: "allow"; command: string } | { action: "block"; reason: string }} CommandPolicyResult
- */
+/** @typedef {{ action: "allow"; command: string } | { action: "block"; reason: string }} CommandPolicyResult */
 
 /**
- * Apply allow/block policy to a shell command string.
- * @param {string} command Shell command the agent wants to run.
- * @returns {CommandPolicyResult} Allow (optionally rewritten) or block with reason.
+ * @param {string} command
+ * @returns {CommandPolicyResult}
  */
 export const applyCommandPolicy = (command) => {
   if (GIT_COMMAND.test(command) && NO_VERIFY.test(command)) {

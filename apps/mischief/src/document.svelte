@@ -132,7 +132,6 @@
   }
 
   @media (max-width: 40rem) {
-    /* Text diagrams are 65 columns; shrink them to fit instead of scrolling. */
     :global(figure) {
       margin: 1rem 0;
     }

@@ -8,9 +8,6 @@ import { TestSandbox } from "./test-sandbox.js";
 
 type Forward = (request: Request) => Effect.Effect<Response>;
 
-// One runtime is one Durable Object's memory. A second runtime over the same
-// storage is the same object after eviction. Built exactly as the object
-// builds it, so the session header path is the production one.
 const withRuntime = <A, E, R>(
   use: (forward: Forward) => Effect.Effect<A, E, R>
 ) =>
@@ -65,7 +62,6 @@ const decodeJson = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Json)
 );
 
-// Legacy servers may answer a POST with JSON or with one SSE event.
 const readRpcText = Effect.fnUntraced(function* readRpcText(
   response: Response
 ) {
@@ -76,7 +72,6 @@ const readRpcText = Effect.fnUntraced(function* readRpcText(
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice("data:".length).trim());
 
-  // Notifications can precede the reply on the same stream.
   return events.find((event) => event.includes('"id"')) ?? events[0] ?? text;
 });
 
@@ -160,7 +155,6 @@ it.effect("a legacy session survives eviction of its object", () =>
         );
 
         expect(tools.status).toBe(200);
-        // The client never sees the replacement runtime's session id.
         expect([null, "ext-2"]).toContain(tools.headers.get("mcp-session-id"));
         expect(yield* readRpcText(tools)).toContain('"search"');
       })

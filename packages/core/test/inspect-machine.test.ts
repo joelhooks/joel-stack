@@ -11,15 +11,11 @@ import {
 } from "../src/inspect-machine.js";
 import { FileStatsError } from "../src/stats.js";
 
-// Same composition as the CLI entry: the machine's declared actor requires
-// FileInspector, which requires FileSystem from NodeServices.
 const TestLayer = Layer.provideMerge(FileInspector.layer, NodeServices.layer);
 
 const runMachine = Effect.fn("runMachine")(function* runMachine(path: string) {
   const actor = yield* createEffectActor(inspectMachine, { input: { path } });
-  // A machine's ErrorFrom is unknown (statelyai/xstate#5725); a machine-level
-  // error here is a test failure, not a case under test.
-  // @effect-diagnostics-next-line anyUnknownInErrorContext:off
+  // @effect-diagnostics-next-line anyUnknownInErrorContext:off -- A machine's ErrorFrom is unknown (statelyai/xstate#5725); a machine-level error here is a test failure, not a case under test.
   const outcome = yield* join(actor).pipe(Effect.orDie);
 
   return { outcome, state: actor.getSnapshot().value };
