@@ -114,6 +114,18 @@ it.layer(NodeServices.layer)("generated content", (test) => {
     })
   );
 
+  test.effect("embeds the shared stylesheet in static documents", () =>
+    Effect.sync(() => {
+      const stylesheet =
+        /<style>(?<css>[\s\S]*?)<\/style>/u.exec(homeDocumentHtml)?.groups
+          ?.css ?? "";
+
+      expect(stylesheet).toContain("ui-monospace");
+      expect(stylesheet).toContain("max-width: 80ch");
+      expect(homeDocumentHtml).not.toContain('rel="stylesheet"');
+    })
+  );
+
   test.effect("keeps the line breaks in a text diagram", () =>
     Effect.sync(() => {
       const figures = homeDocumentHtml.match(
