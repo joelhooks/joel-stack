@@ -97,12 +97,13 @@ const acceptanceProbeContract = defineContract("acceptanceProbe", {
   annotations: { idempotent: true, readOnly: true },
   description: "Return a deterministic value for template acceptance tests",
   failure: Schema.Never,
-  input: Schema.Struct({}),
+  input: Schema.Struct({ value: Schema.String }),
   output: Schema.Struct({ value: Schema.String }),
 });
 
-export const acceptanceProbe = implement(acceptanceProbeContract, () =>
-  Effect.succeed({ value: "acceptance-ok" })
+export const acceptanceProbe = implement(
+  acceptanceProbeContract,
+  ({ value }) => Effect.succeed({ value })
 );
 EOF
 if ! node --input-type=module <<'NODE'
@@ -184,7 +185,7 @@ if [[ "$ready" != "1" ]]; then
 fi
 http_body="$tmp/http.json"
 if ! curl --silent --show-error --fail --request POST "http://127.0.0.1:${port}/acceptanceProbe" \
-  --header 'content-type: application/json' --data '{}' >"$http_body"; then
+  --header 'content-type: application/json' --data '{"value":"acceptance-ok"}' >"$http_body"; then
   cat "$http_body" >&2 || true
   fail "POST /acceptanceProbe failed"
 fi
