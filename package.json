@@ -24,13 +24,15 @@
     "prepare": "effect-tsgo patch && lefthook install",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "vendor:agent-sources": "./scripts/vendor-agent-sources.sh"
+    "vendor:agent-sources": "./scripts/vendor-agent-sources.sh",
+    "find-peers": "node scripts/find-peers.ts"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.86.1",
     "@effect/tsgo": "0.45.0",
     "@oxlint/plugins": "1.83.0",
     "@types/node": "24.13.6",
+    "effect": "4.0.0-rc.117",
     "lefthook": "2.1.14",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
