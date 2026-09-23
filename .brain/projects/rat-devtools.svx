@@ -175,5 +175,19 @@ Joel, 2026-09-23: queue all three; Rubicon's badass-devtools "are broken and suc
 
 1. **Client atoms, slice 4.** Blocked on `apps/web`. A browser bridge reports the AtomRpc registry (atom keys, values by path, refresh history) to the same devtools process, so `rat_list_atoms` and `rat_get_atom` read the client replica. The open design question is transport: the dev server's `/__rat` route, or the `/rpc` route the web lane builds.
 2. **🐀 overlay, slice 5.** Blocked on `apps/web`. A feature plus a client in `apps/web`, reading only the devtools contracts through `toRpcGroup`: Calls, Contracts with a dispatch form generated from JSON Schema, Machines, Atoms. It replaces badass-devtools in vendoring apps instead of sitting beside it.
-3. **Session and test person, slice 6.** Blocked on `packages/auth`. A Session tab and a `rat_as_person` dev-only capability that runs a call as a chosen test `PersonId`, the replacement for Rubicon's test athlete toggle.
+3. **Session and test person, slice 6.** Built; see below. The Session tab moves into slice 5.
+
+## Slice 6 status: run as a test person
+
+Built on `3269e50` after `packages/auth` landed.
+
+- Devtools stays independent of auth. `devtools(capabilities, { runAs })` takes a generic `RunAs` (`label`, `schema`, `tag`). The recorder reads the identity service on every call and stores it as `as` on the call entry. `rat_call` accepts `as`, decodes it with `runAs.schema`, and provides it to the dispatched call. `rat_replay_call` replays as the recorded identity. An `as` that does not decode is refused, not guessed.
+- `@rat-stack/auth/devtools` supplies the auth half:
+  - `runAsPerson` (`CurrentPerson` plus `PersonIdSchema`);
+  - `rat_test_person`, which signs a test person in (creating them if needed) and returns the person id and session cookie. The email is always `<name>@rat.test` with a fixed development password, so it cannot reach a real account;
+  - `testPersonLayer(name)`, which gives a development composition a default `CurrentPerson`.
+- Why a default is needed: a capability that requires `CurrentPerson` puts it in the devtools toolkit's requirements. A dev server provides `testPersonLayer("dev")` once, and `as` overrides it per call.
+- `rat_test_person` uses Better Auth's raw `auth.auth` handle, because Alchemy's API proxy drops the `returnHeaders` typing on `signUpEmail`.
+- Integration test: `packages/auth/test/devtools.test.ts`, on Better Auth's memory database. Making dispatch ignore `as` fails two of its tests.
+- Not wired into `apps/cli` yet: no CLI capability needs a person, and the CLI has no `Auth`. The web composition adds `ratTestPerson` to its devtools list and passes `{ runAs: runAsPerson }`.
 
