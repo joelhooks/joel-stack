@@ -1,10 +1,13 @@
 import { defineContract } from "@rat-stack/capability/contract";
 import { Schema } from "effect";
 
+import { ActorNotFound } from "./actor-not-found.js";
 import { OutcomeSchema } from "./call-log.js";
 import { CallNotFound } from "./call-not-found.js";
 import { ChangeSchema, PathNotFound } from "./json.js";
 import { UnknownCapability } from "./unknown-capability.js";
+
+export { ActorNotFound } from "./actor-not-found.js";
 
 export { CallNotFound } from "./call-not-found.js";
 
@@ -38,7 +41,7 @@ const HistoryBounds = {
     description: "Oldest index still retained; older entries were evicted.",
   }),
   nextIndex: Schema.Int.annotate({
-    description: "Index the next recorded call will get.",
+    description: "Index the next recorded entry will get.",
   }),
 };
 
@@ -174,6 +177,66 @@ export const ratDiffCalls = defineContract("rat_diff_calls", {
   output: Schema.Struct({ changes: Schema.Array(ChangeSchema) }),
 });
 
+const LatestActor = Schema.Struct({
+  actorId: Schema.String,
+  lastIndex: Schema.Int,
+  machine: Schema.String,
+  rootId: Schema.String,
+  state: Schema.Json,
+  status: Schema.String,
+  transitions: Schema.Int,
+});
+
+export const ratListActors = defineContract("rat_list_actors", {
+  annotations: readOnly,
+  description:
+    "List the state machine actors this runtime has run, each with its latest state value, status, and transition count. Filter by machine name.",
+  failure: Schema.Never,
+  input: Schema.Struct({
+    machine: Schema.optional(
+      Schema.String.annotate({ description: "Only actors of this machine." })
+    ),
+  }),
+  output: Schema.Struct({
+    ...HistoryBounds,
+    actors: Schema.Array(LatestActor),
+  }),
+});
+
+export const ratListTransitions = defineContract("rat_list_transitions", {
+  annotations: readOnly,
+  description:
+    "List state machine transitions in order, summarized: the event, the resulting state value, status, and context. Filter by actor or machine; set fromEnd for the latest first.",
+  failure: Schema.Never,
+  input: Schema.Struct({
+    actorId: Schema.optional(Schema.String),
+    fromEnd: Schema.optional(Schema.Boolean),
+    limit: Schema.optional(
+      Schema.Int.check(Schema.isBetween({ maximum: 500, minimum: 1 }))
+    ),
+    machine: Schema.optional(Schema.String),
+    sinceIndex: Schema.optional(Schema.Int),
+  }),
+  output: Schema.Struct({
+    ...HistoryBounds,
+    entries: Schema.Array(Schema.Json),
+    matched: Schema.Int,
+  }),
+});
+
+export const ratGetActor = defineContract("rat_get_actor", {
+  annotations: readOnly,
+  description:
+    "Read one actor's latest entry, or one path inside it, such as 'root.context' or 'root.state'.",
+  failure: Schema.Union([ActorNotFound, PathNotFound]),
+  input: Schema.Struct({
+    actorId: Schema.String,
+    expand: ExpandField,
+    path: PathField,
+  }),
+  output: Schema.Struct({ value: Schema.Json }),
+});
+
 export const devtoolsContracts = [
   ratListContracts,
   ratDescribeContract,
@@ -183,4 +246,7 @@ export const devtoolsContracts = [
   ratCall,
   ratReplayCall,
   ratDiffCalls,
+  ratListActors,
+  ratListTransitions,
+  ratGetActor,
 ] as const;

@@ -84,13 +84,14 @@ XState owns states and moves between them. Effect owns side effects, errors, ser
 
 ## 4. Run it inside Effect
 
-Start the machine with `createEffectActor`. Do not use XState's `createActor`. Wait for it with `join` inside `Effect.scoped`:
+Start the machine with `createEffectActor`. Do not use XState's `createActor`. Hand the actor to `watchActor` from `@rat-stack/capability/actor-watch`, then wait for it with `join` inside `Effect.scoped`:
 
 ```ts
 export const runThingMachine = Effect.fn("runThingMachine")(function* (
   id: string
 ) {
   const actor = yield* createEffectActor(thingMachine, { input: { id } });
+  yield* watchActor("thingMachine", actor);
   // @effect-diagnostics-next-line anyUnknownInErrorContext:off
   const outcome = yield* join(actor).pipe(Effect.orDie);
   if (outcome === undefined) {
@@ -102,6 +103,8 @@ export const runThingMachine = Effect.fn("runThingMachine")(function* (
   return outcome.value;
 }, Effect.scoped);
 ```
+
+`watchActor` does nothing until devtools runs the capability. Then `rat_list_actors`, `rat_list_transitions`, and `rat_get_actor` show every state and event. `rat-stack-patterns/watch-effect-actors` fails lint when a runtime module starts an actor without it.
 
 A missing result or machine-level error is a bug in this design. A known product error belongs in the final result. `join` has an `unknown` machine-error channel, so the example uses one narrow diagnostic override before `Effect.orDie`.
 

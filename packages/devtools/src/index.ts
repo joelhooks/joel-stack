@@ -1,7 +1,6 @@
 export {
   CallEntrySchema,
   CallLog,
-  DEFAULT_CAPACITY,
   OutcomeSchema,
   type CallEntry,
   type CallLogSnapshot,
@@ -10,6 +9,7 @@ export {
 } from "./call-log.js";
 
 export {
+  ActorNotFound,
   CallNotFound,
   InvokeResultSchema,
   PathNotFound,
@@ -18,7 +18,16 @@ export {
   type InvokeResult,
 } from "./contracts.js";
 
-export { devtools, record } from "./devtools.js";
+export { DEFAULT_CAPACITY } from "./ring.js";
+
+export {
+  ActorEntrySchema,
+  ActorLog,
+  type ActorEntry,
+  type ActorLogSnapshot,
+} from "./actor-log.js";
+
+export { devtools, devtoolsLayer, record } from "./devtools.js";
 
 export {
   ChangeSchema,

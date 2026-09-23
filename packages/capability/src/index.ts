@@ -1,4 +1,13 @@
 export {
+  ActorWatch,
+  watchActor,
+  type ActorEvent,
+  type ActorSnapshot,
+  type ActorWatchService,
+  type WatchableActor,
+} from "./actor-watch.js";
+
+export {
   defineContract,
   failureSchemaOf,
   type Annotations,

@@ -1,4 +1,7 @@
-import { Context, Effect, Layer, Ref, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
+
+import { DEFAULT_CAPACITY, boundedLog } from "./ring.js";
+import type { RingSnapshot } from "./ring.js";
 
 export const OutcomeSchema = Schema.TaggedUnion({
   Died: { message: Schema.String },
@@ -21,43 +24,16 @@ export type CallEntry = typeof CallEntrySchema.Type;
 
 export type NewCall = Omit<CallEntry, "index">;
 
-export interface CallLogSnapshot {
-  readonly entries: readonly CallEntry[];
-  readonly firstIndex: number;
-  readonly nextIndex: number;
-}
-
-export const DEFAULT_CAPACITY = 500;
+export type CallLogSnapshot = RingSnapshot<CallEntry>;
 
 const makeCallLog = (capacity: number) =>
   Effect.gen(function* buildCallLog() {
-    const state = yield* Ref.make<{
-      readonly entries: readonly CallEntry[];
-      readonly nextIndex: number;
-    }>({ entries: [], nextIndex: 0 });
+    const ring = yield* boundedLog<CallEntry>(capacity);
 
-    const append = (call: NewCall) =>
-      Ref.modify(state, ({ entries, nextIndex }) => {
-        const entry: CallEntry = { ...call, index: nextIndex };
-
-        return [
-          entry,
-          {
-            entries: [...entries, entry].slice(-capacity),
-            nextIndex: nextIndex + 1,
-          },
-        ] as const;
-      });
-
-    const snapshot = Ref.get(state).pipe(
-      Effect.map(({ entries, nextIndex }): CallLogSnapshot => ({
-        entries,
-        firstIndex: entries.at(0)?.index ?? nextIndex,
-        nextIndex,
-      }))
-    );
-
-    return { append, snapshot } as const;
+    return {
+      append: (call: NewCall) => ring.append((index) => ({ ...call, index })),
+      snapshot: ring.snapshot,
+    } as const;
   });
 
 export class CallLog extends Context.Service<
