@@ -360,6 +360,9 @@ importers:
       '@alchemy.run/better-auth':
         specifier: 2.0.0-beta.79
         version: 2.0.0-beta.79(@cloudflare/workers-types@5.20260901.1)(@distilled.cloud/aws@1.0.0-rc.12(effect@4.0.0-rc.117))(alchemy@2.0.0-beta.79(@effect/platform-node@4.0.0-rc.117(effect@4.0.0-rc.117)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@effect/sql-pg@4.0.0-rc.117(effect@4.0.0-rc.117))(@types/node@24.13.6)(effect@4.0.0-rc.117)(pg@8.23.0)(typescript@7.0.2)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))(vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))(ws@8.21.3))(better-auth@1.6.2(@cloudflare/workers-types@5.20260901.1)(@opentelemetry/api@1.9.1)(pg@8.23.0)(react@19.3.0)(svelte@5.57.1)(vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))))(effect@4.0.0-rc.117)(kysely@0.28.17)(pg@8.23.0)
+      '@rat-stack/capability':
+        specifier: workspace:*
+        version: link:../capability
       '@rat-stack/database':
         specifier: workspace:*
         version: link:../database
@@ -382,9 +385,9 @@ importers:
       '@effect/vitest':
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(effect@4.0.0-rc.117)(vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)))
-      '@rat-stack/capability':
+      '@rat-stack/devtools':
         specifier: workspace:*
-        version: link:../capability
+        version: link:../devtools
       '@types/node':
         specifier: 24.13.6
         version: 24.13.6
