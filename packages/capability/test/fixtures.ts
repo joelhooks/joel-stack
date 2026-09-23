@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Schema } from "effect";
 
-import { defineCapability } from "../src/index.js";
+import { defineContract, implement } from "../src/index.js";
 import { NotFound } from "./not-found.js";
 
 export { NotFound } from "./not-found.js";
@@ -16,12 +16,10 @@ export class Greeter extends Context.Service<
   static readonly layer = Layer.effect(this, this.make);
 }
 
-export const echo = defineCapability("echo", {
+const echoContract = defineContract("echo", {
   annotations: { idempotent: true, readOnly: true },
   description: "Repeat text a number of times",
   failure: Schema.Never,
-  handler: ({ text, times }) =>
-    Effect.succeed({ text: text.repeat(times ?? 1) }),
   input: Schema.Struct({
     text: Schema.String.annotate({ description: "Text to repeat" }),
     times: Schema.optional(Schema.Finite),
@@ -29,32 +27,40 @@ export const echo = defineCapability("echo", {
   output: Schema.Struct({ text: Schema.String }),
 });
 
-export const greet = defineCapability("greet", {
+export const echo = implement(echoContract, ({ text, times }) =>
+  Effect.succeed({ text: text.repeat(times ?? 1) })
+);
+
+const greetContract = defineContract("greet", {
   description: "Greet someone by name",
   failure: NotFound,
-  handler: ({ name }) =>
-    name === "nobody"
-      ? Effect.fail(new NotFound({ name }))
-      : Greeter.use((greeter) => greeter.greet(name)).pipe(
-          Effect.map((greeting) => ({ greeting }))
-        ),
   input: Schema.Struct({ name: Schema.String }),
   output: Schema.Struct({ greeting: Schema.String }),
 });
 
-export const approved = defineCapability("approved", {
+export const greet = implement(greetContract, ({ name }) =>
+  name === "nobody"
+    ? Effect.fail(new NotFound({ name }))
+    : Greeter.use((greeter) => greeter.greet(name)).pipe(
+        Effect.map((greeting) => ({ greeting }))
+      )
+);
+
+const approvedContract = defineContract("approved", {
   description: "A capability that requires approval",
   failure: Schema.Never,
-  handler: () => Effect.succeed({ ok: true }),
   input: Schema.Struct({ message: Schema.String }),
   needsApproval: true,
   output: Schema.Struct({ ok: Schema.Boolean }),
 });
 
-export const mixed = defineCapability("mixed", {
+export const approved = implement(approvedContract, () =>
+  Effect.succeed({ ok: true })
+);
+
+const mixedContract = defineContract("mixed", {
   description: "Echo a mixed input back",
   failure: Schema.Never,
-  handler: (input) => Effect.succeed(input),
   input: Schema.Struct({
     enabled: Schema.Boolean,
     mode: Schema.Literals(["fast", "slow"]),
@@ -66,3 +72,5 @@ export const mixed = defineCapability("mixed", {
     tags: Schema.Array(Schema.String),
   }),
 });
+
+export const mixed = implement(mixedContract, (input) => Effect.succeed(input));

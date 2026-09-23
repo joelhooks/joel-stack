@@ -9,7 +9,7 @@ import type {
   OutputOf,
   PlainSchema,
   RequirementsOf as CapabilityRequirementsOf,
-} from "./capability.js";
+} from "./contract.js";
 
 export interface ToCommandOptions<Output> {
   readonly name?: string | undefined;
@@ -145,6 +145,7 @@ export const toCommand = <C extends AnyCapability>(
   capability: C,
   options?: ToCommandOptions<OutputOf<C>["Type"]>
 ) => {
+  const { contract } = capability;
   const positional = new Set(options?.positional);
 
   const config: Record<
@@ -152,7 +153,7 @@ export const toCommand = <C extends AnyCapability>(
     Flag.Flag<unknown> | Argument.Argument<unknown>
   > = {};
 
-  for (const [name, field] of Object.entries(capability.input.fields)) {
+  for (const [name, field] of Object.entries(contract.input.fields)) {
     config[name] = positional.has(name)
       ? argumentFor(name, field)
       : flagFor(name, field);
@@ -167,15 +168,15 @@ export const toCommand = <C extends AnyCapability>(
     );
   }
 
-  if (capability.needsApproval) {
+  if (contract.needsApproval) {
     config[APPROVAL_FLAG] = Flag.Boolean(APPROVAL_FLAG).pipe(
       Flag.withDefault(false),
       Flag.withDescription("Approve this capability for this invocation")
     );
   }
 
-  const decodeInput = Schema.decodeUnknownEffect(capability.input);
-  const encodeOutput = Schema.encodeEffect(capability.output);
+  const decodeInput = Schema.decodeUnknownEffect(contract.input);
+  const encodeOutput = Schema.encodeEffect(contract.output);
 
   // SAFETY: `C extends Any` widens the handler's channels to `unknown`; the extractors recover the concrete ones from `C`.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
@@ -188,13 +189,13 @@ export const toCommand = <C extends AnyCapability>(
   >;
 
   return Command.make(
-    options?.name ?? capability.name,
+    options?.name ?? contract.name,
     config,
-    Effect.fn(`Capability.${capability.name}`)(function* runCommand(parsed) {
+    Effect.fn(`Capability.${contract.name}`)(function* runCommand(parsed) {
       const { [APPROVAL_FLAG]: yes, [JSON_FLAG]: json, ...fields } = parsed;
       const input = yield* decodeInput(fields);
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Decoded through `capability.input`, whose Type `C` makes precise.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Decoded through `contract.input`, whose Type `C` makes precise.
       const output = yield* run(input).pipe(
         Effect.provide(yes === true ? Approval.allowAll : Approval.denyAll)
       );
@@ -206,5 +207,5 @@ export const toCommand = <C extends AnyCapability>(
 
       yield* Console.log(text);
     })
-  ).pipe(Command.withDescription(capability.description));
+  ).pipe(Command.withDescription(contract.description));
 };

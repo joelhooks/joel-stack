@@ -1,19 +1,23 @@
-export {
-  defineCapability,
-  failureSchemaOf,
-  type Annotations,
-  type AnyCapability,
-  type ApprovalRequirement,
-  type Capability,
-  type DefineOptions,
-  type FailureOf,
-  type FailureSchemaOf,
-  type InputOf,
-  type InputSchema,
-  type NameOf,
-  type OutputOf,
-  type PlainSchema,
-  type RequirementsOf,
-} from "./capability.js";
+export { defineContract, failureSchemaOf } from "./contract.js";
 
-export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";
+export { implement } from "./implement.js";
+
+export type {
+  Annotations,
+  AnyCapability,
+  AnyContract,
+  ApprovalRequirement,
+  Capability,
+  Contract,
+  ContractFailureOf,
+  ContractOf,
+  DefineContractOptions,
+  FailureOf,
+  FailureSchemaOf,
+  InputOf,
+  InputSchema,
+  NameOf,
+  OutputOf,
+  PlainSchema,
+  RequirementsOf,
+} from "./contract.js";

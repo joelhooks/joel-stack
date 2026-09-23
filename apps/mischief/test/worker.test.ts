@@ -1,12 +1,12 @@
 import { expect, it } from "@effect/vitest";
 import { ExecuteResult } from "@rat-stack/capability/code-mode";
+import { ReadOutput, SearchOutput } from "@rat-stack/core/contracts";
 import { Effect, Layer, Schema } from "effect";
 import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
 import { mischiefRoutes } from "../src/app.js";
 import type { StaticResponseCache } from "../src/app.js";
-import { ReadOutput, SearchOutput } from "../src/capabilities/schemas.js";
 import {
   a2aAgentCard,
   agentSkillPath,
@@ -479,7 +479,7 @@ it.effect(
           "claude mcp add --transport http rat-stack https://ratstack.sh/mcp"
         );
         expect(markdown).toContain("labeled · push in · pull out");
-        expect(markdown).toContain("│  defineCapability");
+        expect(markdown).toContain("│  defineContract");
         expect(markdown).toContain("What to notice:");
         expect(markdown).toContain("npx skills add joelhooks/rat-stack");
         expect(markdown).toContain("## Source files");
@@ -498,7 +498,7 @@ it.effect(
         expect(html).toContain("<pre><code>");
         expect(skillHtml).toContain('<pre class="shiki catppuccin-latte"');
         expect(skillHtml).not.toContain('<link rel="stylesheet"');
-        expect(html).toContain("│  defineCapability");
+        expect(html).toContain("│  defineContract");
         expect(html).not.toContain("<svg");
         expect(html).not.toContain("prefers-color-scheme");
         expect(html).not.toMatch(/(?:html|body)\s*\{[^}]*background/u);
