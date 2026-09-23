@@ -81,6 +81,7 @@ export default defineConfig({
     "oxc/no-accumulating-spread": "error",
     "rat-stack-boundaries/no-browser-globals-on-server": "error",
     "rat-stack-boundaries/no-cross-layer-imports": "error",
+    "rat-stack-boundaries/no-devtools-in-production": "error",
     "rat-stack-boundaries/no-hand-rolled-surface": "error",
     "rat-stack-patterns/acquire-release-constructs-in-acquire-body": "error",
     "rat-stack-patterns/contract-binding-matches-name": "error",
