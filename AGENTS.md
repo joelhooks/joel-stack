@@ -49,6 +49,7 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 | Command | Purpose |
 | --- | --- |
 | `pnpm install` | Install workspace dependencies |
+| `pnpm dev` | Run `apps/web` under `vite dev` through portless at `http://rat-stack.localhost:1355` (worktrees get their own prefix); `portless list` shows the route |
 | `pnpm check` | Typecheck, verify formatting, and run type-aware linting |
 | `pnpm lint` | Type-aware lint plus format check only; `turbo run check` runs this once at the root as `//#lint` |
 | `pnpm fix` | Apply Oxfmt and safe Oxlint fixes |
