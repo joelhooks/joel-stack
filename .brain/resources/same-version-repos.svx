@@ -8,11 +8,11 @@ privacy: "public"
 
 # Effect + Alchemy peer patterns for rat-stack
 
-Source review for the web client, Alchemy resources, database, Better Auth, Worker tests, and boundary enforcement. The candidate roster came from main at `ac9f103`; `.brain/resources/peers.svx` is not in this worktree, so I left it untouched and recorded the inspected commits here. See [the layer-startups decision](../projects/layer-startups.svx) for the choices these patterns should serve.
+Source review for the web client, Alchemy resources, database, Better Auth, Worker tests, and boundary enforcement. The candidates came from the [peer roster](./peers.svx), which links back here from each studied repo. See [the layer-startups decision](../projects/layer-startups.svx) for the choices these patterns should serve.
 
 ## Pin reality
 
-At this lane's base, `1c2a738`, rat-stack manifests pin Effect `4.0.0-rc.117`, Alchemy `2.0.0-beta.79`, and XState `6.0.0-alpha.59`. The checked-in `AGENTS.md` and [Effect reference note](./effect-4-reference-projects.svx) still say Effect rc.116 and XState alpha.58; use the package manifests as the source of truth until those docs are updated.
+At this lane's base, `1c2a738`, rat-stack manifests pin Effect `4.0.0-rc.117`, Alchemy `2.0.0-beta.79`, and XState `6.0.0-alpha.59`. `AGENTS.md` and `README.md` now match, and `packages/core/test/docs-pins.test.ts` fails if their version text drifts from the manifests again. The [Effect reference note](./effect-4-reference-projects.svx) records the versions on its 2026-09-18 study date.
 
 Of the inspected repo snapshots, only `alchemy-run/alchemy` at `9802260db8f8b5a083c4b85eb7ea31ae1ff8f176` matches both current Effect and Alchemy lines: its package is beta.79 and its workspace requires Effect rc.117. Maple is one Effect RC behind at rc.116 / Alchemy beta.79; T3Code is rc.115 / beta.79. OpenSEO is Effect beta.93 / Alchemy beta.61, SolStatus beta.107 / beta.72, Smithers rc.115 / beta.76, Pivot beta.103 / beta.65, and Elianiva beta.101 / beta.64. The roster finds repos sharing prerelease lines, not necessarily exact pins; treat useful older source as evidence about shapes, not drop-in code.
 

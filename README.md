@@ -66,14 +66,14 @@ Code mode is the fourth projection. The model gets `search` (ranked matches with
 ## What is in the stack?
 
 - **pnpm workspaces + Turborepo `2.11.2`**: cached `typecheck` / `test` / `build` across packages from day one.
-- **Effect `4.0.0-rc.116`**: typed runtime, errors, filesystem service, and the three surfaces the capabilities project onto: `effect/unstable/cli`, `effect/unstable/httpapi` (with `OpenApi.fromApi`), and `effect/unstable/ai` (`Toolkit` + `McpServer`).
-- **`@effect/platform-node` `4.0.0-rc.116`**: Node-backed services; keep adapter and core pins matched.
+- **Effect `4.0.0-rc.117`**: typed runtime, errors, filesystem service, and the three surfaces the capabilities project onto: `effect/unstable/cli`, `effect/unstable/httpapi` (with `OpenApi.fromApi`), and `effect/unstable/ai` (`Toolkit` + `McpServer`).
+- **`@effect/platform-node` `4.0.0-rc.117`**: Node-backed services; keep adapter and core pins matched.
 - **TypeScript `7.0.2`**: strict module and index-access checks.
-- **XState `6.0.0-alpha.58`**: real lifecycle states; do not replace those with boolean soup.
+- **XState `6.0.0-alpha.59`**: real lifecycle states; do not replace those with boolean soup.
 - **`@xstate/effect` `0.1.0-alpha.2`**: the official XState v6 to Effect 4 bridge: `createEffectActor` runs a machine as a scoped Effect, `fromEffect` makes Effects into actors with typed failures and requirements. `packages/core/src/inspect-machine.ts` is the example.
 - **Alchemy `2.0.0-beta.79`**: [Infrastructure as Effects](https://alchemy.run): `apps/infra/alchemy.run.ts` is the Stack; `pnpm infra:plan` / `infra:deploy` / `infra:destroy`; auth via `pnpm alchemy profile edit`.
 - **Oxlint + Ultracite + Oxfmt**: native lint and format.
-- **Vitest `5.0.1` + `@effect/vitest` `4.0.0-rc.116`**: `it.effect` and `it.layer` for every Effect test; running Effects by hand in a test file is a lint error.
+- **Vitest `5.0.1` + `@effect/vitest` `4.0.0-rc.117`**: `it.effect` and `it.layer` for every Effect test; running Effects by hand in a test file is a lint error.
 - **`@effect/tsgo` `0.45.0`**: patches TypeScript 7 in `prepare` so Effect language-service diagnostics (leaked requirements, `any`/`unknown` in channels, global Date/fetch/console inside Effect, Node built-ins where Effect has a service) fail `tsc`.
 - **varlock `1.20.0`**: `.env.schema` declares every variable with `@env-spec` decorators; `pnpm check` runs `varlock load`, secrets stay in gitignored `.env.local`.
 - **Vendored agent sources**: Effect, [effect-solutions](https://github.com/kitlangton/effect-solutions), XState, [Alchemy](https://github.com/alchemy-run/alchemy) via `./scripts/vendor-agent-sources.sh` (not x-algorithm; that stays app-specific).

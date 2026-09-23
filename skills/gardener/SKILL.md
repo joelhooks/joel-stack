@@ -33,7 +33,8 @@ For each line that is behind:
 4. `pnpm install`, then `pnpm peers check`. Compare against the warnings on `origin/main`; only new warnings count.
 5. Refresh the source mirrors with `./scripts/vendor-agent-sources.sh --refresh` and update the Ref column in `.agent_sources/README.md`. Agents read the mirrors as truth, so a stale mirror teaches old APIs.
 6. Read what changed upstream: `git -C .agent_sources/github.com/<owner>/<repo> log --oneline <old-tag>..<new-tag>` when the old tag is fetchable, or the package's CHANGELOG. Grep our code for every API those commits touch.
-7. Run `pnpm turbo run check test build --force` and check its exit code.
+7. Update the version text in `AGENTS.md` and `README.md`. `packages/core/test/docs-pins.test.ts` fails until they match the manifests.
+8. Run `pnpm turbo run check test build --force` and check its exit code.
 
 Commit each line separately, so a regression bisects to one library.
 
