@@ -507,12 +507,12 @@ it.effect(
         );
         expect(html).toContain('href="/apple-touch-icon.png"');
         expect(html).toMatch(/<style(?: id="[^"]+")?>/u);
-        expect(html).toContain("max-width:80ch");
+        expect(html).toMatch(/max-width:\s*80ch/u);
         expect(html).toContain("ui-monospace");
-        expect(html).toMatch(/pre \{[^}]*overflow-x:auto;[^}]*\}/u);
-        expect(html).toMatch(/figure pre[^{]*\{[^}]*font-size:clamp\(/u);
+        expect(html).toMatch(/pre\s*\{[^}]*overflow-x:\s*auto;/u);
+        expect(html).toMatch(/figure pre[^{]*\{[^}]*font-size:\s*clamp\(/u);
         expect(html).toMatch(
-          /table \{[^}]*display:block;[^}]*overflow-x:auto;[^}]*\}/u
+          /table\s*\{[^}]*display:\s*block;[^}]*overflow-x:\s*auto;/u
         );
         expect(html).not.toContain('rel="stylesheet"');
         expect(html).not.toContain("<img");

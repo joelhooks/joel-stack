@@ -13,6 +13,12 @@
       "types": "./src/rpc-worker.ts",
       "import": "./src/rpc-worker.ts",
       "default": "./src/rpc-worker.ts"
+    },
+    "./rat.css": "./src/rat.css",
+    "./rat-icons": {
+      "types": "./src/rat-icons.ts",
+      "import": "./src/rat-icons.ts",
+      "default": "./src/rat-icons.ts"
     }
   },
   "scripts": {
