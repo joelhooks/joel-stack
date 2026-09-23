@@ -24,6 +24,8 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 | --- | --- | --- |
 | `@rat-stack/capability` | `packages/capability` | `defineContract`, `implement`, and the `toCommand`, `toHttpApi`, `toToolkit`, `toRpc`, and `toCodeMode` projections |
 | `@rat-stack/core` | `packages/core` | Shared `inspectFile`, `search`, and `read` contracts; `inspectFile` handler, lifecycle machine, and `FileInspector` |
+| `@rat-stack/database` | `packages/database` | Database cartridge: the `RunLog` service and the `DatabaseVendor` choice (D1 or Hyperdrive Postgres), with each vendor's schema, migrations, and resources |
+| `@rat-stack/auth` | `packages/auth` | Better Auth cartridge over the chosen `DatabaseVendor`: `Auth`, `CurrentPerson`, and the RPC middleware that provides it; only `Unauthenticated` crosses the wire |
 | `@rat-stack/devtools` | `packages/devtools` | 🐀 devtools cartridge: `CallLog`, `record`, and the `rat_*` capabilities that list, read, dispatch, replay, and diff capability calls |
 | `@rat-stack/cli` | `apps/cli` | Composition root: `stats`, `catalog`, `openapi`, `serve [--devtools]`, `mcp [--code-mode] [--devtools]` commands |
 | `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
@@ -52,7 +54,7 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 | `pnpm test` | Build and run the Vitest suite once |
 | `pnpm build` | Compile package outputs |
 | `pnpm typecheck` | `turbo run typecheck` |
-| `pnpm vendor:agent-sources` | Shallow-clone Effect, effect-solutions, xstate, and alchemy mirrors |
+| `pnpm vendor:agent-sources` | Shallow-clone Effect, effect-solutions, xstate, alchemy, and better-auth mirrors |
 | `pnpm infra:plan` | Preview the Alchemy Stack diff without applying |
 | `pnpm infra:deploy` / `pnpm infra:destroy` | Apply or tear down the Stack (asks for approval) |
 | `pnpm exec lefthook install` | Install git hooks (also via `prepare`) |

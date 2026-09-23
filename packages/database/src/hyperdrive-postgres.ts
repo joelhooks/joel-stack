@@ -1,32 +1,57 @@
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Drizzle from "alchemy/Drizzle";
-import * as DrizzlePostgres from "alchemy/Drizzle/Postgres";
-import * as RuntimeContext from "alchemy/RuntimeContext";
-import { desc, eq } from "drizzle-orm";
+import type { StaticConnectionSource } from "alchemy/SQL/ConnectionSource";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Redacted from "effect/Redacted";
 
-import { DatabaseError } from "./model.js";
-import { runLogLayer } from "./run-log.js";
-import { RunLogs } from "./schema/postgres.js";
+import {
+  databaseMigrationDirectory,
+  databaseSchemaFile,
+} from "./migrations.js";
+import { RunLogLayer } from "./run-log-vendor.js";
+import { DatabaseVendor } from "./vendor.js";
+
+export type PostgresOrigin = Omit<
+  Cloudflare.Hyperdrive.PublicOrigin,
+  "scheme"
+> & { readonly scheme: "postgres" | "postgresql" };
+
+export type PostgresDevOrigin = Omit<
+  Cloudflare.Hyperdrive.DevOrigin,
+  "scheme"
+> & { readonly scheme: "postgres" | "postgresql" };
 
 export interface HyperdrivePostgresOptions {
   readonly id: string;
-  readonly origin: Cloudflare.Hyperdrive.Origin;
-  readonly dev?: Cloudflare.Hyperdrive.DevOrigin;
+  readonly origin: PostgresOrigin;
+  readonly dev?: PostgresDevOrigin;
+  readonly migrate?: StaticConnectionSource;
 }
+
+const connectionString = (origin: PostgresOrigin | PostgresDevOrigin) => {
+  const url = new URL(`${origin.scheme}://${origin.host}`);
+  url.port = origin.port === undefined ? "" : String(origin.port);
+  url.pathname = `/${origin.database}`;
+  url.username = origin.user;
+  url.password = Redacted.value(origin.password);
+  url.searchParams.set("sslmode", "require");
+
+  return Redacted.make(url.toString());
+};
 
 export const HyperdrivePostgres = ({
   id,
   origin,
   dev,
+  migrate,
 }: HyperdrivePostgresOptions) =>
   Layer.unwrap(
     Effect.gen(function* buildHyperdrivePostgresLayer() {
-      yield* Drizzle.Schema(`${id}-postgres-schema`, {
+      const migrations = yield* Drizzle.Schema(`${id}-postgres-schema`, {
         dialect: "postgres",
-        out: "./packages/database/migrations/postgres",
-        schema: "./packages/database/src/schema/postgres.ts",
+        out: databaseMigrationDirectory("postgres"),
+        schema: databaseSchemaFile("postgres"),
       });
 
       const connectionOptions =
@@ -39,45 +64,32 @@ export const HyperdrivePostgres = ({
         connectionOptions
       );
 
-      const client = yield* Cloudflare.Hyperdrive.Connect(connection);
-      const db = yield* DrizzlePostgres.Postgres(client.connectionString);
+      const migrationUrl = migrate ?? connectionString(dev ?? origin);
 
-      return runLogLayer(
-        Effect.succeed({
-          insert: (row) =>
-            db
-              .insert(RunLogs)
-              .values({
-                capability: row.capability,
-                failureTag: row.failureTag,
-                id: row.id,
-                outcome: row.outcome,
-                personId: row.personId,
-                recordedAt: row.recordedAt,
-              })
-              .returning()
-              .pipe(
-                Effect.map(([inserted]) => inserted),
-                Effect.mapError(
-                  (cause) => new DatabaseError({ cause, operation: "record" })
-                ),
-                Effect.provide(RuntimeContext.RuntimeContext.phantom)
-              ),
-          listRecent: (personId, limit) =>
-            db
-              .select()
-              .from(RunLogs)
-              .where(eq(RunLogs.personId, personId))
-              .orderBy(desc(RunLogs.recordedAt), desc(RunLogs.id))
-              .limit(limit)
-              .pipe(
-                Effect.mapError(
-                  (cause) =>
-                    new DatabaseError({ cause, operation: "listRecent" })
-                ),
-                Effect.provide(RuntimeContext.RuntimeContext.phantom)
-              ),
-        })
+      if (globalThis.__ALCHEMY_RUNTIME__ !== true) {
+        const { registerPostgresMigrations } = yield* Effect.promise(
+          // oxlint-disable-next-line promise-function-async -- Effect.promise consumes a Promise factory directly.
+          () => import("./postgres-migrations.js")
+        );
+
+        yield* registerPostgresMigrations({
+          databaseId: connection.hyperdriveId,
+          directory: databaseMigrationDirectory("postgres"),
+          id,
+          schemaHash: migrations.snapshotHash,
+          source: migrationUrl,
+        });
+      }
+
+      const vendor = {
+        _tag: "HyperdrivePostgres" as const,
+        connection,
+        migrationUrl,
+      };
+
+      return Layer.mergeAll(
+        RunLogLayer(vendor),
+        Layer.succeed(DatabaseVendor, vendor)
       );
     })
   ).pipe(Layer.provide(Cloudflare.Hyperdrive.ConnectBinding));

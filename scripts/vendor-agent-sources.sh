@@ -67,6 +67,7 @@ pin() {
 EFFECT_VERSION="$(pin packages/core/package.json effect)"
 XSTATE_VERSION="$(pin packages/core/package.json xstate)"
 ALCHEMY_VERSION="$(pin apps/infra/package.json alchemy)"
+BETTER_AUTH_VERSION="$(pin packages/auth/package.json better-auth)"
 
 clone_source Effect-TS effect https://github.com/Effect-TS/effect.git "effect@${EFFECT_VERSION}" \
   "Effect v4 monorepo matching packages/core effect@${EFFECT_VERSION}."
@@ -76,6 +77,8 @@ clone_source statelyai xstate https://github.com/statelyai/xstate.git "xstate@${
   "XState v6 matching packages/core xstate@${XSTATE_VERSION}; packages/xstate-effect is the Effect bridge."
 clone_source alchemy-run alchemy https://github.com/alchemy-run/alchemy.git "v${ALCHEMY_VERSION}" \
   "Alchemy IaC matching apps/infra alchemy@${ALCHEMY_VERSION}. Read alchemy/src/cloudflare/."
+clone_source better-auth better-auth https://github.com/better-auth/better-auth.git "better-auth@${BETTER_AUTH_VERSION}" \
+  "Better Auth matching packages/auth better-auth@${BETTER_AUTH_VERSION}; Alchemy's wrapper lives in alchemy-run/alchemy packages/better-auth."
 
 # The pi-effect tool reads .agent-sources/effect. Point it at the pinned mirror
 # instead of letting it hydrate a floating branch.

@@ -1,12 +1,16 @@
 import { NodeServices } from "@effect/platform-node";
 import { PGlite } from "@electric-sql/pglite";
+import { MigrationError } from "alchemy/SQL/Migrations/Format";
+import type { SqlExecutor } from "alchemy/SQL/Migrations/Format";
 import { desc, eq } from "drizzle-orm";
 import { drizzle as drizzlePostgres } from "drizzle-orm/pglite";
 import { drizzle as drizzleSqlite } from "drizzle-orm/sql-js";
 import { Clock, Context, Effect, FileSystem, Layer, Path } from "effect";
 import initSqlJs from "sql.js";
 
+import { databaseMigrationDirectory } from "../src/migrations.js";
 import { DatabaseError } from "../src/model.js";
+import { runPostgresMigrations } from "../src/postgres-migrations.js";
 import { runLogLayer } from "../src/run-log.js";
 import { RunLogs as D1RunLogs } from "../src/schema/d1.js";
 import { RunLogs as PostgresRunLogs } from "../src/schema/postgres.js";
@@ -54,7 +58,7 @@ const d1Layer = runLogLayer(
         })
     );
 
-    const migrationRoot = path.resolve("migrations/d1");
+    const migrationRoot = databaseMigrationDirectory("d1");
 
     const migrationDirectories = (yield* fileSystem.readDirectory(
       migrationRoot
@@ -108,11 +112,10 @@ const d1Layer = runLogLayer(
   })
 );
 
+type MigrationRow = Record<string, string | number | null>;
+
 const postgresLayer = runLogLayer(
   Effect.gen(function* buildPostgresStoreOperations() {
-    const fileSystem = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-
     const connection = yield* Effect.acquireRelease(
       Effect.tryPromise({
         catch: (cause) => new DatabaseError({ cause, operation: "record" }),
@@ -128,23 +131,53 @@ const postgresLayer = runLogLayer(
         )
     );
 
-    const migrationRoot = path.resolve("migrations/postgres");
+    const migrationRoot = databaseMigrationDirectory("postgres");
 
-    const migrationDirectories = (yield* fileSystem.readDirectory(
-      migrationRoot
-    )).toSorted();
+    const executor: SqlExecutor = {
+      batch: (statements) =>
+        Effect.tryPromise({
+          catch: (cause) =>
+            new MigrationError({
+              cause,
+              message: "PGlite migration batch failed",
+            }),
+          // @effect-diagnostics-next-line asyncFunction:off -- PGlite transactions use a Promise callback.
+          try: async () => {
+            await connection.transaction(
+              // @effect-diagnostics-next-line asyncFunction:off -- PGlite exposes the transaction callback as a Promise API.
+              async (transaction) => {
+                for (const statement of statements) {
+                  // oxlint-disable-next-line no-await-in-loop -- Migration statements must stay ordered inside one transaction.
+                  await transaction.exec(statement);
+                }
+              }
+            );
+          },
+        }),
+      dialect: "postgres",
+      query: (sql, params) =>
+        Effect.tryPromise({
+          catch: (cause) =>
+            new MigrationError({
+              cause,
+              message: "PGlite migration query failed",
+            }),
+          // @effect-diagnostics-next-line asyncFunction:off -- PGlite queries use a Promise API.
+          try: async () => {
+            const result = await connection.query<MigrationRow>(sql, [
+              ...(params ?? []),
+            ]);
 
-    for (const directory of migrationDirectories) {
-      const migration = yield* fileSystem.readFileString(
-        path.resolve(migrationRoot, directory, "migration.sql")
-      );
+            return result.rows;
+          },
+        }),
+    };
 
-      yield* Effect.tryPromise({
-        catch: (cause) => new DatabaseError({ cause, operation: "record" }),
-        // @effect-diagnostics-next-line asyncFunction:off -- PGlite executes migration SQL through a Promise API.
-        try: async () => await connection.exec(migration),
-      });
-    }
+    yield* runPostgresMigrations(migrationRoot, executor).pipe(
+      Effect.mapError(
+        (cause) => new DatabaseError({ cause, operation: "record" })
+      )
+    );
 
     const db = drizzlePostgres({ client: connection });
 

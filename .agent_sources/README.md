@@ -19,6 +19,7 @@ Refs below are derived from the workspace `package.json` pins by `scripts/vendor
 | `github.com/kitlangton/effect-solutions` | https://github.com/kitlangton/effect-solutions.git | `main` | Idiomatic Effect patterns (Kit) |
 | `github.com/statelyai/xstate` | https://github.com/statelyai/xstate.git | `xstate@6.0.0-alpha.59` | XState v6 core plus `packages/xstate-effect` (the `@xstate/effect` bridge and its docs) |
 | `github.com/alchemy-run/alchemy` | https://github.com/alchemy-run/alchemy.git | `v2.0.0-beta.79` | Alchemy resources, Cloudflare and AWS providers, Effect-native Stack API |
+| `github.com/better-auth/better-auth` | https://github.com/better-auth/better-auth.git | `better-auth@1.6.2` | Better Auth core, adapters, and plugins behind `packages/auth` |
 
 **Not vendored here:** product-specific corpora (for example `xai-org/x-algorithm`). Add those in the consuming app's vendor script.
 
