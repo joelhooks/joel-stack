@@ -3,6 +3,7 @@ import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 
 import { describe, expect, it } from "@effect/vitest";
+import { CallEntrySchema, OutcomeSchema } from "@rat-stack/devtools";
 import { Schema } from "effect";
 
 const cliDir = path.resolve(import.meta.dirname, "..");
@@ -32,6 +33,17 @@ const JsonRpcResponse = Schema.Struct({
 
 const decodeJsonRpcResponse = Schema.decodeUnknownSync(
   Schema.fromJsonString(JsonRpcResponse)
+);
+
+const decodeDevtoolsCall = Schema.decodeUnknownSync(
+  Schema.Struct({
+    structuredContent: Schema.Struct({
+      result: Schema.Struct({
+        entries: Schema.Array(CallEntrySchema),
+        matched: Schema.Int,
+      }),
+    }),
+  })
 );
 
 const decodeToolsList = Schema.decodeUnknownSync(
@@ -225,5 +237,41 @@ describe("built MCP server", () => {
 
     expect(tool).toBeDefined();
     expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("records calls and answers rat_list_calls with --devtools", async () => {
+    const responses = await mcpConversation(
+      [
+        ...initialize,
+        {
+          id: 2,
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: {
+            arguments: {
+              code: `await tools.inspectFile({ path: ${JSON.stringify(readmePath)} }); return await tools.rat_list_calls({});`,
+            },
+            name: "execute",
+          },
+        },
+      ],
+      ["--devtools", "--code-mode"]
+    );
+
+    const call = responses.find((response) => response.id === 2);
+    expect(call?.error).toBeUndefined();
+
+    const { structuredContent } = decodeDevtoolsCall(call?.result);
+    const { entries, matched } = structuredContent.result;
+    const [entry] = entries;
+
+    expect(matched).toBe(1);
+    expect(entry).toMatchObject({
+      capability: "inspectFile",
+      input: { path: readmePath },
+    });
+    expect(
+      entry !== undefined && OutcomeSchema.guards.Succeeded(entry.outcome)
+    ).toBe(true);
   });
 });

@@ -93,6 +93,77 @@ export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   >;
 }
 
+export const invokerFor = <const Caps extends readonly AnyCapability[]>(
+  capabilities: Caps
+): Effect.Effect<Invoke, never, RequirementsOf<Caps>> =>
+  Effect.gen(function* buildInvoker() {
+    const context = yield* Effect.context<RequirementsOf<Caps>>();
+
+    const byName = new Map(
+      capabilities.map(
+        (capability) => [capability.contract.name, capability] as const
+      )
+    );
+
+    const invoke: Invoke = (name, input) => {
+      const item = byName.get(name);
+
+      if (item === undefined) {
+        return Effect.succeed(
+          invokeFailure("UnknownCapability", `No capability named ${name}`)
+        );
+      }
+
+      // SAFETY: `AnyCapability` erased this capability's requirements to `unknown`; they are a subset of `RequirementsOf<Caps>`, which `context` carries. The input is decoded by its schema first.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const run = item.handler as (
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters
+        input: unknown
+      ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
+
+      const encodeOutput = Schema.encodeUnknownEffect(item.contract.output);
+
+      const encodeFailure = Schema.encodeUnknownEffect(
+        failureSchemaOf(item.contract)
+      );
+
+      return Schema.decodeUnknownEffect(item.contract.input)(input).pipe(
+        Effect.matchEffect({
+          onFailure: (error) =>
+            Effect.succeed(invokeFailure("InvalidInput", error.message)),
+          onSuccess: (decoded) =>
+            run(decoded).pipe(
+              Effect.provideContext(context),
+              Effect.matchEffect({
+                onFailure: (error) =>
+                  encodeFailure(error).pipe(
+                    Effect.map((encoded): InvokeOutcome => ({
+                      error: encoded,
+                      ok: false,
+                    })),
+                    Effect.orElseSucceed(() =>
+                      invokeFailure("UnencodableFailure", String(error))
+                    )
+                  ),
+                onSuccess: (output) =>
+                  encodeOutput(output).pipe(
+                    Effect.map((value): InvokeOutcome => ({
+                      ok: true,
+                      value,
+                    })),
+                    Effect.orElseSucceed(() =>
+                      invokeFailure("UnencodableOutput", String(output))
+                    )
+                  ),
+              })
+            ),
+        })
+      );
+    };
+
+    return invoke;
+  });
+
 export const toExecuteCapability = <
   const Caps extends readonly [AnyCapability, ...AnyCapability[]],
 >(
@@ -100,12 +171,6 @@ export const toExecuteCapability = <
 ) => {
   const catalog = toCatalog(capabilities);
   const declarations = toTypeScript(catalog);
-
-  const byName = new Map(
-    capabilities.map(
-      (capability) => [capability.contract.name, capability] as const
-    )
-  );
 
   const hasApproval = capabilities.some((item) => item.contract.needsApproval);
   // SAFETY: Caps preserves the literal approval flag for the generated capability, and `some` over the same array computes exactly that flag.
@@ -134,67 +199,9 @@ export const toExecuteCapability = <
   const capability = implement(
     contract,
     Effect.fn("CodeMode.execute")(function* execute({ code }) {
-      const context = yield* Effect.context<
-        RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
-      >();
+      const invoke = yield* invokerFor(capabilities);
 
       const sandbox = yield* Sandbox;
-
-      const invoke: Invoke = (name, input) => {
-        const item = byName.get(name);
-
-        if (item === undefined) {
-          return Effect.succeed(
-            invokeFailure("UnknownCapability", `No capability named ${name}`)
-          );
-        }
-
-        // SAFETY: `AnyCapability` erased this capability's requirements to `unknown`; they are a subset of `RequirementsOf<Caps>`, which `context` carries. The input is decoded by its schema first.
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-        const run = item.handler as (
-          // oxlint-disable-next-line anti-slop/no-unknown-parameters
-          input: unknown
-        ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
-
-        const encodeOutput = Schema.encodeUnknownEffect(item.contract.output);
-
-        const encodeFailure = Schema.encodeUnknownEffect(
-          failureSchemaOf(item.contract)
-        );
-
-        return Schema.decodeUnknownEffect(item.contract.input)(input).pipe(
-          Effect.matchEffect({
-            onFailure: (error) =>
-              Effect.succeed(invokeFailure("InvalidInput", error.message)),
-            onSuccess: (decoded) =>
-              run(decoded).pipe(
-                Effect.provideContext(context),
-                Effect.matchEffect({
-                  onFailure: (error) =>
-                    encodeFailure(error).pipe(
-                      Effect.map((encoded): InvokeOutcome => ({
-                        error: encoded,
-                        ok: false,
-                      })),
-                      Effect.orElseSucceed(() =>
-                        invokeFailure("UnencodableFailure", String(error))
-                      )
-                    ),
-                  onSuccess: (output) =>
-                    encodeOutput(output).pipe(
-                      Effect.map((value): InvokeOutcome => ({
-                        ok: true,
-                        value,
-                      })),
-                      Effect.orElseSucceed(() =>
-                        invokeFailure("UnencodableOutput", String(output))
-                      )
-                    ),
-                })
-              ),
-          })
-        );
-      };
 
       const run = yield* sandbox.run(code, invoke);
 

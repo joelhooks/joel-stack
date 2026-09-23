@@ -1,0 +1,151 @@
+---
+title: "🐀 Rat devtools: what an agent can see and do in a running rat-stack app"
+type: project
+status: active
+created_at: "2026-09-23"
+privacy: "public"
+---
+
+# 🐀 Rat devtools
+
+Joel approved adopting Foldkit's devtools MCP and Oxlint plugin ideas on 2026-09-23 and asked for a devtools designed from rat-stack's own perspective. This note is the proposal. It links [layer-startups](./layer-startups.svx) for the build order and [same-version-repos](../resources/same-version-repos.svx) for the peer study.
+
+Sources read: [foldkit/foldkit](https://github.com/foldkit/foldkit) at `95fed7f` (`packages/devtools-mcp`, `packages/devtools`, `packages/oxlint-plugin-foldkit`), and Rubicon's badass-devtools (ported from course-builder).
+
+## What Foldkit gets right
+
+Foldkit's devtools MCP (`@foldkit/devtools-mcp` 0.22, about 1,200 lines) attaches an agent to a running app. A browser bridge streams the Runtime's history over Vite's HMR socket to a relay, and a stdio MCP server exposes fifteen tools. Three ideas carry the design:
+
+1. **Dispatch through the Schema.** The agent asks for the Message Schema as JSON Schema, then dispatches Messages that the Runtime decodes before `update` sees them. A bad payload fails with a clean error. The agent never guesses at shapes and never reads source to learn them.
+2. **History as a queryable log.** Every Message is an entry with its Commands, changed paths, and timestamp. Agents count by tag, filter by changed path, tail with `from_end`, and diff two indices server-side instead of pulling whole snapshots.
+3. **Token-bounded reads.** Reads take a `root.`-anchored dot path and summarize large values (`{ _summary: 'array', length, sample }`) unless `expand: true`. Paths copied from one tool's output work in the next.
+
+Badass-devtools is the human half: a draggable logo, a ⌘K palette, a test-account toggle, and user and env tabs. It is admin-only and has no agent surface.
+
+## The rat-stack mapping
+
+Foldkit has one loop: Message in, Model out. Rat-stack has three places where state moves, and each maps to Foldkit's nouns.
+
+| Foldkit | Rat-stack | Where it lives |
+| --- | --- | --- |
+| Message Schema | A contract's input, output, and failure Schemas | `defineContract`, `@rat-stack/core/contracts` |
+| Dispatch a Message | Call a capability by name, input decoded by its contract | `implement`; approval still gates |
+| Message history | Capability call log: name, input, outcome, failure tag, duration | New `CallLog` in `packages/devtools` |
+| Model | Server: none, the host is authoritative. Machines: XState snapshots. Client: the AtomRpc replica | `@xstate/effect` `inspect`, AtomRpc registry |
+| Keyframes and replay | Replay a recorded call and diff the outcomes; read a machine snapshot at an index | Devtools capabilities |
+| Durable history | `RunLog`, per person, in the database | `packages/database` |
+
+Server state has no single Model to time-travel, and it should not grow one: the Durable Object or database is authoritative. So rat devtools replays calls instead of rewinding state. Machines and the client replica do have state over time, and those get Foldkit-style snapshots in later slices.
+
+The call log is ephemeral and per process, for debugging. `RunLog` is durable and per person, for the product. They stay separate; devtools can read `RunLog` later.
+
+## Devtools are capabilities
+
+The devtools tools are themselves contracts and capabilities in `packages/devtools`. That is the rat-stack move: one contract, every surface. The same `rat_list_calls` contract becomes an MCP tool through `toToolkit`, a CLI command through `toCommand`, and an RPC for the 🐀 overlay through `toRpcGroup`. Nothing in devtools bypasses the projection layer, and the boundary rules apply to it like any other cartridge.
+
+Recording is a wrapper over capabilities: `record(capabilities)` returns the same list with each handler wrapped to append an entry to `CallLog`. Every projection built from the wrapped list records, because every projection calls the handler.
+
+## MCP tool list
+
+Prefix `rat_`. Each tool accepts an optional `runtime_id` once more than one runtime can attach.
+
+| Tool | Does | Slice |
+| --- | --- | --- |
+| `rat_list_contracts` | Variant index: name, description, approval, annotations for every capability in the runtime | 1 |
+| `rat_describe_contract` | Input, output, and failure JSON Schema for one contract, derived the way `toToolkit` derives it | 1 |
+| `rat_list_calls` | Call history, filtered by capability and outcome, with `limit`, `since_index`, and `from_end` | 1 |
+| `rat_count_calls` | Counts by capability and outcome, no payloads. The cheap first call | 1 |
+| `rat_get_call` | One entry, with `path` and `expand` over its input and output | 1 |
+| `rat_call` | Call a capability by name. Input is decoded by its contract; approval-gated capabilities stay gated | 1 |
+| `rat_replay_call` | Re-run a recorded call's input, record the result, and return a path diff of the two outputs | 1 |
+| `rat_diff_calls` | Path-level diff of two entries' inputs and outputs | 1 |
+| `rat_list_runtimes` | Every attached runtime: CLI `serve`, Worker under `alchemy dev`, browser tabs | 2 |
+| `rat_list_machines`, `rat_get_machine`, `rat_list_transitions` | Live `@xstate/effect` actors: state value, event history, context by path | 2 |
+| `rat_list_atoms`, `rat_get_atom` | The browser's AtomRpc replica, by atom key and path | 3 |
+| `rat_list_runs` | A person's durable `RunLog` entries | 3 |
+
+Reads use Foldkit's path alphabet and summary shape (`root.output.matches.0`, `expand`), so agents who know one devtools know the other. We write our own small implementation rather than copying Foldkit's.
+
+## The 🐀 overlay
+
+A later slice, once `apps/web` lands. It follows badass-devtools' shape (a draggable 🐀 trigger and a ⌘K palette) but reads everything through the devtools contracts over `toRpcGroup`, so the overlay and the MCP show the same truth. Tabs:
+
+- Calls;
+- Contracts, with a dispatch form generated from the input JSON Schema;
+- Machines;
+- Atoms;
+- Session, with a test-person toggle like Rubicon's test athlete mode, once auth lands.
+
+It is a feature plus a client, so the boundary rules fence it like any other.
+
+## Where it runs
+
+Foldkit's agent attaches to a running app, and so does ours. In slice 1 the app is the CLI:
+
+- `rat serve --devtools` serves the HTTP API as today and adds MCP over HTTP at `/__rat/mcp`. The agent attaches with `claude mcp add --transport http rat-devtools http://127.0.0.1:3000/__rat/mcp`, then sees calls that browsers, curl, or tests make against the API.
+- `rat mcp --devtools` adds the devtools tools beside the normal tools on stdio, for an agent inspecting its own calls.
+
+Devtools listens on `127.0.0.1` only. AGENTS.md requires owner sign-off to expose `serve` or `mcp` beyond localhost, and `serve` today binds every interface through `createServer().listen(port)`. That is worth fixing separately.
+
+In a Worker the log needs a home that outlives one isolate: a Durable Object, like the legacy MCP sessions. That is slice 2, under `alchemy dev` only.
+
+## Lint rules: what translates
+
+Foldkit ships 37 rules on [`effect-oxlint`](https://www.npmjs.com/package/effect-oxlint), each with real-oxlint fixture tests like ours.
+
+**Adopt, rewritten for rat-stack:**
+
+| Foldkit rule | Rat-stack rule | Why |
+| --- | --- | --- |
+| `no-hand-rolled-command-struct` | `no-hand-rolled-surface`: no `Rpc.make`, `RpcGroup.make`, `HttpApiEndpoint`, `Tool.make`, or `Command.make` over domain work outside `packages/capability` and `apps/cli/src/command.ts` | The capability-only surface rule is prose today. The peer study's fifth recommendation asks for exactly this fence |
+| `command-binding-matches-name` | `contract-binding-matches-name`: `const search = defineContract("search", …)` | Agents grep by name; a mismatched binding hides the contract |
+| `no-module-level-mutable-state` | Same, for `apps/*/src/**` and `packages/*/src/**` | In a Worker, module state leaks across requests in one isolate. That is a real bug class, not style |
+| `acquire-release-constructs-in-acquire-body` | Same | Hyperdrive and pg pools must be built inside the acquire, per invocation. The auth lane is about to write that code |
+| `no-nonportable-server-globals` | `no-browser-globals-on-server`: no `window` or `document` outside `client/` and `features/` | The mirror of our browser boundary |
+
+**Already covered:**
+
+| Foldkit rule | Covered by |
+| --- | --- |
+| `no-impure-call-at-decision-time` | Effect diagnostics `globalDate`, `globalRandom`, and `globalTimers` at `error` |
+| `no-switch-on-message-tag` | `anti-slop-effect/prefer-effect-match` and `no-manual-tag-comparison` |
+| `prefer-callable-message-constructor` | `anti-slop-effect/no-manual-tagged-construction` |
+| `no-array-index-view-keys` | Oxlint's React rules, once `apps/web` enables them |
+| `require-rel-for-external-link` | Oxlint's React rules, once `apps/web` enables them |
+
+**Leave with Foldkit.** The Submodel, `Got*Message`, `keyed`, `lazy`, `Mount`, `OnMount`, `modifyFields`, route-query, and Stream `preventDefault` rules only mean something in a Foldkit app. If a Foldkit bin lands, it ships with `@foldkit/oxlint-plugin` itself, not our port.
+
+## Foldkit as a UI cartridge
+
+Foldkit fits the thesis better than any React stack: the Model is a Schema, side effects are declared Commands, failures arrive as data, and it ships its own lint and agent tooling. The contract split makes it cheap to try, because a Foldkit Command can call the same `toRpcGroup` client that `apps/web` uses.
+
+Against it as the default: it replaces React, so the React ecosystem is out except through embedding. It is pre-1.0 with minor-version breaks. It pins `effect` and `@effect/platform-browser` to exactly `4.0.0-rc.116` as peers, one release behind us, so every Effect bump waits on theirs.
+
+Decision (Joel, 2026-09-23): no Foldkit bin. Effect all the way down into the view is not useful right now. It should stay possible, and the contract split keeps it possible: any UI that can call `toRpcGroup` can sit on the same backend. We take Foldkit's devtools and lint ideas, not its framework.
+
+## First slice
+
+`packages/devtools`, server side, no browser:
+
+- `CallLog` service, a bounded in-memory ring buffer (500 entries by default), with `record(capabilities)`;
+- the slice 1 contracts and capabilities from the tool table, with path and summary reads;
+- `--devtools` on `rat serve` (MCP over HTTP at `/__rat/mcp`, `127.0.0.1` only) and on `rat mcp` (stdio);
+- tests in memory: record, count, filter, `from_end`, `rat_call` with a bad payload, approval still denies, replay with a diff, and summarization.
+
+Cartridge test: one package, one flag branch in `apps/cli/src/surfaces.ts`. Delete both and the gate passes.
+
+## Decisions
+
+Joel, 2026-09-23: build the devtools MCP and the lint rules. Order: the server-side devtools slice first, then the five lint rules. No Foldkit bin. Tool prefix `rat_`.
+
+## Slice 1 status
+
+Built on `worker/foldkit-explore`, base `8dffe1f`:
+
+- `packages/devtools`: `CallLog`, `record`, `devtools`, and the eight slice 1 contracts in a browser-safe `./contracts` subpath.
+- `packages/capability` gained `aroundHandlers`, which wraps every handler in a list without changing its type, and `invokerFor`, code mode's dispatch path, now exported so `rat_call` reuses it instead of copying it.
+- `rat serve --devtools` and `rat mcp --devtools [--code-mode]`.
+- Verified live: a REST call to `serve --devtools` shows up in `rat_list_calls` over MCP HTTP, and the listener is on `127.0.0.1` only.
+
+Gotcha found on the way: `Schema.Struct({})` as a contract input projects to the JSON Schema `{"not":{"type":"null"}}`, which MCP rejects because a tool's `inputSchema` must have `"type": "object"`. Every devtools tool has at least one optional field, and a test asserts the object schema. The same trap applies to any future contract; it belongs in a projection test or a lint rule.
+

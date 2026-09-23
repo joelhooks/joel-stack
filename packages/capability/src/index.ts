@@ -20,7 +20,7 @@ export {
   type RequirementsOf,
 } from "./contract.js";
 
-export { implement } from "./implement.js";
+export { aroundHandlers, implement, type Around } from "./implement.js";
 
 export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";
 
@@ -52,6 +52,7 @@ export {
   ExecuteResult,
   SearchResult,
   toCodeMode,
+  invokerFor,
   toExecuteCapability,
   type CodeModeOptions,
   type CodeModeProjection,

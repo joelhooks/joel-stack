@@ -84,6 +84,18 @@ Delete:
 
 Then call `FileInspector.inspect` directly from the capability handler in `packages/core/src/inspect-file.ts`.
 
+## Cut devtools
+
+Delete:
+
+- `packages/devtools`
+- `@rat-stack/devtools` from `apps/cli/package.json`
+- `devtoolsRoutes`, `devtoolsWebServer`, `mcpServer.devtools`, and `mcpServer.devtoolsCodeMode` from `apps/cli/src/surfaces.ts`
+- the `--devtools` flag from `apps/cli/src/command.ts`
+- the devtools cases from `apps/cli/test/serve.test.ts` and `apps/cli/test/cli.e2e.test.ts`
+
+`aroundHandlers` and `invokerFor` stay in `packages/capability`; code mode uses `invokerFor`.
+
 ## Clean up after each cut
 
 1. Remove stale exports from `packages/capability/src/index.ts` and any affected package barrel.
