@@ -38,6 +38,7 @@ const lintFixture = (area: string, source: string): LintResult => {
         "rat-stack-boundaries/no-browser-globals-on-server": "error",
         "rat-stack-boundaries/no-browser-server-imports": "error",
         "rat-stack-boundaries/no-cross-layer-imports": "error",
+        "rat-stack-boundaries/no-devtools-in-production": "error",
         "rat-stack-boundaries/no-feature-transport": "error",
         "rat-stack-boundaries/no-hand-rolled-surface": "error",
       },
@@ -305,5 +306,50 @@ describe("architecture boundary rules", () => {
 
     expect(client.status).toBe(0);
     expect(guard.status).toBe(0);
+  });
+
+  it("keeps devtools and test people out of production code", () => {
+    const worker = lintFixture(
+      "apps/web/src/server",
+      'import { devtools } from "@rat-stack/devtools";\n\nexport const tools = devtools;\n'
+    );
+
+    const testPeople = lintFixture(
+      "apps/mischief/src",
+      'import { ratTestPerson } from "@rat-stack/auth/devtools";\n\nexport const person = ratTestPerson;\n'
+    );
+
+    expectRule(worker, "Devtools and test people");
+    expectRule(testPeople, "Devtools and test people");
+  });
+
+  it("allows devtools in a dev folder, the CLI, and tests", () => {
+    const dev = lintFixture(
+      "apps/web/src/dev",
+      'import { ratTestPerson, runAsPerson } from "@rat-stack/auth/devtools";\nimport { devtools } from "@rat-stack/devtools";\n\nexport const wiring = { devtools, ratTestPerson, runAsPerson };\n'
+    );
+
+    const cli = lintFixture(
+      "apps/cli/src",
+      'import { devtools } from "@rat-stack/devtools";\n\nexport const tools = devtools;\n'
+    );
+
+    const test = lintFixture(
+      "apps/web/test",
+      'import { devtools } from "@rat-stack/devtools";\n\nexport const tools = devtools;\n'
+    );
+
+    expect(dev.status).toBe(0);
+    expect(cli.status).toBe(0);
+    expect(test.status).toBe(0);
+  });
+
+  it("keeps production code from importing an app's dev folder", () => {
+    const result = lintFixture(
+      "apps/web/src/server",
+      'import { wiring } from "../../dev/wiring.ts";\n\nexport const devWiring = wiring;\n'
+    );
+
+    expectRule(result, "Only modules inside apps/web/src/dev may import it.");
   });
 });
