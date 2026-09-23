@@ -28,6 +28,17 @@ Workspace `package.json` files declare the pinned stack. [README.md](./README.md
 | `@rat-stack/infra` | `apps/infra` | Alchemy Stack: the project's cloud footprint as one Effect program |
 | `@rat-stack/mischief` | `apps/mischief` | Cloudflare Worker: the public site, agent discovery, and sandboxed execute surface |
 
+## Nouns
+
+| Noun | Home | Runtime job |
+| --- | --- | --- |
+| Capability | `packages/core/src/<name>.ts` | Typed domain behavior and the shared args/failures contract. |
+| Projection | `packages/capability/src/to-<surface>.ts` | Expose capabilities on one runtime surface. |
+| Cartridge | `packages/<name>/src/` | One Layer with its own infrastructure; it must pass the cartridge test in `VISION.md`. |
+| Machine | `packages/core/src/<name>-machine.ts` | Own one finite domain lifecycle. |
+| Feature | `apps/web/src/features/<name>/` | Thin route and view that read client atoms. |
+| Client | `apps/web/src/client/<name>.ts` | Own AtomRpc queries, named commands, and the local replica. |
+
 ## Commands
 
 | Command | Purpose |
@@ -94,6 +105,7 @@ A child project replaces this section on day one with its own product rules. The
 - Schemas are the contract. Input, output, and failure are Effect `Schema`; JSON Schema, OpenAPI, and the code-mode declarations are derived from them, never hand-written.
 - Lifecycles are machines. Finite modes, retries, and cancellation live in XState machines started with `createEffectActor`; side effects live in declared `fromEffect` actors, never inline.
 - The sandbox is a surface, not a bypass. Anything reachable from a code-mode program must be a capability and goes through that capability's schemas and handler.
+- Gardener rule: add a lint rule before cleaning up a bad pattern; lint baselines only shrink.
 - No comments in code. `no-comments/no-comments` (`scripts/oxlint-plugin-no-comments.ts`) bans them, after Lauren Tan's Dune rule: agents copy comments, and a comment that explains a workaround spreads the workaround. Say it in a name, a type, a test, a commit message, or the Brain. Two kinds survive: tool directives, with the reason inline after `--`, and a one-line `SAFETY:` invariant above a type assertion. Plain JS files keep JSDoc blocks made only of type tags (`@param {string} command`), because that is their type syntax; Ultracite's JSDoc description rules are off for the same reason. Credit for borrowed code lives in `PROVENANCE.md`.
 - Diagnostic overrides are targeted and explained: `// @effect-diagnostics-next-line <rule>:off -- <reason>`. File-level overrides exist only at projection boundaries (`packages/capability/src/to-toolkit.ts`, `packages/capability/src/to-code-mode.ts`) and in process-spawning test files.
 - Lint overrides follow the same rule: `// oxlint-disable-next-line <rule> -- <reason>`. Every type assertion carries a one-line `SAFETY:` comment naming the invariant it relies on. `unicorn/throw-new-error` is off because `Schema.TaggedError(...)` looks like a throw to it. Anti-slop overrides exist only where a type is erased on purpose (the projections in `packages/capability`, the sandbox RPC boundary, the lint plugin's AST walker); anywhere else, parse the value at its boundary with Effect `Schema`.
@@ -103,13 +115,20 @@ A child project replaces this section on day one with its own product rules. The
 
 A child project replaces this section on day one with its own architecture. Record module boundaries, dependency direction, data ownership, and state-machine seams here. Link deeper docs instead of duplicating them.
 
-- Dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps. `core` owns domain behavior and depends on `capability` only for `defineCapability`; `capability` knows nothing about the domain.
+- `rat-stack-boundaries/no-cross-layer-imports` enforces dependency direction: `apps/cli` → `packages/core` → `packages/capability` → Effect/XState. Packages do not import apps; `packages/capability` does not import domain code; `apps/infra` owns its Stack wiring. `core` owns domain behavior and depends on `capability` only for `defineCapability`.
+- `rat-stack-boundaries/no-browser-server-imports` applies to `apps/*/src/features/**` and `apps/*/src/client/**`; `rat-stack-boundaries/no-feature-transport` applies to `apps/*/src/features/**`.
 - `packages/core/src/file-inspector.ts` is the reference service shape: a `Context.Service` class whose `make` captures its dependencies so its methods carry no requirements, with `static layer` beside it. `packages/core/src/config-service.ts` derives a service from Effect `Config` (production `layer` reads the ConfigProvider, `configLayer` takes parsed values for tests); `AppConfig` is the instance and mirrors `.env.schema`.
 - `packages/core/src/inspect-machine.ts` is the reference shape for a lifecycle: the machine owns states, declared `fromEffect` actors own side effects and typed failures, `join` plus `Effect.orDie` hands the outcome back to Effect. `packages/core/src/inspect-file.ts` wraps it as the one shipped capability.
 - Effect-backed machines start only under `createEffectActor`, never `createActor`. Only actions and actors declared in `setupEffect` contribute to the actor's requirements; the `xstate-effect/no-inline-effect` lint rule enforces the inline cases.
 - `packages/capability/src`: `packages/capability/src/capability.ts` (the domain object), `packages/capability/src/to-command.ts`, `packages/capability/src/to-http-api.ts`, and `packages/capability/src/to-toolkit.ts` (pure projections onto `effect/unstable/{cli,httpapi,ai}`), plus `packages/capability/src/catalog.ts`, `packages/capability/src/sandbox-service.ts`, `packages/capability/src/sandbox-subprocess.ts`, and `packages/capability/src/to-code-mode.ts` (the fourth projection; `Sandbox` is a `Context.Service` with a subprocess implementation). `packages/capability/src/to-code-mode.ts` imports from `packages/capability/src/to-toolkit.ts`, so MCP is a prerequisite for code mode.
 - `apps/cli/src/surfaces.ts` is the only place projections are instantiated; `apps/cli/src/command.ts` maps them to subcommands; `apps/cli/src/cli.ts` is the single composition root that provides `FileInspector` and `NodeServices`.
 - The [README's Keep or cut section](./README.md#keep-or-cut) lists what to delete per surface.
+
+## Web feature blueprint
+
+`apps/web/src/features/<name>/` holds a thin route and view. It reads atoms and calls named commands from `apps/web/src/client/<name>.ts`; components never handle transport, retries, or process startup. The client owns AtomRpc queries and the local replica. The capability in `packages/core` is the shared typed edge, imported by both sides. A cartridge owns durable behavior.
+
+One send follows one path: feature → named client command → AtomRpc → shared capability → server-side Durable Object or database cartridge. The server stays authoritative. Mutations carry `reactivityKeys` so the client reconciles its replica.
 
 ## Boundaries and sign-off
 
