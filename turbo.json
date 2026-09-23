@@ -14,7 +14,7 @@
       "outputs": []
     },
     "//#lint": {
-      "dependsOn": ["@rat-stack/mischief#generate", "@rat-stack/web#typecheck"],
+      "dependsOn": ["@rat-stack/mischief#generate"],
       "outputs": []
     },
     "check": {
