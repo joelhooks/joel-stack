@@ -48,7 +48,12 @@ Prior art: `@alchemy.run/better-auth`, which takes its database as a swappable L
    - Keep the Drizzle schema tiny and real: whatever ratstack.sh actually needs, not a demo table.
    - Swapping vendors must be a one-line `Layer.provide` change. That diff is the episode.
    - Record any PlanetScale profile or secret setup step. It becomes the episode beat on Alchemy profiles.
-3. Episode-sized follow-ups as the arc needs them. Keep each PR small enough that the whole diff fits on one Hunk screen, because on camera the diff is the demo.
+3. **`toRpc` projection, AtomRpc client.** Decided 2026-09-23 (Joel: "aligned"). The web client is a fifth projection in `packages/capability`: each capability becomes an `Rpc` in one `RpcGroup`, with payload, success, and error taken from its Effect Schemas. The browser uses `effect/unstable/reactivity/AtomRpc` with `@effect/atom-react`, and `reactivityKeys` handle refetching. Transport follows Alchemy's `examples/cloudflare-tanstack-rpc-drizzle`: a private RPC Worker behind a service binding, reached through a same-origin `/rpc` route.
+   - Not oRPC. The Effect Schema is already the contract; oRPC would add a second one, and its client would lose Effect's tagged error classes and requirements at the seam. oRPC stays the right pick for a team that keeps Effect out of the frontend.
+   - Accepted risk: AtomRpc lives in Effect's `unstable` namespace on a release candidate.
+4. **Better Auth cartridge.** `@alchemy.run/better-auth`, with its database provided by the database cartridge's vendor Layer.
+5. **TanStack Start SPA bin** that consumes the RPC client, the database, and auth. This is also the shape for apps that vendor rat-stack, starting with the RUBICON rewrite.
+6. Episode-sized follow-ups as the arc needs them. Keep each PR small enough that the whole diff fits on one Hunk screen, because on camera the diff is the demo.
 
 ## Todo
 
