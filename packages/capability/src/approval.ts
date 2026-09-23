@@ -7,6 +7,9 @@ export { ApprovalDenied } from "./approval-denied.js";
 export interface ApprovalService {
   readonly approve: (
     capabilityName: string,
+    // Every capability's decoded input passes through one gate, so its type
+    // is erased here; an implementation that shows it to a human encodes it.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters
     input: unknown
   ) => Effect.Effect<void, ApprovalDenied>;
 }

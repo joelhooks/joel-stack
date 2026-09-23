@@ -6,9 +6,9 @@ import {
   toTypeScript,
   typeOf,
 } from "../src/catalog.js";
-import { echo, greet, shape } from "./fixtures.js";
+import { echo, greet, mixed } from "./fixtures.js";
 
-const catalog = toCatalog([echo, greet, shape]);
+const catalog = toCatalog([echo, greet, mixed]);
 
 describe("toCatalog", () => {
   it("records every capability with JSON Schema for each channel", () => {
@@ -16,7 +16,7 @@ describe("toCatalog", () => {
     expect(catalog.capabilities.map((entry) => entry.name)).toEqual([
       "echo",
       "greet",
-      "shape",
+      "mixed",
     ]);
     const [, greetEntry] = catalog.capabilities;
     expect(greetEntry?.input).toMatchObject({
@@ -43,7 +43,8 @@ describe("typeOf", () => {
     );
     expect(typeOf({ not: {} })).toBe("never");
     expect(typeOf({ $ref: "#/$defs/NotFoundEncoded" })).toBe("NotFoundEncoded");
-    expect(typeOf(42)).toBe("unknown");
+    // A fragment the printer cannot parse prints as unknown.
+    expect(typeOf({ type: 7 })).toBe("unknown");
   });
 });
 

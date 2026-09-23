@@ -10,8 +10,8 @@ import { Config, Context, Effect, Layer } from "effect";
 
 type ConfigMap = Record<string, Config.Config<unknown>>;
 
-/** The service shape inferred from an object of Effect `Config` definitions. */
-export type Shape<Fields extends ConfigMap> = {
+/** The parsed values of an object of Effect `Config` definitions. */
+export type ConfigValues<Fields extends ConfigMap> = {
   readonly [Key in keyof Fields]: Config.Success<Fields[Key]>;
 };
 
@@ -45,12 +45,12 @@ const Service =
   <const Id extends string, const Fields extends ConfigMap>(
     id: Id,
     fields: Fields
-  ): ServiceClass<Self, Id, Shape<Fields>> => {
+  ): ServiceClass<Self, Id, ConfigValues<Fields>> => {
     // The generic factory hands the Self type in from the caller, which is the
     // point of the pattern, so the class-name check does not apply here.
     // @effect-diagnostics-next-line classSelfMismatch:off
-    class ConfigTag extends Context.Service<Self, Shape<Fields>>()(id) {
-      static configLayer(input: Shape<Fields>): Layer.Layer<Self> {
+    class ConfigTag extends Context.Service<Self, ConfigValues<Fields>>()(id) {
+      static configLayer(input: ConfigValues<Fields>): Layer.Layer<Self> {
         return Layer.succeed(this, input);
       }
 
@@ -58,11 +58,11 @@ const Service =
         return Layer.effect(
           this,
           Effect.gen(function* makeConfig() {
-            // Config.all's conditional return type cannot be evaluated for a
-            // generic record, but for a Record<string, Config> it is exactly
-            // Shape<Fields>.
+            // SAFETY: Config.all's conditional return type cannot be evaluated
+            // for a generic record, but for a Record<string, Config> it is
+            // exactly ConfigValues<Fields>.
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-            const parsed = (yield* Config.all(fields)) as Shape<Fields>;
+            const parsed = (yield* Config.all(fields)) as ConfigValues<Fields>;
 
             return parsed;
           })

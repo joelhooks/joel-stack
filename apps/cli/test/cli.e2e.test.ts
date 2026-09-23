@@ -17,15 +17,15 @@ const cliPath = path.join(cliDir, "dist", "cli.js");
 
 const readmePath = path.join(repoRoot, "README.md");
 
-const parseJson = (text: string): unknown => JSON.parse(text);
-
 const decodeOpenApi = Schema.decodeUnknownSync(
-  Schema.Struct({
-    paths: Schema.Record(
-      Schema.String,
-      Schema.Record(Schema.String, Schema.Unknown)
-    ),
-  })
+  Schema.fromJsonString(
+    Schema.Struct({
+      paths: Schema.Record(
+        Schema.String,
+        Schema.Record(Schema.String, Schema.Unknown)
+      ),
+    })
+  )
 );
 
 const JsonRpcResponse = Schema.Struct({
@@ -34,7 +34,9 @@ const JsonRpcResponse = Schema.Struct({
   result: Schema.optional(Schema.Unknown),
 });
 
-const decodeJsonRpcResponse = Schema.decodeUnknownSync(JsonRpcResponse);
+const decodeJsonRpcResponse = Schema.decodeUnknownSync(
+  Schema.fromJsonString(JsonRpcResponse)
+);
 
 const decodeToolsList = Schema.decodeUnknownSync(
   Schema.Struct({
@@ -88,7 +90,7 @@ const mcpConversation = async (
           continue;
         }
 
-        const message = decodeJsonRpcResponse(parseJson(line));
+        const message = decodeJsonRpcResponse(line);
 
         if (message.id !== undefined) {
           responses.push(message);
@@ -157,7 +159,7 @@ describe("built CLI", () => {
     const result = runCli(["openapi"]);
 
     expect(result.status).toBe(0);
-    const document = decodeOpenApi(parseJson(result.stdout));
+    const document = decodeOpenApi(result.stdout);
     expect(document.paths["/inspectFile"]?.post).toBeDefined();
   });
 });

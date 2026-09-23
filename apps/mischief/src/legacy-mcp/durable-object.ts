@@ -14,7 +14,7 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { layerWorkerLoader, sandboxLimits } from "../sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "../sandbox-worker-loader.js";
 import { legacyMcpRuntime } from "./runtime.js";
-import { LEGACY_SESSION_HEADER, makeLegacySession } from "./session.js";
+import { LEGACY_SESSION_HEADER, openLegacySession } from "./session.js";
 import type { StoredSession } from "./session.js";
 
 const SESSION_KEY = "session";
@@ -24,10 +24,10 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
   Effect.gen(function* makeLegacyMcp() {
     const environment = yield* Cloudflare.WorkerEnvironment;
 
-    // The object shares its Worker's environment. The Worker declares this
-    // binding; the object only reads it. This is the one boundary cast.
+    // SAFETY: the object shares its Worker's environment. The Worker declares
+    // this binding; the object only reads it. This is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const bindings = environment as unknown as {
+    const bindings = environment as {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
     };
 
@@ -41,7 +41,7 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
     // the Effect it returns builds each instance.
     // @effect-diagnostics-next-line returnEffectInGen:off -- Alchemy's DurableObject contract returns the per-instance Effect.
     return Effect.gen(function* makeInstance() {
-      const session = yield* makeLegacySession({
+      const session = yield* openLegacySession({
         forward,
         storage: {
           load: state.storage.get<StoredSession>(SESSION_KEY),

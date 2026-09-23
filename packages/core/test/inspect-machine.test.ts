@@ -1,10 +1,15 @@
 import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
 import { createEffectActor, join } from "@xstate/effect";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 
 import { FileInspector } from "../src/file-inspector.js";
-import { inspectMachine, runInspectMachine } from "../src/inspect-machine.js";
+import {
+  inspectMachine,
+  inspectOutcome,
+  runInspectMachine,
+} from "../src/inspect-machine.js";
+import { FileStatsError } from "../src/stats.js";
 
 // Same composition as the CLI entry: the machine's declared actor requires
 // FileInspector, which requires FileSystem from NodeServices.
@@ -32,10 +37,8 @@ it.layer(TestLayer)("inspectMachine", (test) => {
       const { outcome, state } = yield* runMachine(file);
 
       expect(state).toBe("inspected");
-      expect(outcome).toMatchObject({
-        _tag: "Inspected",
-        stats: { lines: 2, words: 3 },
-      });
+      expect(inspectOutcome.$is("Inspected")(outcome)).toBe(true);
+      expect(outcome).toMatchObject({ stats: { lines: 2, words: 3 } });
     })
   );
 
@@ -46,10 +49,10 @@ it.layer(TestLayer)("inspectMachine", (test) => {
       );
 
       expect(state).toBe("unreadable");
-      expect(outcome).toMatchObject({
-        _tag: "Unreadable",
-        error: { _tag: "FileStatsError" },
-      });
+      expect(
+        inspectOutcome.$is("Unreadable")(outcome) &&
+          Schema.is(FileStatsError)(outcome.error)
+      ).toBe(true);
     })
   );
 

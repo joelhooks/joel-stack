@@ -8,10 +8,10 @@ import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 
-import { makeRoutes } from "./app.js";
+import { mischiefRoutes } from "./app.js";
 import LegacyMcp from "./legacy-mcp/durable-object.js";
 import { LEGACY_SESSION_HEADER } from "./legacy-mcp/session.js";
-import { makeRateLimits, rateLimitDeclarations } from "./rate-limits.js";
+import { rateLimitsFrom, rateLimitDeclarations } from "./rate-limits.js";
 import type { RateLimitBindings } from "./rate-limits.js";
 import { layerWorkerLoader, sandboxLimits } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
@@ -56,16 +56,17 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
 
     const environment = yield* Cloudflare.WorkerEnvironment;
 
-    // These are the native runtime bindings declared above. Alchemy's typed
-    // environment is populated dynamically, so this is the one boundary cast.
+    // SAFETY: these are the native runtime bindings declared above. Alchemy
+    // types the environment as a dictionary it fills in at runtime, so this is
+    // the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const bindings = environment as unknown as RateLimitBindings & {
+    const bindings = environment as RateLimitBindings & {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
     };
 
     const loader = bindings.CODE_SANDBOX;
 
-    const rateLimits = makeRateLimits({
+    const rateLimits = rateLimitsFrom({
       API_PER_IP: bindings.API_PER_IP,
       EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL,
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
@@ -74,7 +75,7 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
     // Pre-2026-07-28 MCP clients get one object per session.
     const legacyMcp = yield* LegacyMcp;
 
-    const workerRoutes = makeRoutes({
+    const workerRoutes = mischiefRoutes({
       legacyMcp: {
         forward: (session, request) => {
           const headers = new Headers(request.headers);
@@ -93,9 +94,10 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       staticCache: cloudflareStaticCache,
       webBotAuth: {
         enabled: webBotAuthEnabled,
-        ...(Option.isSome(webBotAuthPrivateJwk)
-          ? { privateJwk: Redacted.value(webBotAuthPrivateJwk.value) }
-          : {}),
+        privateJwk: webBotAuthPrivateJwk.pipe(
+          Option.map(Redacted.value),
+          Option.getOrUndefined
+        ),
       },
     }).pipe(Layer.provide(layerWorkerLoader(loader, sandboxLimits)));
 

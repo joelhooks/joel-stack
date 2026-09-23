@@ -2,7 +2,7 @@ import { expect, it } from "@effect/vitest";
 import { Effect, Option, Ref, Schema } from "effect";
 
 import { legacyMcpRuntime } from "../src/legacy-mcp/runtime.js";
-import { makeLegacySession } from "../src/legacy-mcp/session.js";
+import { openLegacySession } from "../src/legacy-mcp/session.js";
 import type { StoredSession } from "../src/legacy-mcp/session.js";
 import { TestSandbox } from "./test-sandbox.js";
 
@@ -29,21 +29,26 @@ const memoryStorage = Effect.gen(function* makeMemoryStorage() {
   };
 });
 
-const rpc = (body: Readonly<Record<string, unknown>>, sessionId?: string) =>
-  new Request("https://ratstack.sh/mcp", {
+const rpc = (
+  body: Readonly<Record<string, Schema.Json>>,
+  sessionId?: string
+) => {
+  const headers = new Headers({
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  });
+
+  if (sessionId !== undefined) {
+    headers.set("mcp-protocol-version", "2025-06-18");
+    headers.set("mcp-session-id", sessionId);
+  }
+
+  return new Request("https://ratstack.sh/mcp", {
     body: JSON.stringify({ jsonrpc: "2.0", ...body }),
-    headers: {
-      accept: "application/json, text/event-stream",
-      "content-type": "application/json",
-      ...(sessionId === undefined
-        ? {}
-        : {
-            "mcp-protocol-version": "2025-06-18",
-            "mcp-session-id": sessionId,
-          }),
-    },
+    headers,
     method: "POST",
   });
+};
 
 const initialize = () =>
   rpc({
@@ -80,7 +85,7 @@ it.effect("a legacy client initializes, lists tools, and calls search", () =>
     Effect.gen(function* legacyClientFlow() {
       const storage = yield* memoryStorage;
 
-      const session = yield* makeLegacySession({
+      const session = yield* openLegacySession({
         forward,
         storage,
       });
@@ -132,7 +137,7 @@ it.effect("a legacy session survives eviction of its object", () =>
 
     yield* withRuntime((forward) =>
       Effect.gen(function* beforeEviction() {
-        const session = yield* makeLegacySession({
+        const session = yield* openLegacySession({
           forward,
           storage,
         });
@@ -144,7 +149,7 @@ it.effect("a legacy session survives eviction of its object", () =>
 
     yield* withRuntime((forward) =>
       Effect.gen(function* afterEviction() {
-        const session = yield* makeLegacySession({
+        const session = yield* openLegacySession({
           forward,
           storage,
         });
@@ -168,7 +173,7 @@ it.effect("an unknown legacy session is not found", () =>
     Effect.gen(function* unknownSession() {
       const storage = yield* memoryStorage;
 
-      const session = yield* makeLegacySession({
+      const session = yield* openLegacySession({
         forward,
         storage,
       });

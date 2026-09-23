@@ -36,7 +36,7 @@ export interface RateLimits {
   readonly limit: (name: RateLimitName, key: string) => Effect.Effect<boolean>;
 }
 
-export const makeRateLimits = (bindings: RateLimitBindings): RateLimits => ({
+export const rateLimitsFrom = (bindings: RateLimitBindings): RateLimits => ({
   limit: (name, key) =>
     Effect.tryPromise(
       // Cloudflare owns this Promise-returning runtime boundary.

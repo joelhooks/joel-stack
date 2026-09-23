@@ -2,20 +2,31 @@
 // oxlint-disable-next-line typescript/triple-slash-reference
 /// <reference path="./cloudflare-workers.d.ts" />
 
-import { Sandbox, SandboxError } from "@rat-stack/capability/sandbox";
+import {
+  Sandbox,
+  SandboxError,
+  invokeFailure,
+} from "@rat-stack/capability/sandbox";
 import type {
   Invoke,
   InvokeOutcome,
   SandboxRun,
 } from "@rat-stack/capability/sandbox";
 import type { RpcTarget as RpcTargetType } from "cloudflare:workers";
-import { Duration, Effect, Layer, Schema } from "effect";
+import { Duration, Effect, Layer, Option, Schema } from "effect";
 
-export interface DynamicWorkerEntrypoint {
-  readonly run: (dispatcher: RpcTargetType) => Promise<unknown>;
+// Cloudflare RPC stubs may hold a resource the host should release.
+interface ReleasableStub {
+  readonly [Symbol.dispose]?: () => void;
 }
 
-export interface DynamicWorker {
+export interface DynamicWorkerEntrypoint extends ReleasableStub {
+  // Our guest module's contract. The guest runs model code, so the host still
+  // decodes the reply before trusting it.
+  readonly run: (dispatcher: RpcTargetType) => Promise<GuestOutcomeWire>;
+}
+
+export interface DynamicWorker extends ReleasableStub {
   readonly getEntrypoint: () => DynamicWorkerEntrypoint;
 }
 
@@ -55,6 +66,8 @@ const GuestOutcome = Schema.Union([
   }),
 ]);
 
+type GuestOutcomeWire = typeof GuestOutcome.Encoded;
+
 const decodeGuestOutcome = Schema.decodeUnknownEffect(GuestOutcome);
 
 const messageOf = (cause: unknown): string =>
@@ -66,28 +79,16 @@ const sandboxError = (
   logs: readonly string[] = []
 ) => new SandboxError({ logs, message, reason });
 
-const disposeQuietly = (value: unknown): Effect.Effect<void> =>
+const disposeQuietly = (stub: ReleasableStub): Effect.Effect<void> =>
   Effect.sync(() => {
-    if (
-      typeof value !== "object" ||
-      value === null ||
-      !(Symbol.dispose in value)
-    ) {
-      return;
-    }
-
-    const dispose = value[Symbol.dispose];
-
-    if (typeof dispose !== "function") {
-      return;
-    }
-
     try {
-      dispose.call(value);
+      stub[Symbol.dispose]?.();
     } catch {
       // Cleanup must not mask the sandbox result.
     }
   });
+
+const decodeCallInput = Schema.decodeUnknownOption(Schema.Json);
 
 const makeRpcDispatcher = (invoke: Invoke) =>
   Effect.tryPromise({
@@ -106,15 +107,24 @@ const makeRpcDispatcher = (invoke: Invoke) =>
         readonly #invoke = invoke;
 
         // Cloudflare RPC requires a Promise-returning method at this boundary.
+        // This is the sandbox's way out, so `input` arrives untrusted and is
+        // parsed as JSON before any capability sees it.
         // @effect-diagnostics-next-line asyncFunction:off
-        async call(name: string, input: unknown): Promise<InvokeOutcome> {
+        async call(
+          name: string,
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters
+          input: unknown
+        ): Promise<InvokeOutcome> {
+          const json = decodeCallInput(input);
+
+          if (Option.isNone(json)) {
+            return invokeFailure("InvalidInput", "Tool input must be JSON");
+          }
+
           try {
-            return await Effect.runPromise(this.#invoke(name, input));
+            return await Effect.runPromise(this.#invoke(name, json.value));
           } catch (error) {
-            return {
-              error: { _tag: "HostDefect", message: messageOf(error) },
-              ok: false,
-            };
+            return invokeFailure("HostDefect", messageOf(error));
           }
         }
       }

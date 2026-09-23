@@ -20,7 +20,7 @@ import type {
 } from "./capability.js";
 import { searchCatalog, toCatalog, toTypeScript } from "./catalog.js";
 import type { Catalog } from "./catalog.js";
-import { Sandbox, SandboxError } from "./sandbox-service.js";
+import { Sandbox, SandboxError, invokeFailure } from "./sandbox-service.js";
 import type { Invoke, InvokeOutcome } from "./sandbox-service.js";
 import type { RequirementsOf } from "./to-toolkit.js";
 
@@ -101,11 +101,6 @@ export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   >;
 }
 
-const failure = (tag: string, message: string): InvokeOutcome => ({
-  error: { _tag: tag, message },
-  ok: false,
-});
-
 /**
  * Turns a capability tuple into one ordinary `execute` Capability. The caller
  * can project it beside its public capabilities through MCP and HTTP while the
@@ -123,8 +118,9 @@ export const toExecuteCapability = <
     capabilities.map((capability) => [capability.name, capability] as const)
   );
 
-  // Caps preserves the literal approval flag for the generated capability.
   const hasApproval = capabilities.some((item) => item.needsApproval);
+  // SAFETY: Caps preserves the literal approval flag for the generated
+  // capability, and `some` over the same array computes exactly that flag.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
 
@@ -148,14 +144,16 @@ export const toExecuteCapability = <
 
         if (item === undefined) {
           return Effect.succeed(
-            failure("UnknownCapability", `No capability named ${name}`)
+            invokeFailure("UnknownCapability", `No capability named ${name}`)
           );
         }
 
-        // `AnyCapability` erased this capability's requirements to `unknown`;
-        // they are a subset of `RequirementsOf<Caps>`, which `context` carries.
+        // SAFETY: `AnyCapability` erased this capability's requirements to
+        // `unknown`; they are a subset of `RequirementsOf<Caps>`, which
+        // `context` carries. The input is decoded by its schema first.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         const run = item.handler as (
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
 
@@ -165,7 +163,7 @@ export const toExecuteCapability = <
         return Schema.decodeUnknownEffect(item.input)(input).pipe(
           Effect.matchEffect({
             onFailure: (error) =>
-              Effect.succeed(failure("InvalidInput", error.message)),
+              Effect.succeed(invokeFailure("InvalidInput", error.message)),
             onSuccess: (decoded) =>
               run(decoded).pipe(
                 Effect.provideContext(context),
@@ -177,7 +175,7 @@ export const toExecuteCapability = <
                         ok: false,
                       })),
                       Effect.orElseSucceed(() =>
-                        failure("UnencodableFailure", String(error))
+                        invokeFailure("UnencodableFailure", String(error))
                       )
                     ),
                   onSuccess: (output) =>
@@ -187,7 +185,7 @@ export const toExecuteCapability = <
                         value,
                       })),
                       Effect.orElseSucceed(() =>
-                        failure("UnencodableOutput", String(output))
+                        invokeFailure("UnencodableOutput", String(output))
                       )
                     ),
                 })
@@ -200,8 +198,8 @@ export const toExecuteCapability = <
 
       return {
         logs: run.logs,
-        // Every Sandbox implementation must JSON-round-trip a successful
-        // result before crossing this boundary.
+        // SAFETY: every Sandbox implementation must JSON-round-trip a
+        // successful result before crossing this boundary.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         result: run.result as typeof ExecuteResult.Type.result,
       };

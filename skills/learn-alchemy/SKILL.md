@@ -67,12 +67,12 @@ yield * Cloudflare.WorkerLoader("CODE_SANDBOX");
 yield *
   Cloudflare.RateLimit("EXECUTE_GLOBAL", rateLimitDeclarations.EXECUTE_GLOBAL);
 const environment = yield * Cloudflare.WorkerEnvironment;
-const bindings = environment as unknown as RateLimitBindings & {
+const bindings = environment as RateLimitBindings & {
   readonly CODE_SANDBOX: WorkerLoaderBinding;
 };
 ```
 
-`apps/mischief/src/rate-limits.ts` keeps the three native binding names and their numeric namespace IDs together. `makeRateLimits` calls the native `.limit({ key })` method and turns a failed runtime call into a defect instead of failing open.
+`apps/mischief/src/rate-limits.ts` keeps the three native binding names and their numeric namespace IDs together. `rateLimitsFrom` calls the native `.limit({ key })` method and turns a failed runtime call into a defect instead of failing open.
 
 `apps/mischief/src/sandbox-worker-loader.ts` consumes the `CODE_SANDBOX` binding. It loads a fresh Dynamic Worker with limits and `globalOutbound: null`, so the code-mode Worker can compute and call declared capabilities without reaching the network.
 

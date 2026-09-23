@@ -55,7 +55,7 @@ export const approved = defineCapability("approved", {
 });
 
 /** Exercises the remaining flag kinds. */
-export const shape = defineCapability("shape", {
+export const mixed = defineCapability("mixed", {
   description: "Echo a mixed input back",
   failure: Schema.Never,
   handler: (input) => Effect.succeed(input),

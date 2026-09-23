@@ -4,7 +4,7 @@ import { Effect, Layer, Schema } from "effect";
 import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { makeRoutes } from "../src/app.js";
+import { mischiefRoutes } from "../src/app.js";
 import type { StaticResponseCache } from "../src/app.js";
 import { ReadOutput, SearchOutput } from "../src/capabilities/schemas.js";
 import {
@@ -21,7 +21,7 @@ import {
   robotsText,
   skills,
 } from "../src/content.js";
-import { makeRateLimits } from "../src/rate-limits.js";
+import { rateLimitsFrom } from "../src/rate-limits.js";
 import type {
   NativeRateLimitBinding,
   RateLimitBindings,
@@ -142,9 +142,20 @@ const postMcp = Effect.fnUntraced(function* postMcpRequest(
   handler: WebHandler,
   id: string,
   method: string,
-  params: Readonly<Record<string, unknown>> = {},
+  params: Readonly<Record<string, Schema.Json>> = {},
   name?: string
 ) {
+  const headers = new Headers({
+    "MCP-Protocol-Version": "2026-07-28",
+    "Mcp-Method": method,
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  });
+
+  if (name !== undefined) {
+    headers.set("Mcp-Name", name);
+  }
+
   const request = new Request("http://localhost/mcp", {
     body: JSON.stringify({
       id,
@@ -152,13 +163,7 @@ const postMcp = Effect.fnUntraced(function* postMcpRequest(
       method,
       params: { ...params, _meta: metadata },
     }),
-    headers: {
-      "MCP-Protocol-Version": "2026-07-28",
-      "Mcp-Method": method,
-      ...(name === undefined ? {} : { "Mcp-Name": name }),
-      accept: "application/json, text/event-stream",
-      "content-type": "application/json",
-    },
+    headers,
     method: "POST",
   });
 
@@ -180,7 +185,7 @@ const readJson = Effect.fnUntraced(function* readJsonResponse(
 const postJson = Effect.fnUntraced(function* postJsonRequest(
   handler: WebHandler,
   path: string,
-  body: unknown
+  body: Schema.Json
 ) {
   return yield* Effect.promise(
     handler.bind(
@@ -202,9 +207,9 @@ const withHandler = <A, E, R>(
   Effect.acquireUseRelease(
     Effect.sync(() =>
       HttpRouter.toWebHandler(
-        makeRoutes({
-          rateLimits: makeRateLimits(rateLimits),
-          ...(staticCache === undefined ? {} : { staticCache }),
+        mischiefRoutes({
+          rateLimits: rateLimitsFrom(rateLimits),
+          staticCache,
         }).pipe(Layer.provide(TestSandbox)),
         { disableLogger: true }
       )
@@ -1223,7 +1228,7 @@ it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
         return yield* Effect.acquireUseRelease(
           Effect.sync(() =>
             HttpRouter.toWebHandler(
-              makeRoutes({
+              mischiefRoutes({
                 webBotAuth: { enabled: true, privateJwk },
               }).pipe(Layer.provide(TestSandbox)),
               { disableLogger: true }
@@ -1279,9 +1284,9 @@ it.effect("projects search, read, and execute through HTTP", () =>
         yield* readJson(searched)
       );
 
-      const id = searchResult.matches[0]?.id;
+      const id = searchResult.matches[0]?.id ?? "";
       expect(searched.status).toBe(200);
-      expect(id).toBeDefined();
+      expect(id).not.toBe("");
 
       const read = yield* postJson(handler, "/api/read", { id });
 
@@ -1598,8 +1603,8 @@ it.effect(
           searched.result.structuredContent
         );
 
-        const id = searchResult.matches[0]?.id;
-        expect(id).toBeDefined();
+        const id = searchResult.matches[0]?.id ?? "";
+        expect(id).not.toBe("");
 
         const readResponse = yield* postMcp(
           handler,

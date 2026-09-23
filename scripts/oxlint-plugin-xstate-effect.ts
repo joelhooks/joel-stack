@@ -32,11 +32,16 @@ const EFFECT_LOGIC_CONSTRUCTORS = new Set([
 // ESTree.Function covers FunctionExpression and FunctionDeclaration.
 type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
+// The walker below reads every child of an ESTree node generically, so each
+// child arrives as `unknown`. Lint tooling has no schema layer; this structural
+// guard is the boundary check the anti-slop rule asks for.
+/* oxlint-disable anti-slop/no-runtime-typeof */
 const isNode = (value: unknown): value is ESTree.Node =>
   typeof value === "object" &&
   value !== null &&
   "type" in value &&
   typeof value.type === "string";
+/* oxlint-enable anti-slop/no-runtime-typeof */
 
 const rootIdentifier = (node: ESTree.Node): string | undefined => {
   let current: ESTree.Node = node;

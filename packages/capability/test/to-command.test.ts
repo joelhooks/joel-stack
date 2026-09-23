@@ -5,7 +5,7 @@ import { TestConsole } from "effect/testing";
 import { CliOutput, Command } from "effect/unstable/cli";
 
 import { ApprovalDenied, toCommand } from "../src/index.js";
-import { Greeter, approved, echo, greet, shape } from "./fixtures.js";
+import { Greeter, approved, echo, greet, mixed } from "./fixtures.js";
 
 const TestLayer = Layer.mergeAll(
   TestConsole.layer,
@@ -40,7 +40,7 @@ describe("toCommand", () => {
 
     test.effect("handles booleans, literals, and JSON-valued fields", () =>
       Effect.gen(function* otherKinds() {
-        yield* run(toCommand(shape), [
+        yield* run(toCommand(mixed), [
           "--enabled",
           "--mode",
           "slow",

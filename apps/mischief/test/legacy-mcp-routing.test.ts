@@ -1,13 +1,14 @@
 import { expect, it } from "@effect/vitest";
 import { Effect, Layer, Option, Ref, Scope } from "effect";
+import type { Schema } from "effect";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
-import { makeRoutes } from "../src/app.js";
+import { mischiefRoutes } from "../src/app.js";
 import type { LegacyMcpRouter } from "../src/app.js";
 import { legacyMcpRuntime } from "../src/legacy-mcp/runtime.js";
-import { makeLegacySession } from "../src/legacy-mcp/session.js";
+import { openLegacySession } from "../src/legacy-mcp/session.js";
 import type { StoredSession } from "../src/legacy-mcp/session.js";
-import { makeRateLimits } from "../src/rate-limits.js";
+import { rateLimitsFrom } from "../src/rate-limits.js";
 import type { RateLimitBindings } from "../src/rate-limits.js";
 import { TestSandbox } from "./test-sandbox.js";
 
@@ -55,7 +56,7 @@ const fakeNamespace = Effect.gen(function* makeFakeNamespace() {
           );
 
           const stored = yield* Ref.make(Option.none<StoredSession>());
-          object = yield* makeLegacySession({
+          object = yield* openLegacySession({
             forward,
             storage: {
               load: Ref.get(stored).pipe(Effect.map(Option.getOrUndefined)),
@@ -86,9 +87,9 @@ const withWorker = <A, E, R>(
       const worker = yield* Effect.acquireRelease(
         Effect.sync(() =>
           HttpRouter.toWebHandler(
-            makeRoutes({
+            mischiefRoutes({
               legacyMcp: namespace.router,
-              rateLimits: makeRateLimits({
+              rateLimits: rateLimitsFrom({
                 API_PER_IP: bindings.API_PER_IP ?? new FakeLimit(),
                 EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL ?? new FakeLimit(),
                 EXECUTE_PER_IP: bindings.EXECUTE_PER_IP ?? new FakeLimit(),
@@ -104,21 +105,26 @@ const withWorker = <A, E, R>(
     })
   );
 
-const legacy = (body: Readonly<Record<string, unknown>>, sessionId?: string) =>
-  new Request("https://ratstack.sh/mcp", {
+const legacy = (
+  body: Readonly<Record<string, Schema.Json>>,
+  sessionId?: string
+) => {
+  const headers = new Headers({
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  });
+
+  if (sessionId !== undefined) {
+    headers.set("mcp-protocol-version", "2025-06-18");
+    headers.set("mcp-session-id", sessionId);
+  }
+
+  return new Request("https://ratstack.sh/mcp", {
     body: JSON.stringify({ jsonrpc: "2.0", ...body }),
-    headers: {
-      accept: "application/json, text/event-stream",
-      "content-type": "application/json",
-      ...(sessionId === undefined
-        ? {}
-        : {
-            "mcp-protocol-version": "2025-06-18",
-            "mcp-session-id": sessionId,
-          }),
-    },
+    headers,
     method: "POST",
   });
+};
 
 const initialize = (id: number) =>
   legacy({
