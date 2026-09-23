@@ -29,6 +29,11 @@
       "import": "./dist/http-api.js",
       "default": "./dist/http-api.js"
     },
+    "./rpc": {
+      "types": "./src/rpc.ts",
+      "import": "./dist/rpc.js",
+      "default": "./dist/rpc.js"
+    },
     "./sandbox": {
       "types": "./src/sandbox-service.ts",
       "import": "./dist/sandbox-service.js",

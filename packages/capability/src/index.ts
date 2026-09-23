@@ -65,3 +65,10 @@ export {
   type ToolkitProjection,
   type ToolsOf,
 } from "./to-toolkit.js";
+
+export {
+  toRpc,
+  type RpcOf,
+  type RpcProjection,
+  type RpcsOf,
+} from "./to-rpc.js";
