@@ -19,6 +19,10 @@ export default defineConfig({
     "./scripts/oxlint-plugin-xstate-effect.ts",
     "./scripts/oxlint-plugin-effect-tests.ts",
     "./scripts/oxlint-plugin-no-comments.ts",
+    {
+      name: "rat-stack-boundaries",
+      specifier: "./scripts/oxlint-plugin-boundaries.ts",
+    },
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
     {
       name: "anti-slop-effect",
@@ -28,6 +32,20 @@ export default defineConfig({
   options: {
     typeAware: true,
   },
+  overrides: [
+    {
+      files: ["apps/*/src/features/**", "apps/*/src/client/**"],
+      rules: {
+        "rat-stack-boundaries/no-browser-server-imports": "error",
+      },
+    },
+    {
+      files: ["apps/*/src/features/**"],
+      rules: {
+        "rat-stack-boundaries/no-feature-transport": "error",
+      },
+    },
+  ],
   rules: {
     "anti-slop-effect/no-manual-effect-error-tag": "error",
     "anti-slop-effect/no-manual-tag-comparison": "error",
@@ -57,6 +75,7 @@ export default defineConfig({
     "jsdoc/require-returns-description": "off",
     "no-comments/no-comments": "error",
     "oxc/no-accumulating-spread": "error",
+    "rat-stack-boundaries/no-cross-layer-imports": "error",
     "unicorn/throw-new-error": "off",
     "xstate-effect/no-inline-effect": "error",
   },
