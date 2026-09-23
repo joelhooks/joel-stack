@@ -24,6 +24,7 @@ export default Alchemy.Stack(
   },
   Effect.gen(function* stack() {
     const dev = yield* Alchemy.ALCHEMY_DEV;
+
     if (!dev) {
       // ratstack.sh already exists in the account, so adoption is explicit.
       // Zones retain on stack removal; there is no destroy() here on purpose.
@@ -68,7 +69,9 @@ export default Alchemy.Stack(
         zoneId: zone.zoneId,
       }).pipe(adopt(true));
     }
+
     const mischief = yield* Mischief;
+
     return { mischiefUrl: mischief.url };
   })
 );

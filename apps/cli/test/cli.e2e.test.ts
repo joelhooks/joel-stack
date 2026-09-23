@@ -10,8 +10,11 @@ import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 
 const cliDir = path.resolve(import.meta.dirname, "..");
+
 const repoRoot = path.resolve(cliDir, "../..");
+
 const cliPath = path.join(cliDir, "dist", "cli.js");
+
 const readmePath = path.join(repoRoot, "README.md");
 
 const parseJson = (text: string): unknown => JSON.parse(text);
@@ -30,6 +33,7 @@ const JsonRpcResponse = Schema.Struct({
   id: Schema.optional(Schema.Number),
   result: Schema.optional(Schema.Unknown),
 });
+
 const decodeJsonRpcResponse = Schema.decodeUnknownSync(JsonRpcResponse);
 
 const decodeToolsList = Schema.decodeUnknownSync(
@@ -63,27 +67,34 @@ const mcpConversation = async (
       cwd: repoRoot,
       stdio: ["pipe", "pipe", "pipe"],
     });
+
     const responses: (typeof JsonRpcResponse.Type)[] = [];
     const wanted = messages.filter((message) => "id" in message).length;
     let buffer = "";
+
     const timer = setTimeout(() => {
       child.kill();
       reject(new Error(`mcp timed out with stdout: ${buffer}`));
     }, 15_000);
+
     child.stdout.setEncoding("utf-8");
     child.stdout.on("data", (chunk: string) => {
       buffer += chunk;
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
+
       for (const line of lines) {
         if (line.trim() === "") {
           continue;
         }
+
         const message = decodeJsonRpcResponse(parseJson(line));
+
         if (message.id !== undefined) {
           responses.push(message);
         }
       }
+
       if (responses.length >= wanted) {
         clearTimeout(timer);
         child.kill();
@@ -91,6 +102,7 @@ const mcpConversation = async (
       }
     });
     child.on("error", reject);
+
     for (const message of messages) {
       child.stdin.write(`${JSON.stringify(message)}\n`);
     }
@@ -102,6 +114,7 @@ describe("built CLI", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("USAGE");
+
     for (const name of ["stats", "catalog", "openapi", "serve", "mcp"]) {
       expect(result.stdout).toContain(name);
     }
@@ -209,9 +222,11 @@ describe("built MCP server", () => {
     const listing = responses.find((response) => response.id === 2);
     expect(listing?.error).toBeUndefined();
     const result = decodeToolsList(listing?.result);
+
     const tool = result.tools.find(
       (candidate) => candidate.name === "inspectFile"
     );
+
     expect(tool).toBeDefined();
     expect(tool?.annotations?.readOnlyHint).toBe(true);
   });

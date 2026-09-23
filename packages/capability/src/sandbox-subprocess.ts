@@ -85,11 +85,13 @@ const ChildMessage = Schema.Union([
     type: Schema.Literal("error"),
   }),
 ]);
+
 const decodeChildMessage = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ChildMessage)
 );
 
 const encoder = new TextEncoder();
+
 const isSandboxError = Schema.is(SandboxError);
 
 export interface SubprocessOptions {
@@ -104,6 +106,7 @@ const makeSubprocess = (options?: SubprocessOptions) =>
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const timeout = Duration.fromInputUnsafe(options?.timeout ?? "10 seconds");
     const nodePath = options?.nodePath ?? process.execPath;
+
     const command = ChildProcess.make(nodePath, [
       "--permission",
       "--input-type=module",
@@ -125,14 +128,17 @@ const makeSubprocess = (options?: SubprocessOptions) =>
             })
         )
       );
+
       const outbox = yield* Queue.unbounded<Uint8Array, Cause.Done>();
       yield* Stream.fromQueue(outbox).pipe(
         Stream.run(handle.stdin),
         Effect.ignore,
         Effect.forkScoped
       );
+
       const send = (message: unknown) =>
         Queue.offer(outbox, encoder.encode(`${JSON.stringify(message)}\n`));
+
       yield* send({ code, type: "run" });
 
       const outcome = yield* Stream.decodeText(handle.stdout).pipe(
@@ -157,6 +163,7 @@ const makeSubprocess = (options?: SubprocessOptions) =>
                   Effect.andThen(Effect.succeedNone)
                 );
               }
+
               return Effect.succeedSome<SandboxRun | SandboxError>(
                 message.type === "done"
                   ? { logs: message.logs, result: message.result }
@@ -190,9 +197,11 @@ const makeSubprocess = (options?: SubprocessOptions) =>
           reason: "exited",
         });
       }
+
       if (isSandboxError(outcome.value)) {
         return yield* outcome.value;
       }
+
       return outcome.value;
     }, Effect.scoped);
 

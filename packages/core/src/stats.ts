@@ -10,6 +10,7 @@ export const FileStatsSchema = Schema.Struct({
   path: Schema.String,
   words: Schema.Int,
 });
+
 export type FileStats = typeof FileStatsSchema.Type;
 
 export class FileStatsError extends Schema.TaggedError<FileStatsError>()(
@@ -29,6 +30,7 @@ export class FileStatsError extends Schema.TaggedError<FileStatsError>()(
 
 export const summarizeText = (path: string, text: string): FileStats => {
   const trailingLineBreak = /(?:\r\n|\r|\n)$/u.test(text);
+
   const lines =
     text.length === 0
       ? 0

@@ -75,10 +75,13 @@ const disposeQuietly = (value: unknown): Effect.Effect<void> =>
     ) {
       return;
     }
+
     const dispose = value[Symbol.dispose];
+
     if (typeof dispose !== "function") {
       return;
     }
+
     try {
       dispose.call(value);
     } catch {
@@ -221,6 +224,7 @@ export const layerWorkerLoader = (
                 Effect.tryPromise({
                   catch: (cause) => {
                     const message = messageOf(cause);
+
                     return sandboxError(
                       /CPU time limit|timed out/iu.test(message)
                         ? "timeout"
@@ -252,6 +256,7 @@ export const layerWorkerLoader = (
                     result: outcome.result,
                   });
                 }
+
                 return Effect.fail(
                   sandboxError(
                     outcome.timeout ? "timeout" : "threw",

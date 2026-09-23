@@ -16,6 +16,7 @@ const runMachine = Effect.fn("runMachine")(function* runMachine(path: string) {
   // error here is a test failure, not a case under test.
   // @effect-diagnostics-next-line anyUnknownInErrorContext:off
   const outcome = yield* join(actor).pipe(Effect.orDie);
+
   return { outcome, state: actor.getSnapshot().value };
 });
 

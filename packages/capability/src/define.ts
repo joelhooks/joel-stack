@@ -15,4 +15,5 @@ export {
   type PlainSchema,
   type RequirementsOf,
 } from "./capability.js";
+
 export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";

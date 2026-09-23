@@ -43,6 +43,7 @@ it.layer(NodeServices.layer)("generated content", (test) => {
         const text = yield* fileSystem.readFileString(
           path.join(repository, source)
         );
+
         expect(deriveAgentMarkdown(text), source).toBe(text);
       }
     })
@@ -86,6 +87,7 @@ it.layer(NodeServices.layer)("generated content", (test) => {
         { bytes: fakePng(3), size: 16 },
         { bytes: fakePng(5), size: 256 },
       ]);
+
       const view = new DataView(ico.buffer);
 
       expect([...ico.subarray(0, 6)]).toEqual([0, 0, 1, 0, 2, 0]);
@@ -119,7 +121,9 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       const figures = homeDocumentHtml.match(
         /<figure role="img"[\s\S]*?<\/figure>/gu
       );
+
       expect(figures?.length).toBeGreaterThan(0);
+
       for (const figure of figures ?? []) {
         expect(figure).toMatch(/┐\n/u);
       }
@@ -134,6 +138,7 @@ it.layer(NodeServices.layer)("generated content", (test) => {
         ...lawSources.map((source) => source.routePath),
         ...skillSources.map((skill) => skill.routePath),
       ]);
+
       expect(new Set(ogImages.map((image) => image.routePath))).toEqual(
         expected
       );

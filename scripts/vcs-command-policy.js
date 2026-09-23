@@ -5,8 +5,10 @@
  */
 
 const GIT_COMMAND = /(?:^|[\s;&|()])(?:[^\s;&|()]*\/)?git(?=$|[\s;&|()])/mu;
+
 const VCS_COMMAND =
   /(?:^|[\s;&|()])(?:[^\s;&|()]*\/)?(?:git|jj)(?=$|[\s;&|()])/mu;
+
 const NO_VERIFY = /--no-verify(?=$|[\s;&|()])/mu;
 
 export const NONINTERACTIVE_VCS_ENV =

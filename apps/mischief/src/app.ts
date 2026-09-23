@@ -73,6 +73,7 @@ const originOf = (request: HttpServerRequest.HttpServerRequest) =>
 // browser user agent, and bare CLI clients (curl, fetch) keep Markdown.
 const previewCrawler =
   /(?:Twitterbot|facebookexternalhit|Facebot|Slackbot|Discordbot|LinkedInBot|WhatsApp|TelegramBot|Bluesky|Mastodon|Pinterestbot|redditbot|Applebot)/iu;
+
 const agentCrawler =
   /(?:GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|anthropic-ai|PerplexityBot|Perplexity-User|Google-Extended|CCBot|Bytespider|Amazonbot|cohere-ai|Meta-ExternalAgent|MistralAI-User|DuckAssistBot|Applebot-Extended)/iu;
 
@@ -81,9 +82,11 @@ const acceptedMediaTypes = (accept: string | undefined) =>
     .split(",")
     .map((entry) => {
       const [mediaType, ...parameters] = entry.trim().toLowerCase().split(";");
+
       const quality = parameters
         .map((parameter) => parameter.trim())
         .find((parameter) => parameter.startsWith("q="));
+
       return { mediaType: mediaType ?? "", rejected: quality === "q=0" };
     })
     .filter((entry) => entry.mediaType !== "" && !entry.rejected)
@@ -91,19 +94,25 @@ const acceptedMediaTypes = (accept: string | undefined) =>
 
 const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) => {
   const accepted = acceptedMediaTypes(request.headers.accept);
+
   if (accepted.includes("text/html")) {
     return true;
   }
+
   if (accepted.includes("text/markdown")) {
     return false;
   }
+
   const userAgent = request.headers["user-agent"] ?? "";
+
   if (previewCrawler.test(userAgent)) {
     return true;
   }
+
   if (agentCrawler.test(userAgent)) {
     return false;
   }
+
   return userAgent.startsWith("Mozilla/");
 };
 
@@ -119,12 +128,16 @@ export interface StaticResponseCache {
 // module load; the Worker never touches the base64 again.
 const decodeBase64 = (base64: string) =>
   Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
+
 const ogImageBytes = ogImages.map((image) => ({
   bytes: decodeBase64(image.pngBase64),
   path: ogImagePath(image.routePath),
 }));
+
 const faviconIcoBytes = decodeBase64(faviconIcoBase64);
+
 const appleTouchIconBytes = decodeBase64(appleTouchIconPngBase64);
+
 const staticPaths = new Set<string>([
   ...publicPaths,
   "/favicon.svg",
@@ -132,12 +145,14 @@ const staticPaths = new Set<string>([
   "/apple-touch-icon.png",
   ...ogImageBytes.map((image) => image.path),
 ]);
+
 const negotiatedHtmlPaths = new Set<string>([
   "/",
   "/skills",
   ...lawResources.map((resource) => resource.routePath),
   ...skills.map((skill) => skill.routePath),
 ]);
+
 const staticCacheControl =
   "public, max-age=60, s-maxage=31536000, stale-while-revalidate=86400";
 
@@ -176,6 +191,7 @@ const staticCacheKey = (
   url.search = "";
   url.searchParams.set("__ratstack_content", staticContentVersion);
   url.searchParams.set("__ratstack_representation", representation);
+
   return new Request(url, { method: "GET" });
 };
 
@@ -185,12 +201,14 @@ const staticCaching = (cache: StaticResponseCache) =>
       Effect.gen(function* cacheStaticResponse() {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const path = new URL(request.url, "https://ratstack.sh").pathname;
+
         if (request.method !== "GET" || !staticPaths.has(path)) {
           return yield* httpEffect;
         }
 
         const representation = staticRepresentation(request, path);
         const etag = staticEtag(path, representation);
+
         if (matchesEtag(request.headers["if-none-match"], etag)) {
           return HttpServerResponse.empty({
             headers: staticHeaders(path, etag, "REVALIDATED"),
@@ -199,14 +217,17 @@ const staticCaching = (cache: StaticResponseCache) =>
         }
 
         const key = staticCacheKey(request, representation);
+
         const cached = yield* Effect.tryPromise(
           // Cloudflare's Cache API owns this Promise-returning boundary.
           // oxlint-disable-next-line typescript/promise-function-async
           () => cache.match(key)
         ).pipe(Effect.orElseSucceed(() => null));
+
         if (cached !== null && cached !== undefined) {
           const headers = new Headers(cached.headers);
           headers.set("x-ratstack-cache", "HIT");
+
           return HttpServerResponse.fromWeb(
             new Response(cached.body, {
               headers,
@@ -219,6 +240,7 @@ const staticCaching = (cache: StaticResponseCache) =>
         const response = (yield* httpEffect).pipe(
           HttpServerResponse.setHeaders(staticHeaders(path, etag, "MISS"))
         );
+
         if (response.status === 200) {
           const webResponse = HttpServerResponse.toWeb(response);
           yield* Effect.tryPromise(
@@ -227,12 +249,14 @@ const staticCaching = (cache: StaticResponseCache) =>
             () => cache.put(key, webResponse)
           ).pipe(Effect.orElseSucceed(() => null));
         }
+
         return response;
       }),
     { global: true }
   );
 
 export const toolkitProjection = toToolkit(capabilities);
+
 // The rate limiter answers before any handler runs, as text with
 // Retry-After. Declaring it here puts the 429 in the OpenAPI document so a
 // client can see the fail-closed path without tripping it.
@@ -316,6 +340,7 @@ const mcp = mcpLayer(modernMcpProtocols);
 const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/", (request) => {
     const origin = originOf(request);
+
     return Effect.succeed(
       acceptsHtml(request)
         ? html(renderStaticDocument(origin, homeDocumentHtml))
@@ -460,6 +485,7 @@ const JsonRpcEnvelope = Schema.Struct({
 const inspectMcpRequest = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* inspectRequest() {
     const { source } = request;
+
     const body: unknown =
       source instanceof Request
         ? yield* Effect.tryPromise(
@@ -468,6 +494,7 @@ const inspectMcpRequest = (request: HttpServerRequest.HttpServerRequest) =>
             () => source.clone().json()
           )
         : yield* request.json;
+
     return yield* Schema.decodeUnknownEffect(JsonRpcEnvelope)(body);
   }).pipe(Effect.orElseSucceed(() => null));
 
@@ -480,6 +507,7 @@ const rateLimitResponse = (
   mcpToolCall: boolean
 ) => {
   const message = exceededMessage(name);
+
   if (!request.url.startsWith("/mcp")) {
     return Effect.succeed(
       HttpServerResponse.text(message, {
@@ -521,6 +549,7 @@ export interface LegacyMcpRouter {
 }
 
 const MODERN_MCP_VERSION = "2026-07-28";
+
 const sessionIdPattern =
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
 
@@ -539,15 +568,19 @@ const shapeOf = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* shapeRequest() {
     const path = new URL(request.url, "https://ratstack.sh").pathname;
     const isMcp = path === "/mcp";
+
     const modernMcp =
       request.headers["mcp-protocol-version"] === MODERN_MCP_VERSION;
+
     const envelope =
       isMcp && !modernMcp && request.method === "POST"
         ? yield* inspectMcpRequest(request)
         : null;
+
     const mcpMethod = request.headers["mcp-method"] ?? envelope?.method;
     const mcpToolName = request.headers["mcp-name"] ?? envelope?.params?.name;
     const mcpToolCall = isMcp && mcpMethod === "tools/call";
+
     return {
       envelope,
       isApi: path === "/api" || path.startsWith("/api/"),
@@ -566,6 +599,7 @@ const firstExceededLimit = (
 ) =>
   Effect.gen(function* checkLimits() {
     const clientIp = request.headers["cf-connecting-ip"] ?? "unknown";
+
     const checks: readonly (readonly [RateLimitName, string])[] = [
       ["API_PER_IP", clientIp],
       ...(shape.isExecute
@@ -575,11 +609,13 @@ const firstExceededLimit = (
           ] as const)
         : []),
     ];
+
     for (const [name, key] of checks) {
       if (!(yield* rateLimits.limit(name, key))) {
         return name;
       }
     }
+
     return null;
   });
 
@@ -592,13 +628,17 @@ const legacySessionOf = (
   if (!shape.isMcp || shape.modernMcp) {
     return null;
   }
+
   const existing = request.headers["mcp-session-id"];
+
   if (existing !== undefined) {
     return existing;
   }
+
   if (shape.envelope?.method !== "initialize") {
     return null;
   }
+
   // @effect-diagnostics-next-line cryptoRandomUUID:off -- Workers ship Web Crypto and Effect has no Web Crypto layer; a random session id needs no injectable service.
   return crypto.randomUUID();
 };
@@ -615,7 +655,9 @@ const routeLegacyMcp = (
         legacySessionNotFound(shape.envelope?.id)
       );
     }
+
     const web = yield* HttpServerRequest.toWeb(request).pipe(Effect.orDie);
+
     return HttpServerResponse.fromWeb(yield* router.forward(session, web));
   });
 
@@ -646,6 +688,7 @@ const requestProtection = (options: {
             request,
             shape
           );
+
           if (exceeded !== null) {
             return yield* rateLimitResponse(
               request,
@@ -659,6 +702,7 @@ const requestProtection = (options: {
           options.legacyMcp === undefined
             ? null
             : legacySessionOf(request, shape);
+
         if (session !== null && options.legacyMcp !== undefined) {
           return yield* routeLegacyMcp(
             options.legacyMcp,
@@ -697,6 +741,7 @@ const securityHeaders = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
 };
+
 const contentSecurityPolicy =
   "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
@@ -705,6 +750,7 @@ const securityHeadersMiddleware = HttpRouter.middleware(
     httpEffect.pipe(
       Effect.map((response) => {
         const contentType = response.headers["content-type"] ?? "";
+
         return HttpServerResponse.setHeaders(response, {
           ...securityHeaders,
           // Preview images and the favicon exist to be embedded elsewhere:
@@ -741,12 +787,14 @@ const webBotAuthResponse = (options: WebBotAuthOptions) => {
       status: 404,
     });
   }
+
   if (options.privateJwk === undefined) {
     return HttpServerResponse.text("Web Bot Auth key is not configured.\n", {
       contentType: "text/plain; charset=utf-8",
       status: 503,
     });
   }
+
   return decodeEd25519PrivateJwk(options.privateJwk).pipe(
     Effect.map((key) => json(publicKeyDirectory(key))),
     Effect.orElseSucceed(() =>

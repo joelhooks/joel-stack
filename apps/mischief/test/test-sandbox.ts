@@ -32,21 +32,28 @@ export const TestSandbox = Layer.succeed(Sandbox, {
           "Test program must call search and then read"
         );
       }
+
       const searched = yield* invoke("search", {
         limit: 1,
         query: "capability",
       }).pipe(Effect.flatMap(unwrap));
+
       const searchResult = yield* Schema.decodeUnknownEffect(SearchWire)(
         searched
       ).pipe(Effect.mapError((error) => protocolError(error.message)));
+
       const id = searchResult.matches[0]?.id;
+
       if (id === undefined) {
         return yield* protocolError("Search returned no matches");
       }
+
       const read = yield* invoke("read", { id }).pipe(Effect.flatMap(unwrap));
+
       const resource = yield* Schema.decodeUnknownEffect(ReadWire)(read).pipe(
         Effect.mapError((error) => protocolError(error.message))
       );
+
       return {
         logs: ["test: search then read"],
         result: resource,

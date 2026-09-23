@@ -33,6 +33,7 @@ const fakeNamespace = Effect.gen(function* makeFakeNamespace() {
   // Objects outlive the request that creates them, so their runtimes live
   // in the namespace's scope.
   const scope = yield* Effect.scope;
+
   const objects = new Map<
     string,
     {
@@ -42,14 +43,17 @@ const fakeNamespace = Effect.gen(function* makeFakeNamespace() {
       ) => Effect.Effect<Response>;
     }
   >();
+
   const router: LegacyMcpRouter = {
     forward: (name, request) =>
       Effect.gen(function* forwardToObject() {
         let object = objects.get(name);
+
         if (object === undefined) {
           const forward = yield* legacyMcpRuntime(TestSandbox).pipe(
             Scope.provide(scope)
           );
+
           const stored = yield* Ref.make(Option.none<StoredSession>());
           object = yield* makeLegacySession({
             forward,
@@ -60,9 +64,11 @@ const fakeNamespace = Effect.gen(function* makeFakeNamespace() {
           });
           objects.set(name, object);
         }
+
         return yield* object.handle(request, name);
       }),
   };
+
   return { objects, router };
 });
 
@@ -76,6 +82,7 @@ const withWorker = <A, E, R>(
   Effect.scoped(
     Effect.gen(function* withLegacyWorker() {
       const namespace = yield* fakeNamespace;
+
       const worker = yield* Effect.acquireRelease(
         Effect.sync(() =>
           HttpRouter.toWebHandler(
@@ -92,6 +99,7 @@ const withWorker = <A, E, R>(
         ),
         ({ dispose }) => Effect.promise(dispose)
       );
+
       return yield* use(worker.handler, namespace.objects);
     })
   );
@@ -141,6 +149,7 @@ it.effect("gives each legacy MCP client its own session object", () =>
         handler,
         legacy({ id: 2, method: "tools/list" }, firstId)
       );
+
       expect(tools.status).toBe(200);
       expect(yield* text(tools)).toContain('"search"');
 
@@ -178,6 +187,7 @@ it.effect("gives each legacy MCP client its own session object", () =>
           method: "POST",
         })
       );
+
       expect(modern.status).toBe(200);
       expect(objects.size).toBe(2);
 
@@ -185,6 +195,7 @@ it.effect("gives each legacy MCP client its own session object", () =>
         handler,
         legacy({ id: 4, method: "tools/list" }, "not-a-session")
       );
+
       expect(forged.status).toBe(404);
       expect(objects.size).toBe(2);
     })
@@ -197,6 +208,7 @@ it.effect("applies execute limits to legacy tool calls", () =>
       Effect.gen(function* legacyExecuteLimit() {
         const opened = yield* send(handler, initialize(1));
         const sessionId = opened.headers.get("mcp-session-id") ?? "";
+
         const denied = yield* send(
           handler,
           legacy(
@@ -208,6 +220,7 @@ it.effect("applies execute limits to legacy tool calls", () =>
             sessionId
           )
         );
+
         expect(denied.status).toBe(200);
         expect(denied.headers.get("retry-after")).toBe("60");
         expect(yield* text(denied)).toContain(

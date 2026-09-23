@@ -102,6 +102,7 @@ export type NameOf<C> =
   >
     ? N
     : never;
+
 export type InputOf<C> =
   C extends Capability<
     infer _N,
@@ -113,6 +114,7 @@ export type InputOf<C> =
   >
     ? I
     : never;
+
 export type OutputOf<C> =
   C extends Capability<
     infer _N,
@@ -124,6 +126,7 @@ export type OutputOf<C> =
   >
     ? O
     : never;
+
 export type FailureOf<C> =
   C extends Capability<
     infer _N,
@@ -135,6 +138,7 @@ export type FailureOf<C> =
   >
     ? FailureSchemaOf<F, NeedsApproval>
     : never;
+
 export type RequirementsOf<C> =
   C extends Capability<
     infer _N,
@@ -220,11 +224,13 @@ export function defineCapability<
   R,
 >(name: N, options: DefineOptions<I, O, F, R, boolean>): AnyCapability {
   const needsApproval = options.needsApproval ?? false;
+
   const handler = (input: never) =>
     needsApproval
       ? Effect.gen(function* gatedHandler() {
           const approval = yield* Approval;
           yield* approval.approve(name, input);
+
           return yield* options.handler(input);
         })
       : options.handler(input);
@@ -253,6 +259,7 @@ export const failureSchemaOf = <
   const schema = capability.needsApproval
     ? Schema.Union([capability.failure, ApprovalDenied])
     : capability.failure;
+
   // The runtime branch preserves the exact schema members represented by the
   // literal `NeedsApproval` type supplied by the capability.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion

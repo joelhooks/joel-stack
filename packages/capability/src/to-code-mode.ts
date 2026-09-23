@@ -118,6 +118,7 @@ export const toExecuteCapability = <
 ) => {
   const catalog = toCatalog(capabilities);
   const declarations = toTypeScript(catalog);
+
   const byName = new Map(
     capabilities.map((capability) => [capability.name, capability] as const)
   );
@@ -126,6 +127,7 @@ export const toExecuteCapability = <
   const hasApproval = capabilities.some((item) => item.needsApproval);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
+
   const capability = defineCapability("execute", {
     annotations: {
       destructive: capabilities.some((item) => item.annotations.destructive),
@@ -138,23 +140,28 @@ export const toExecuteCapability = <
       const context = yield* Effect.context<
         RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
       >();
+
       const sandbox = yield* Sandbox;
 
       const invoke: Invoke = (name, input) => {
         const item = byName.get(name);
+
         if (item === undefined) {
           return Effect.succeed(
             failure("UnknownCapability", `No capability named ${name}`)
           );
         }
+
         // `AnyCapability` erased this capability's requirements to `unknown`;
         // they are a subset of `RequirementsOf<Caps>`, which `context` carries.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         const run = item.handler as (
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
+
         const encodeOutput = Schema.encodeUnknownEffect(item.output);
         const encodeFailure = Schema.encodeUnknownEffect(failureSchemaOf(item));
+
         return Schema.decodeUnknownEffect(item.input)(input).pipe(
           Effect.matchEffect({
             onFailure: (error) =>
@@ -190,6 +197,7 @@ export const toExecuteCapability = <
       };
 
       const run = yield* sandbox.run(code, invoke);
+
       return {
         logs: run.logs,
         // Every Sandbox implementation must JSON-round-trip a successful
@@ -243,7 +251,9 @@ export const toCodeMode = <
       const context = yield* Effect.context<
         RequirementsOf<Caps> | ApprovalRequirement<NeedsApprovalOf<Caps>>
       >();
+
       const sandbox = yield* Sandbox;
+
       return toolkit.of({
         execute: (input) =>
           executeProjection.capability
@@ -254,6 +264,7 @@ export const toCodeMode = <
             ),
         search: ({ limit, query }) => {
           const matches = searchCatalog(catalog, query, limit ?? searchLimit);
+
           return Effect.succeed({
             matches,
             total: catalog.capabilities.length,

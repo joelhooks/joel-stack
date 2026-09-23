@@ -83,14 +83,17 @@ export const runInspectMachine = Effect.fn("runInspectMachine")(
     // the unknown-error diagnostic is off for this one call and orDie closes it.
     // @effect-diagnostics-next-line anyUnknownInErrorContext:off
     const outcome = yield* join(actor).pipe(Effect.orDie);
+
     if (outcome === undefined) {
       return yield* Effect.die(
         new Error("inspectMachine completed without an outcome")
       );
     }
+
     if (outcome._tag === "Unreadable") {
       return yield* outcome.error;
     }
+
     return outcome.stats;
   },
   Effect.scoped

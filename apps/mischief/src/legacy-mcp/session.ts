@@ -54,11 +54,13 @@ const withSessionId = (
 ) => {
   const headers = new Headers(request.headers);
   headers.delete(LEGACY_SESSION_HEADER);
+
   if (Option.isSome(sessionId)) {
     headers.set(SESSION_HEADER, sessionId.value);
   } else {
     headers.delete(SESSION_HEADER);
   }
+
   return new Request(request.url, {
     headers,
     method: request.method,
@@ -71,8 +73,10 @@ const presentAs = (response: Response, externalId: string) => {
   if (!response.headers.has(SESSION_HEADER)) {
     return response;
   }
+
   const headers = new Headers(response.headers);
   headers.set(SESSION_HEADER, externalId);
+
   return new Response(response.body, {
     headers,
     status: response.status,
@@ -109,10 +113,13 @@ export const makeLegacySession = <R = never>(
         const response = yield* forward(
           withSessionId(request, body, Option.none())
         );
+
         const id = response.headers.get(SESSION_HEADER);
+
         if (response.ok && id !== null) {
           yield* Ref.set(runtimeId, Option.some(id));
         }
+
         return response;
       });
 
@@ -120,16 +127,20 @@ export const makeLegacySession = <R = never>(
     const restore = (request: Request) =>
       Effect.gen(function* restoreSession() {
         const stored = yield* storage.load;
+
         if (stored === undefined) {
           return Option.none<string>();
         }
+
         const replay = new Request(request.url, {
           body: stored.body,
           headers: stored.headers,
           method: "POST",
         });
+
         yield* open(replay, stored.body);
         const id = yield* Ref.get(runtimeId);
+
         if (Option.isSome(id)) {
           yield* forward(
             withSessionId(
@@ -142,17 +153,21 @@ export const makeLegacySession = <R = never>(
             )
           );
         }
+
         return id;
       });
 
     const remember = (request: Request, body: string) => {
       const headers: Record<string, string> = {};
+
       for (const name of replayHeaders) {
         const value = request.headers.get(name);
+
         if (value !== null) {
           headers[name] = value;
         }
       }
+
       return storage.save({ body, headers });
     };
 
@@ -162,22 +177,28 @@ export const makeLegacySession = <R = never>(
           request.method === "POST"
             ? yield* Effect.promise(request.text.bind(request))
             : "";
+
         const envelope = Option.getOrUndefined(yield* envelopeOf(body));
 
         if (envelope?.method === "initialize") {
           const response = yield* open(request, body);
+
           if (response.ok) {
             yield* remember(request, body);
           }
+
           return presentAs(response, externalId);
         }
 
         const known = yield* Ref.get(runtimeId);
         const id = Option.isSome(known) ? known : yield* restore(request);
+
         if (Option.isNone(id)) {
           return legacySessionNotFound(envelope?.id);
         }
+
         const response = yield* forward(withSessionId(request, body, id));
+
         if (response.status !== 404 || Option.isNone(known)) {
           return presentAs(response, externalId);
         }
@@ -185,9 +206,11 @@ export const makeLegacySession = <R = never>(
         // The runtime dropped a session it held a moment ago. Rebuild once.
         yield* Ref.set(runtimeId, Option.none());
         const rebuilt = yield* restore(request);
+
         if (Option.isNone(rebuilt)) {
           return legacySessionNotFound(envelope?.id);
         }
+
         return presentAs(
           yield* forward(withSessionId(request, body, rebuilt)),
           externalId

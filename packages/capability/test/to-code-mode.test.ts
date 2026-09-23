@@ -10,6 +10,7 @@ import { Greeter, approved, echo, greet } from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";
 
 const projection = toCodeMode([echo, greet]);
+
 const approvalProjection = toCodeMode([approved]);
 
 const appLayer = McpServer.toolkit(projection.toolkit).pipe(
@@ -20,6 +21,7 @@ const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   ),
   Layer.provide(serverLayer)
 );
+
 const deniedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
   Layer.provideMerge(approvalProjection.layer),
   Layer.provide(Approval.denyAll),
@@ -28,6 +30,7 @@ const deniedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
   ),
   Layer.provide(serverLayer)
 );
+
 const allowedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
   Layer.provideMerge(approvalProjection.layer),
   Layer.provide(Approval.allowAll),
@@ -59,6 +62,7 @@ describe("toCodeMode", () => {
   it.effect("search returns ranked signatures", () =>
     Effect.gen(function* searches() {
       const client = yield* makeMcpClient(appLayer);
+
       const result = yield* client["tools/call"]({
         arguments: { query: "repeat text" },
         name: "search",
@@ -77,6 +81,7 @@ describe("toCodeMode", () => {
     () =>
       Effect.gen(function* executes() {
         const client = yield* makeMcpClient(appLayer);
+
         const result = yield* client["tools/call"]({
           arguments: {
             code: [
@@ -108,6 +113,7 @@ describe("toCodeMode", () => {
   it.effect("execute surfaces a thrown program error as a tool error", () =>
     Effect.gen(function* surfacesThrow() {
       const client = yield* makeMcpClient(appLayer);
+
       const result = yield* client["tools/call"]({
         arguments: { code: "throw new Error('nope')" },
         name: "execute",
@@ -122,10 +128,12 @@ describe("toCodeMode", () => {
   it.effect("requires approval before code mode execution", () =>
     Effect.gen(function* gatesCodeMode() {
       const deniedClient = yield* makeMcpClient(deniedApprovalApp);
+
       const denied = yield* deniedClient["tools/call"]({
         arguments: { code: "return await tools.approved({ message: 'run' });" },
         name: "execute",
       });
+
       expect(denied.isError).toBe(true);
       const [content] = denied.content;
       expect(content?.type === "text" ? content.text : "").toContain(
@@ -133,10 +141,12 @@ describe("toCodeMode", () => {
       );
 
       const allowedClient = yield* makeMcpClient(allowedApprovalApp);
+
       const allowed = yield* allowedClient["tools/call"]({
         arguments: { code: "return await tools.approved({ message: 'run' });" },
         name: "execute",
       });
+
       expect(allowed.structuredContent).toEqual({
         logs: [],
         result: { ok: true },

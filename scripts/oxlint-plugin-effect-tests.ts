@@ -34,14 +34,18 @@ const manualRunnerName = (callee: ESTree.Node): string | undefined => {
   ) {
     return undefined;
   }
+
   const object = callee.object.name;
   const method = callee.property.name;
+
   if (object === "Effect" && EFFECT_RUNTIME_METHODS.has(method)) {
     return `Effect.${method}`;
   }
+
   if (object === "ManagedRuntime" && method === "make") {
     return "ManagedRuntime.make";
   }
+
   return undefined;
 };
 
@@ -50,6 +54,7 @@ const noManualEffectRuntimeInTests = defineRule({
     if (!TEST_FILE_PATTERN.test(context.filename)) {
       return {};
     }
+
     return {
       CallExpression(node) {
         if (manualRunnerName(node.callee) !== undefined) {

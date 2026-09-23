@@ -14,6 +14,7 @@ export const search = defineCapability("search", {
   failure: Schema.Never,
   handler: ({ limit, query }) => {
     const matches = searchContent(query, limit);
+
     return Effect.succeed({
       matches,
       total: matches.length,

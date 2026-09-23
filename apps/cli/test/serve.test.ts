@@ -47,9 +47,11 @@ describe("serve routes", () => {
       yield* fileSystem.writeFileString(file, "one two\nthree\n");
 
       const client = yield* HttpApiClient.make(http.api);
+
       const stats = yield* client.capabilities.inspectFile({
         payload: { path: file },
       });
+
       const error = yield* client.capabilities
         .inspectFile({ payload: { path: `${directory}/missing.txt` } })
         .pipe(Effect.flip);

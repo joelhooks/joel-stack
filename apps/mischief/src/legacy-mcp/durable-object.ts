@@ -23,13 +23,16 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
   "LegacyMcp",
   Effect.gen(function* makeLegacyMcp() {
     const environment = yield* Cloudflare.WorkerEnvironment;
+
     // The object shares its Worker's environment. The Worker declares this
     // binding; the object only reads it. This is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const bindings = environment as unknown as {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
     };
+
     const state = yield* Cloudflare.DurableObjectState;
+
     const forward = yield* legacyMcpRuntime(
       layerWorkerLoader(bindings.CODE_SANDBOX, sandboxLimits)
     );
@@ -49,10 +52,13 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
       return {
         fetch: Effect.gen(function* serveSession() {
           const request = yield* HttpServerRequest.HttpServerRequest;
+
           const web = yield* HttpServerRequest.toWeb(request).pipe(
             Effect.orDie
           );
+
           const id = web.headers.get(LEGACY_SESSION_HEADER) ?? "";
+
           return HttpServerResponse.fromWeb(yield* session.handle(web, id));
         }),
       };

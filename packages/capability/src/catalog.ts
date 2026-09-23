@@ -58,6 +58,7 @@ const literal = (value: unknown): string => {
   ) {
     return JSON.stringify(value);
   }
+
   return value === null ? "null" : "unknown";
 };
 
@@ -69,16 +70,20 @@ const refName = (ref: unknown): string | undefined =>
 const objectType = (schema: Record<string, unknown>): string => {
   const properties = isRecord(schema.properties) ? schema.properties : {};
   const required = new Set(stringArray(schema.required));
+
   const members = Object.entries(properties).map(([key, value]) => {
     const optional = required.has(key) ? "" : "?";
+
     const description =
       isRecord(value) && typeof value.description === "string"
         ? `/** ${value.description} */ `
         : "";
+
     // typeOf and the object/primitive printers are mutually recursive.
     // oxlint-disable-next-line no-use-before-define
     return `${description}readonly ${quoteKey(key)}${optional}: ${typeOf(value)}`;
   });
+
   return members.length === 0 ? "{}" : `{ ${members.join("; ")} }`;
 };
 
@@ -86,27 +91,34 @@ const primitive = (type: string, schema: Record<string, unknown>): string => {
   switch (type) {
     case "string": {
       const enumeration = Array.isArray(schema.enum) ? schema.enum : undefined;
+
       return enumeration === undefined
         ? "string"
         : enumeration.map(literal).join(" | ");
     }
+
     case "number":
     case "integer": {
       return "number";
     }
+
     case "boolean": {
       return "boolean";
     }
+
     case "null": {
       return "null";
     }
+
     case "array": {
       // oxlint-disable-next-line no-use-before-define
       return `ReadonlyArray<${typeOf(schema.items)}>`;
     }
+
     case "object": {
       return objectType(schema);
     }
+
     default: {
       return "unknown";
     }
@@ -118,30 +130,41 @@ export const typeOf = (schema: unknown): string => {
   if (!isRecord(schema)) {
     return "unknown";
   }
+
   const ref = refName(schema.$ref);
+
   if (ref !== undefined) {
     return ref;
   }
+
   if ("const" in schema) {
     return literal(schema.const);
   }
+
   if (isRecord(schema.not) && Object.keys(schema.not).length === 0) {
     return "never";
   }
+
   const variants = schema.anyOf ?? schema.oneOf;
+
   if (Array.isArray(variants)) {
     return variants.map(typeOf).join(" | ");
   }
+
   const { type } = schema;
+
   if (Array.isArray(type)) {
     return type.map((member) => primitive(String(member), schema)).join(" | ");
   }
+
   if (typeof type === "string") {
     return primitive(type, schema);
   }
+
   if (Array.isArray(schema.enum)) {
     return schema.enum.map(literal).join(" | ");
   }
+
   return "unknown";
 };
 
@@ -156,25 +179,32 @@ const docComment = (lines: readonly string[]): string =>
 /** One capability as a member of the `tools` object. */
 export const signatureOf = (entry: CatalogEntry): string => {
   const notes = [entry.description];
+
   if (entry.annotations.readOnly) {
     notes.push("Read-only.");
   }
+
   if (entry.annotations.destructive) {
     notes.push("Destructive: may irreversibly change state.");
   }
+
   if (entry.needsApproval) {
     notes.push("Needs approval before it runs.");
   }
+
   const failure = typeOf(entry.failure);
+
   if (failure !== "never") {
     notes.push(`@throws ${failure}`);
   }
+
   return `${docComment(notes)}\nreadonly ${quoteKey(entry.name)}: (input: ${typeOf(entry.input)}) => Promise<${typeOf(entry.output)}>;`;
 };
 
 /** The `.d.ts` a sandboxed program can rely on: named failures, then `tools`. */
 export const toTypeScript = (catalog: Catalog): string => {
   const named = new Map<string, unknown>();
+
   for (const entry of catalog.capabilities) {
     for (const [name, schema] of [
       ...definitions(entry.input),
@@ -184,15 +214,18 @@ export const toTypeScript = (catalog: Catalog): string => {
       named.set(name, schema);
     }
   }
+
   const aliases = [...named].map(
     ([name, schema]) => `type ${name} = ${typeOf(schema)};`
   );
+
   const members = catalog.capabilities.map((entry) =>
     signatureOf(entry)
       .split("\n")
       .map((line) => `  ${line}`)
       .join("\n")
   );
+
   return [...aliases, "declare const tools: {", ...members, "};", ""].join(
     "\n"
   );
@@ -227,10 +260,12 @@ export const searchCatalog = (
   limit = 5
 ): readonly SearchMatch[] => {
   const wanted = new Set(tokens(query));
+
   const scored = catalog.capabilities.map((entry) => {
     const fields = isRecord(entry.input.properties)
       ? Object.keys(entry.input.properties)
       : [];
+
     const haystack = [
       ...tokens(entry.name).map((token) => [token, 3] as const),
       ...tokens(entry.description).map((token) => [token, 1] as const),
@@ -238,12 +273,15 @@ export const searchCatalog = (
         tokens(field).map((token) => [token, 2] as const)
       ),
     ];
+
     let score = 0;
+
     for (const [token, weight] of haystack) {
       if (wanted.has(token)) {
         score += weight;
       }
     }
+
     return {
       description: entry.description,
       name: entry.name,
@@ -251,6 +289,7 @@ export const searchCatalog = (
       signature: signatureOf(entry),
     };
   });
+
   return scored
     .filter((match) => wanted.size === 0 || match.score > 0)
     .toSorted((a, b) => b.score - a.score || a.name.localeCompare(b.name))

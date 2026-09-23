@@ -1,4 +1,5 @@
 export const NONINTERACTIVE_VCS_ENV: string;
+
 export const HOOK_BYPASS_REASON: string;
 
 export type CommandPolicyResult =

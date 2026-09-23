@@ -19,6 +19,7 @@ const capabilityCommands = capabilities.map((capability) => {
           render: formatFileStats,
         }).pipe(Command.withAlias("stats"))
       : toCommand(capability);
+
   return command;
 });
 

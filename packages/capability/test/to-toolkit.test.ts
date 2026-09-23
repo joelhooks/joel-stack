@@ -13,12 +13,15 @@ const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   Layer.provide(Greeter.layer),
   Layer.provide(serverLayer)
 );
+
 const approvalProjection = toToolkit([approved]);
+
 const deniedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
   Layer.provideMerge(approvalProjection.layer),
   Layer.provide(Approval.denyAll),
   Layer.provide(serverLayer)
 );
+
 const allowedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
   Layer.provideMerge(approvalProjection.layer),
   Layer.provide(Approval.allowAll),
@@ -49,6 +52,7 @@ describe("toToolkit", () => {
   it.effect("calls a capability through its requirements", () =>
     Effect.gen(function* callsTool() {
       const client = yield* makeMcpClient(appLayer);
+
       const result = yield* client["tools/call"]({
         arguments: { name: "rat" },
         name: "greet",
@@ -62,6 +66,7 @@ describe("toToolkit", () => {
   it.effect("returns a declared failure as a tool error, not a crash", () =>
     Effect.gen(function* failsTool() {
       const client = yield* makeMcpClient(appLayer);
+
       const result = yield* client["tools/call"]({
         arguments: { name: "nobody" },
         name: "greet",
@@ -78,10 +83,12 @@ describe("toToolkit", () => {
   it.effect("turns approval denial into a typed tool error", () =>
     Effect.gen(function* deniesApprovedTool() {
       const deniedClient = yield* makeMcpClient(deniedApprovalApp);
+
       const denied = yield* deniedClient["tools/call"]({
         arguments: { message: "run" },
         name: "approved",
       });
+
       expect(denied.isError).toBe(true);
       const [content] = denied.content;
       expect(content?.type === "text" ? content.text : "").toContain(
@@ -89,10 +96,12 @@ describe("toToolkit", () => {
       );
 
       const allowedClient = yield* makeMcpClient(allowedApprovalApp);
+
       const allowed = yield* allowedClient["tools/call"]({
         arguments: { message: "run" },
         name: "approved",
       });
+
       expect(allowed.structuredContent).toEqual({ ok: true });
     })
   );

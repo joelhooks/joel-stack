@@ -151,6 +151,7 @@ export const toHttpApi = <
   options?: HttpApiProjectionOptions
 ): HttpApiProjection<Id, Caps> => {
   const hostErrors = options?.errors ?? [];
+
   const endpoints = capabilities.map((capability) =>
     post(capability.name, `/${capability.name}`, {
       error: [...httpFailure(capability), ...hostErrors],
@@ -158,15 +159,20 @@ export const toHttpApi = <
       success: capability.output,
     })
   );
+
   const [first, ...rest] = endpoints;
+
   if (first === undefined) {
     throw new Error("toHttpApi needs at least one capability");
   }
+
   // `map` over a tuple returns an array; `EndpointsOf<Caps>` is the tuple
   // type the group needs. One cast at this boundary keeps callers typed.
   const baseApi = apiFor(id, groupFor(first, ...rest));
+
   const projectedApi =
     options?.prefix === undefined ? baseApi : baseApi.prefix(options.prefix);
+
   // Prefixing changes endpoint paths but not the API id, group id, schemas, or
   // handler service. Keep the stable public type while preserving that runtime
   // path transformation for HttpApiBuilder and OpenAPI.
@@ -179,6 +185,7 @@ export const toHttpApi = <
       readonly payload: unknown;
     }) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>
   > = {};
+
   for (const capability of capabilities) {
     // `Any` erased this capability's requirements to `unknown`; they are a
     // subset of `RequirementsOf<Caps>`.
@@ -186,8 +193,10 @@ export const toHttpApi = <
     const run = capability.handler as (
       input: unknown
     ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
+
     implementations[capability.name] = ({ payload }) => run(payload);
   }
+
   // `handleAll` wants a record keyed by the group's endpoint identifiers with
   // each handler typed to its endpoint; that is what `implementations` is at
   // runtime, but a loop cannot say so. `never` is accepted by every parameter
@@ -196,6 +205,7 @@ export const toHttpApi = <
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     handlers.handleAll(implementations as never)
   );
+
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const layer = built as unknown as HttpApiProjection<Id, Caps>["layer"];
 

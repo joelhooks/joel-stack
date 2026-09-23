@@ -40,6 +40,7 @@ const isNode = (value: unknown): value is ESTree.Node =>
 
 const rootIdentifier = (node: ESTree.Node): string | undefined => {
   let current: ESTree.Node = node;
+
   for (;;) {
     if (current.type === "CallExpression") {
       current = current.callee;
@@ -57,17 +58,22 @@ const returnedExpressions = (fn: FunctionNode): ESTree.Node[] => {
   if (fn.body === null) {
     return [];
   }
+
   if (fn.body.type !== "BlockStatement") {
     return [fn.body];
   }
+
   const found: ESTree.Node[] = [];
+
   const visit = (node: ESTree.Node) => {
     if (node.type === "ReturnStatement") {
       if (node.argument) {
         found.push(node.argument);
       }
+
       return;
     }
+
     if (
       node.type === "FunctionExpression" ||
       node.type === "ArrowFunctionExpression" ||
@@ -75,10 +81,12 @@ const returnedExpressions = (fn: FunctionNode): ESTree.Node[] => {
     ) {
       return;
     }
+
     for (const [key, value] of Object.entries(node)) {
       if (key === "parent") {
         continue;
       }
+
       if (Array.isArray(value)) {
         for (const item of value) {
           if (isNode(item)) {
@@ -90,7 +98,9 @@ const returnedExpressions = (fn: FunctionNode): ESTree.Node[] => {
       }
     }
   };
+
   visit(fn.body);
+
   return found;
 };
 
@@ -108,10 +118,13 @@ const isEffectExpression = (node: ESTree.Node): boolean => {
   if (node.type !== "CallExpression") {
     return false;
   }
+
   if (isPromiseResolve(node)) {
     const [argument] = node.arguments;
+
     return argument !== undefined && isEffectExpression(argument);
   }
+
   return rootIdentifier(node) === "Effect";
 };
 
@@ -137,19 +150,24 @@ const noInlineEffect = defineRule({
           callee.property.name === "spawn"
         ) {
           const [logic] = node.arguments;
+
           if (logic !== undefined && isInlineEffectLogic(logic)) {
             context.report({ messageId: "inlineSpawn", node: logic });
           }
+
           return;
         }
 
         if (callee.type !== "Identifier" || !ENQUEUE_NAMES.has(callee.name)) {
           return;
         }
+
         const [action] = node.arguments;
+
         if (action === undefined || !isFunctionNode(action)) {
           return;
         }
+
         for (const expression of returnedExpressions(action)) {
           if (isEffectExpression(expression)) {
             context.report({ messageId: "inlineAction", node: expression });

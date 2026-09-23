@@ -22,6 +22,7 @@ const withRuntime = <A, E, R>(
 
 const memoryStorage = Effect.gen(function* makeMemoryStorage() {
   const stored = yield* Ref.make(Option.none<StoredSession>());
+
   return {
     load: Ref.get(stored).pipe(Effect.map(Option.getOrUndefined)),
     save: (session: StoredSession) => Ref.set(stored, Option.some(session)),
@@ -64,10 +65,12 @@ const readRpcText = Effect.fnUntraced(function* readRpcText(
   response: Response
 ) {
   const text = yield* Effect.promise(response.text.bind(response));
+
   const events = text
     .split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice("data:".length).trim());
+
   // Notifications can precede the reply on the same stream.
   return events.find((event) => event.includes('"id"')) ?? events[0] ?? text;
 });
@@ -76,6 +79,7 @@ it.effect("a legacy client initializes, lists tools, and calls search", () =>
   withRuntime((forward) =>
     Effect.gen(function* legacyClientFlow() {
       const storage = yield* memoryStorage;
+
       const session = yield* makeLegacySession({
         forward,
         storage,
@@ -90,12 +94,14 @@ it.effect("a legacy client initializes, lists tools, and calls search", () =>
         rpc({ method: "notifications/initialized" }, "ext-1"),
         "ext-1"
       );
+
       expect(notified.status).toBe(202);
 
       const tools = yield* session.handle(
         rpc({ id: 2, method: "tools/list" }, "ext-1"),
         "ext-1"
       );
+
       expect(tools.status).toBe(200);
       const toolsText = yield* readRpcText(tools);
       expect(toolsText).toContain('"search"');
@@ -112,6 +118,7 @@ it.effect("a legacy client initializes, lists tools, and calls search", () =>
         ),
         "ext-1"
       );
+
       expect(search.status).toBe(200);
       const result = yield* decodeJson(yield* readRpcText(search));
       expect(JSON.stringify(result)).toContain("ratstack://");
@@ -129,6 +136,7 @@ it.effect("a legacy session survives eviction of its object", () =>
           forward,
           storage,
         });
+
         const initialized = yield* session.handle(initialize(), "ext-2");
         expect(initialized.status).toBe(200);
       })
@@ -140,10 +148,12 @@ it.effect("a legacy session survives eviction of its object", () =>
           forward,
           storage,
         });
+
         const tools = yield* session.handle(
           rpc({ id: 2, method: "tools/list" }, "ext-2"),
           "ext-2"
         );
+
         expect(tools.status).toBe(200);
         // The client never sees the replacement runtime's session id.
         expect([null, "ext-2"]).toContain(tools.headers.get("mcp-session-id"));
@@ -157,14 +167,17 @@ it.effect("an unknown legacy session is not found", () =>
   withRuntime((forward) =>
     Effect.gen(function* unknownSession() {
       const storage = yield* memoryStorage;
+
       const session = yield* makeLegacySession({
         forward,
         storage,
       });
+
       const tools = yield* session.handle(
         rpc({ id: 2, method: "tools/list" }, "ext-missing"),
         "ext-missing"
       );
+
       expect(tools.status).toBe(404);
     })
   )

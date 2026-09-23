@@ -89,6 +89,7 @@ describe("toCommand", () => {
           "--message",
           "run",
         ]).pipe(Effect.flip);
+
         expect(denied).toBeInstanceOf(ApprovalDenied);
         yield* run(toCommand(approved), ["--message", "run", "--yes"]);
       })

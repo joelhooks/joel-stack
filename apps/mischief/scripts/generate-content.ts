@@ -23,23 +23,31 @@ import {
 } from "./content-lib.ts";
 
 const originToken = "__RATSTACK_ORIGIN__";
+
 const repoUrl = "https://github.com/joelhooks/rat-stack";
+
 // Backtick spans that look like repository paths. Placeholders such as
 // `packages/core/src/<capability>.ts` fail the character class on purpose.
 const repoPathToken =
   /^(?:\.brain|\.pi|\.cursor|\.claude|apps|packages|scripts|skills|vendor)\/[\w./-]+$|^[\w.-]+\.(?:md|ts|js|json|yml|yaml|toml|schema)$/u;
+
 const fencedBlock = /```[\s\S]*?```/gu;
+
 const inlineCode = /`(?<span>[^`\n]+)`/gu;
+
 const emptyTargets: ReadonlyMap<string, string> = new Map();
 
 const codeSpans = (text: string): readonly string[] => {
   const spans = new Set<string>();
+
   for (const match of text.replaceAll(fencedBlock, "").matchAll(inlineCode)) {
     const span = match.groups?.span?.trim();
+
     if (span !== undefined && span !== "") {
       spans.add(span);
     }
   }
+
   return [...spans];
 };
 
@@ -58,6 +66,7 @@ const svelteSafeText = (value: string) =>
     .replaceAll(">", "&gt;")
     .replaceAll("{", "&#123;")
     .replaceAll("}", "&#125;");
+
 const svelteServerUrl = import.meta.resolve("svelte/internal/server");
 
 class ContentBuildError extends Schema.TaggedError<ContentBuildError>()(
@@ -118,7 +127,9 @@ const childNodes = (node: unknown): readonly unknown[] => {
   if (typeof node !== "object" || node === null) {
     return [];
   }
+
   const children: unknown = Reflect.get(node, "children");
+
   return Array.isArray(children) ? children : [];
 };
 
@@ -126,10 +137,13 @@ const nodeText = (node: unknown): string => {
   if (typeof node !== "object" || node === null) {
     return "";
   }
+
   const value: unknown = Reflect.get(node, "value");
+
   if (typeof value === "string") {
     return value;
   }
+
   return childNodes(node).map(nodeText).join("");
 };
 
@@ -141,11 +155,14 @@ const slugHeading = (value: string) =>
 
 const stableHeadingIds: Plugin = () => {
   const used = new Map<string, number>();
+
   const visit = (node: unknown): void => {
     if (typeof node !== "object" || node === null) {
       return;
     }
+
     const tagName: unknown = Reflect.get(node, "tagName");
+
     if (typeof tagName === "string" && /^h[1-6]$/u.test(tagName)) {
       const base = slugHeading(nodeText(node)) || "section";
       const count = used.get(base) ?? 0;
@@ -159,10 +176,12 @@ const stableHeadingIds: Plugin = () => {
         id,
       });
     }
+
     for (const child of childNodes(node)) {
       visit(child);
     }
   };
+
   return visit;
 };
 
@@ -187,13 +206,16 @@ const tableCellLabels: Plugin = () => {
             .filter((cell) => isElement(cell, "th"))
             .map(nodeText)
         );
+
       for (const body of childNodes(node).filter((section) =>
         isElement(section, "tbody")
       )) {
         for (const row of rowsOf(body)) {
           const cells = childNodes(row).filter((cell) => isElement(cell, "td"));
+
           for (const [index, cell] of cells.entries()) {
             const label = headers[index];
+
             if (
               label === undefined ||
               typeof cell !== "object" ||
@@ -201,6 +223,7 @@ const tableCellLabels: Plugin = () => {
             ) {
               continue;
             }
+
             const properties: unknown = Reflect.get(cell, "properties");
             Reflect.set(cell, "properties", {
               ...(typeof properties === "object" && properties !== null
@@ -212,10 +235,12 @@ const tableCellLabels: Plugin = () => {
         }
       }
     }
+
     for (const child of childNodes(node)) {
       visit(child);
     }
   };
+
   return visit;
 };
 
@@ -228,14 +253,19 @@ const linkCodeSpans =
       if (typeof node !== "object" || node === null) {
         return;
       }
+
       const children: unknown = Reflect.get(node, "children");
+
       if (!Array.isArray(children)) {
         return;
       }
+
       const list: unknown[] = children;
+
       for (const [index, child] of list.entries()) {
         if (!insideBlock && isElement(child, "code")) {
           const href = targets.get(nodeText(child).trim());
+
           if (href !== undefined) {
             list[index] = {
               children: [child],
@@ -246,12 +276,14 @@ const linkCodeSpans =
             continue;
           }
         }
+
         visit(
           child,
           insideBlock || isElement(child, "pre") || isElement(child, "a")
         );
       }
     };
+
     return (tree: unknown) => {
       visit(tree, false);
     };
@@ -278,14 +310,17 @@ const stackEntities: readonly (readonly [pattern: string, href: string])[] = [
   ["OpenAPI", "https://www.openapis.org"],
   ["MCP", "https://modelcontextprotocol.io"],
 ];
+
 const entityPattern = new RegExp(
   `(?<![\\w./-])(?<entity>${stackEntities.map(([pattern]) => pattern).join("|")})(?![\\w./-])`,
   "gu"
 );
+
 const entityHref = (name: string) =>
   stackEntities.find(([pattern]) =>
     new RegExp(`^(?:${pattern})$`, "u").test(name)
   )?.[1];
+
 const skippedByEntityLinker = new Set([
   "a",
   "code",
@@ -304,40 +339,55 @@ const linkStackEntities: Plugin = () => {
     if (typeof node !== "object" || node === null) {
       return;
     }
+
     const nodeTagName: unknown = Reflect.get(node, "tagName");
+
     if (
       typeof nodeTagName === "string" &&
       skippedByEntityLinker.has(nodeTagName)
     ) {
       return;
     }
+
     const children: unknown = Reflect.get(node, "children");
+
     if (!Array.isArray(children)) {
       return;
     }
+
     const list: unknown[] = children;
+
     for (let index = 0; index < list.length; index += 1) {
       const child = list[index];
+
       if (typeof child !== "object" || child === null) {
         continue;
       }
+
       const tagName: unknown = Reflect.get(child, "tagName");
+
       if (typeof tagName === "string" && skippedByEntityLinker.has(tagName)) {
         continue;
       }
+
       const value: unknown = Reflect.get(child, "value");
+
       if (Reflect.get(child, "type") !== "text" || typeof value !== "string") {
         visit(child, linked);
         continue;
       }
+
       const replacement: unknown[] = [];
       let cursor = 0;
+
       for (const match of value.matchAll(entityPattern)) {
         const name = match.groups?.entity;
         const href = name === undefined ? undefined : entityHref(name);
+
         if (name === undefined || href === undefined || linked.has(href)) {
           continue;
         }
+
         linked.add(href);
         replacement.push(
           { type: "text", value: value.slice(cursor, match.index) },
@@ -350,14 +400,17 @@ const linkStackEntities: Plugin = () => {
         );
         cursor = match.index + name.length;
       }
+
       if (replacement.length === 0) {
         continue;
       }
+
       replacement.push({ type: "text", value: value.slice(cursor) });
       list.splice(index, 1, ...replacement);
       index += replacement.length - 1;
     }
   };
+
   return (tree: unknown) => {
     visit(tree, new Set<string>());
   };
@@ -408,12 +461,14 @@ const makeCodeHighlighter =
   (code: string, lang: string | null | undefined) => {
     const normalized = lang?.trim().toLowerCase() ?? "text";
     const language = syntaxLanguage.get(normalized) ?? "text";
+
     if (
       language === "text" ||
       !highlighter.getLoadedLanguages().includes(language)
     ) {
       return `<pre><code>${escapeSvelteCodeHtml(escapeCodeHtml(code))}</code></pre>`;
     }
+
     return escapeSvelteCodeHtml(
       highlighter.codeToHtml(code, {
         lang: language,
@@ -501,6 +556,7 @@ const renderOgImage = (
           width: 1200,
         }
       );
+
       return new Resvg(svg, {
         font: { loadSystemFonts: false },
       })
@@ -535,21 +591,26 @@ const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
           generate: "server",
         }).js.code,
     });
+
     const executable = compiled.replaceAll(
       "'svelte/internal/server'",
       JSON.stringify(svelteServerUrl)
     );
+
     const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(executable)}`;
+
     const loaded: unknown = yield* Effect.tryPromise({
       catch: (cause) => buildError("Svelte module load", sourcePath, cause),
       // Node's module loader owns this Promise-returning boundary.
       // oxlint-disable-next-line typescript/promise-function-async
       try: () => import(moduleUrl).then((module): unknown => module),
     });
+
     const component: unknown =
       typeof loaded === "object" && loaded !== null
         ? Reflect.get(loaded, "default")
         : undefined;
+
     if (!isServerComponent(component)) {
       return yield* new ContentBuildError({
         cause: new TypeError("Compiled module has no component export"),
@@ -557,6 +618,7 @@ const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
         stage: "Svelte module load",
       });
     }
+
     return component;
   }
 );
@@ -590,10 +652,12 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
           remarkPlugins: [remarkGfm as Plugin],
         }).then((value): unknown => value),
     });
+
     const componentSource: unknown =
       typeof transformed === "object" && transformed !== null
         ? Reflect.get(transformed, "code")
         : undefined;
+
     if (typeof componentSource !== "string") {
       return yield* new ContentBuildError({
         cause: new TypeError("mdsvex returned no component source"),
@@ -601,7 +665,9 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
         stage: "mdsvex compile",
       });
     }
+
     const component = yield* loadCompiledComponent(componentSource, sourcePath);
+
     return yield* Effect.try({
       catch: (cause) => buildError("Svelte body render", sourcePath, cause),
       try: () => render(component, { props: {} }).body,
@@ -618,11 +684,13 @@ const renderDocument = Effect.fn("renderDocument")(function* renderDocument(
     catch: (cause) => buildError("Svelte document render", sourcePath, cause),
     try: () => render(shell, { props: { ...props } }),
   });
+
   const document = `<!doctype html>
 <html lang="en">
 <head>${rendered.head}</head>
 <body>${rendered.body}</body>
 </html>`;
+
   if (/<script\b/iu.test(document)) {
     return yield* new ContentBuildError({
       cause: new Error("Static documents must not contain client scripts"),
@@ -630,6 +698,7 @@ const renderDocument = Effect.fn("renderDocument")(function* renderDocument(
       stage: "Svelte document render",
     });
   }
+
   return document;
 });
 
@@ -650,9 +719,11 @@ const entryList = (
 
 const frontmatterValue = (text: string, field: string) => {
   const value = new RegExp(`^${field}:\\s*(.+)$`, "mu").exec(text)?.[1]?.trim();
+
   if (value === undefined || value === "") {
     throw new Error(`Missing ${field} frontmatter`);
   }
+
   return value;
 };
 
@@ -707,6 +778,7 @@ const lawSpecs: readonly SourceSpec[] = [
 ];
 
 const PackageDependencies = Schema.Record(Schema.String, Schema.String);
+
 const PackageJson = Schema.Struct({
   dependencies: Schema.optional(PackageDependencies),
   devDependencies: Schema.optional(PackageDependencies),
@@ -731,10 +803,12 @@ const program = Effect.gen(function* generateContent() {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const root = path.resolve(import.meta.dirname, "../../..");
+
   const output = path.join(
     root,
     "apps/mischief/src/bundled-content.generated.ts"
   );
+
   const highlighter = yield* Effect.tryPromise({
     catch: (cause) => buildError("Shiki highlighter", "shiki", cause),
     // @effect-diagnostics-next-line asyncFunction:off -- Shiki owns this Promise boundary.
@@ -780,14 +854,17 @@ const program = Effect.gen(function* generateContent() {
     );
 
   const shellSource = yield* readText("apps/mischief/src/document.svelte");
+
   const shell = yield* loadCompiledComponent(
     shellSource,
     "apps/mischief/src/document.svelte"
   );
+
   // The rat emoji is the logo: the favicon, the icons, and every preview card.
   const emojiSvg = (yield* readText("assets/emoji/1f400.svg"))
     .replaceAll(/<!--[\s\S]*?-->\s*/gu, "")
     .trim();
+
   const regularFont = yield* fileSystem
     .readFile(path.join(root, "assets/fonts/JetBrainsMono-Regular.ttf"))
     .pipe(
@@ -795,6 +872,7 @@ const program = Effect.gen(function* generateContent() {
         buildError("og image", "assets/fonts/JetBrainsMono-Regular.ttf", cause)
       )
     );
+
   const boldFont = yield* fileSystem
     .readFile(path.join(root, "assets/fonts/JetBrainsMono-Bold.ttf"))
     .pipe(
@@ -836,6 +914,7 @@ const program = Effect.gen(function* generateContent() {
   // The change log is the wiki's log.md: every commit that touched a served
   // file, newest first. A shallow clone simply yields fewer entries.
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+
   const gitLog = yield* spawner
     .string(
       ChildProcess.make(
@@ -854,15 +933,18 @@ const program = Effect.gen(function* generateContent() {
       )
     )
     .pipe(Effect.orElseSucceed(() => ""));
+
   const logEntries = gitLog
     .split("\n")
     .filter((line) => line.trim() !== "")
     .flatMap((line) => {
       const [date, hash, short, ...subject] = line.split("\t");
+
       return date === undefined || hash === undefined || short === undefined
         ? []
         : [{ date, hash, short, subject: svelteSafeText(subject.join("\t")) }];
     });
+
   const logText = [
     "# Change log",
     "",
@@ -889,20 +971,25 @@ const program = Effect.gen(function* generateContent() {
               buildError("read directory", directory, cause)
             )
           );
+
         const directories = yield* directoryNames(directory, entries);
+
         return directories.map((entry) => `${directory}/${entry}/package.json`);
       }),
     { concurrency: "unbounded" }
   );
+
   const packagePaths = [
     "package.json",
     ...packageDirectoryGroups.flat(),
   ].toSorted();
+
   const packagePins = yield* Effect.forEach(
     packagePaths,
     (sourcePath) =>
       Effect.gen(function* readPackagePins() {
         const packageText = yield* readText(sourcePath);
+
         const json = yield* Schema.decodeEffect(
           Schema.fromJsonString(PackageJson)
         )(packageText).pipe(
@@ -910,6 +997,7 @@ const program = Effect.gen(function* generateContent() {
             buildError("package JSON decode", sourcePath, cause)
           )
         );
+
         const dependencies = [
           ...Object.entries(json.dependencies ?? {}).map(([name, version]) => ({
             kind: "dependency",
@@ -926,6 +1014,7 @@ const program = Effect.gen(function* generateContent() {
             ([name, version]) => ({ kind: "peerDependency", name, version })
           ),
         ].toSorted((left, right) => left.name.localeCompare(right.name));
+
         return {
           dependencies,
           name: json.name ?? sourcePath,
@@ -934,6 +1023,7 @@ const program = Effect.gen(function* generateContent() {
       }),
     { concurrency: "unbounded" }
   );
+
   const pinsText = [
     "# Workspace pins",
     "",
@@ -953,6 +1043,7 @@ const program = Effect.gen(function* generateContent() {
       "",
     ]),
   ].join("\n");
+
   const publicSpecs: readonly PublicSpec[] = [
     ...lawTexts.slice(0, 4),
     {
@@ -980,7 +1071,9 @@ const program = Effect.gen(function* generateContent() {
     .pipe(
       Effect.mapError((cause) => buildError("read directory", "skills", cause))
     );
+
   const skillDirectories = yield* directoryNames("skills", skillEntries);
+
   const skillTexts = yield* Effect.forEach(
     skillDirectories.toSorted(),
     (directoryName) =>
@@ -988,10 +1081,12 @@ const program = Effect.gen(function* generateContent() {
         const sourcePath = `skills/${directoryName}/SKILL.md`;
         const rawText = yield* readText(sourcePath);
         const text = deriveAgentMarkdown(rawText);
+
         const name = yield* Effect.try({
           catch: (cause) => buildError("frontmatter", sourcePath, cause),
           try: () => frontmatterValue(text, "name"),
         });
+
         if (name !== directoryName) {
           return yield* new ContentBuildError({
             cause: new Error(
@@ -1001,11 +1096,14 @@ const program = Effect.gen(function* generateContent() {
             stage: "frontmatter",
           });
         }
+
         const description = yield* Effect.try({
           catch: (cause) => buildError("frontmatter", sourcePath, cause),
           try: () => frontmatterValue(text, "description"),
         });
+
         const routePath = `/skills/${name}` as const;
+
         return { description, name, rawText, routePath, sourcePath, text };
       }),
     { concurrency: "unbounded" }
@@ -1016,11 +1114,13 @@ const program = Effect.gen(function* generateContent() {
   // are checked on disk, so the build cannot mint a dead link.
   const servedRoutes = new Map<string, string>();
   const titles = new Map<string, string>();
+
   for (const spec of publicSpecs) {
     servedRoutes.set(spec.sourcePath, spec.routePath);
     servedRoutes.set(spec.title, spec.routePath);
     titles.set(spec.routePath, spec.title);
   }
+
   for (const skill of skillTexts) {
     servedRoutes.set(skill.name, skill.routePath);
     titles.set(skill.routePath, skill.name);
@@ -1032,27 +1132,36 @@ const program = Effect.gen(function* generateContent() {
   ): Effect.Effect<Option.Option<string>> =>
     Effect.gen(function* resolveSpan() {
       const served = servedRoutes.get(span);
+
       if (served === selfRoute) {
         return Option.none();
       }
+
       if (served !== undefined) {
         return Option.some(served);
       }
+
       if (!repoPathToken.test(span)) {
         return Option.none();
       }
+
       const relative = span.replace(/\/$/u, "");
       const absolute = path.join(root, relative);
+
       const exists = yield* fileSystem
         .exists(absolute)
         .pipe(Effect.orElseSucceed(() => false));
+
       if (!exists) {
         return Option.none();
       }
+
       const info = yield* fileSystem
         .stat(absolute)
         .pipe(Effect.orElseSucceed(() => null));
+
       const kind = info?.type === "Directory" ? "tree" : "blob";
+
       return Option.some(`${repoUrl}/${kind}/main/${relative}`);
     });
 
@@ -1067,11 +1176,13 @@ const program = Effect.gen(function* generateContent() {
     ).pipe(
       Effect.map((pairs) => {
         const targets = new Map<string, string>();
+
         for (const pair of pairs) {
           if (Option.isSome(pair.href)) {
             targets.set(pair.span, pair.href.value);
           }
         }
+
         return targets;
       })
     );
@@ -1081,6 +1192,7 @@ const program = Effect.gen(function* generateContent() {
     (spec) => resolveTargets(spec.text, spec.routePath),
     { concurrency: "unbounded" }
   );
+
   const skillTargets = yield* Effect.forEach(
     skillTexts,
     (skill) => resolveTargets(skill.text, skill.routePath),
@@ -1089,22 +1201,27 @@ const program = Effect.gen(function* generateContent() {
 
   // Backlinks: which pages point at this one. Only in-site links count.
   const linkedFrom = new Map<string, Set<string>>();
+
   const recordLinks = (from: string, targets: ReadonlyMap<string, string>) => {
     for (const href of targets.values()) {
       if (!href.startsWith("/")) {
         continue;
       }
+
       const sources = linkedFrom.get(href) ?? new Set<string>();
       sources.add(from);
       linkedFrom.set(href, sources);
     }
   };
+
   for (const [index, spec] of publicSpecs.entries()) {
     recordLinks(spec.routePath, publicTargets[index] ?? emptyTargets);
   }
+
   for (const [index, skill] of skillTexts.entries()) {
     recordLinks(skill.routePath, skillTargets[index] ?? emptyTargets);
   }
+
   // Per-page provenance: the last commit that touched the source file.
   const lastChange = (sourcePath: string) =>
     spawner
@@ -1127,19 +1244,23 @@ const program = Effect.gen(function* generateContent() {
         Effect.orElseSucceed(() => ""),
         Effect.map((line) => {
           const [date, hash, short] = line.trim().split("\t");
+
           return date === undefined || hash === undefined || short === undefined
             ? undefined
             : { date, hash, short };
         })
       );
+
   const lastChanges = new Map<
     string,
     { date: string; hash: string; short: string }
   >();
+
   const trackedPaths = [
     ...publicSpecs.map((spec) => spec.sourcePath),
     ...skillTexts.map((skill) => skill.sourcePath),
   ].filter((sourcePath) => !sourcePath.includes(" "));
+
   const changes = yield* Effect.forEach(
     trackedPaths,
     (sourcePath) =>
@@ -1148,6 +1269,7 @@ const program = Effect.gen(function* generateContent() {
       ),
     { concurrency: "unbounded" }
   );
+
   for (const { change, sourcePath } of changes) {
     if (change !== undefined) {
       lastChanges.set(sourcePath, change);
@@ -1157,12 +1279,15 @@ const program = Effect.gen(function* generateContent() {
   const pageFooterHtml = (route: string, sourcePath: string) => {
     const lines: string[] = [];
     const change = lastChanges.get(sourcePath);
+
     if (change !== undefined) {
       lines.push(
         `<p>Last changed ${change.date} in <a href="${repoUrl}/commit/${change.hash}">${change.short}</a>. <a href="${repoUrl}/blob/main/${sourcePath}">Source on GitHub</a>. <a href="/log.md">Change log</a>.</p>`
       );
     }
+
     const sources = [...(linkedFrom.get(route) ?? [])].toSorted();
+
     if (sources.length > 0) {
       const links = sources
         .map(
@@ -1170,8 +1295,10 @@ const program = Effect.gen(function* generateContent() {
             `<a href="${source}">${escapeHtml(titles.get(source) ?? source)}</a>`
         )
         .join(", ");
+
       lines.push(`<p>Linked from: ${links}</p>`);
     }
+
     return lines.length === 0 ? "" : `<hr>${lines.join("")}`;
   };
 
@@ -1188,6 +1315,7 @@ const program = Effect.gen(function* generateContent() {
           highlighter,
           targets
         );
+
         return {
           bodyHtml: `${bodyHtml}${pageFooterHtml(spec.routePath, spec.sourcePath)}`,
           spec,
@@ -1209,6 +1337,7 @@ const program = Effect.gen(function* generateContent() {
           highlighter,
           targets
         );
+
         return {
           bodyHtml: `${bodyHtml}${pageFooterHtml(skill.routePath, skill.sourcePath)}`,
           skill,
@@ -1222,6 +1351,7 @@ const program = Effect.gen(function* generateContent() {
       const members = skillBodies
         .map(({ skill }) => skill)
         .filter((skill) => group.names.some((name) => name === skill.name));
+
       return members.length === 0
         ? ""
         : `### ${group.title}\n\n${entryList(members)}`;
@@ -1232,11 +1362,13 @@ const program = Effect.gen(function* generateContent() {
   const searchCapabilitySource = yield* readText(
     "apps/mischief/src/capabilities/search.ts"
   );
+
   const searchCapabilityExcerpt = searchCapabilitySource
     .split("\n")
     .slice(6)
     .join("\n")
     .trim();
+
   const homeMarkdownSource = `# 🐀 Rat Stack
 
 The reference for building an app and its cloud as one typed program. Effect owns the hard parts. Alchemy infers the infrastructure from the code. The fence raises the floor, so agents can build it and you can still trust it.
@@ -1369,7 +1501,9 @@ These pieces are pre-release (Effect 4 rc, XState 6 alpha, TypeScript 7, Alchemy
 ${entryList(publicSpecs)}
 
 `;
+
   const homeMarkdownTemplate = deriveAgentMarkdown(homeMarkdownSource);
+
   const skillIndexMarkdown = `# Learn the stack
 
 These four skills use a working app to teach the pieces inside it.
@@ -1386,6 +1520,7 @@ ${groupedSkills}
     "ratstack-home.md",
     highlighter
   );
+
   const skillIndexBodyHtml = yield* compileMarkdownBody(
     skillIndexMarkdown,
     "ratstack-skills.md",
@@ -1414,10 +1549,13 @@ ${groupedSkills}
         ),
     { concurrency: "unbounded" }
   );
+
   const staticSourcePaths = staticSourcePathGroups.flat().toSorted();
+
   const staticSourceText = yield* Effect.forEach(staticSourcePaths, readText, {
     concurrency: "unbounded",
   });
+
   // Compute the cache version from rendered bodies before wrapping them in the
   // shell. The shell receives this version in its og:image URL, so including
   // complete documents here would create a digest cycle.
@@ -1442,12 +1580,14 @@ ${groupedSkills}
     path: "/",
     title: "Rat Stack: an app and its cloud as one typed program",
   } as const;
+
   const skillIndexMetadata = {
     description:
       "Four hands-on guides to Effect actions, XState lifecycles, and the seams between stack pieces.",
     path: "/skills",
     title: "Learn the stack | rat-stack",
   } as const;
+
   const ogPages: readonly OgPage[] = [
     {
       description: homeMetadata.description,
@@ -1470,6 +1610,7 @@ ${groupedSkills}
       title: name,
     })),
   ];
+
   const ogImages = yield* Effect.forEach(
     ogPages,
     (page) =>
@@ -1496,6 +1637,7 @@ ${groupedSkills}
       )
     )
   ).toString("base64");
+
   const appleTouchIconPngBase64 = Buffer.from(
     yield* renderRatPng(emojiSvg, 180, "white")
   ).toString("base64");
@@ -1517,6 +1659,7 @@ ${groupedSkills}
           spec.sourcePath,
           contentVersion
         );
+
         return {
           description: spec.description,
           digest: digest(spec.text),
@@ -1529,6 +1672,7 @@ ${groupedSkills}
       }),
     { concurrency: "unbounded" }
   );
+
   const skillSources = yield* Effect.forEach(
     skillBodies,
     ({ bodyHtml, skill }) =>
@@ -1546,6 +1690,7 @@ ${groupedSkills}
           skill.sourcePath,
           contentVersion
         );
+
         return {
           description: skill.description,
           digest: digest(skill.text),
@@ -1558,21 +1703,25 @@ ${groupedSkills}
       }),
     { concurrency: "unbounded" }
   );
+
   const homeDocumentHtml = yield* makeDocument(
     homeBodyHtml,
     homeMetadata,
     "ratstack-home.md",
     contentVersion
   );
+
   const skillIndexDocumentHtml = yield* makeDocument(
     skillIndexBodyHtml,
     skillIndexMetadata,
     "ratstack-skills.md",
     contentVersion
   );
+
   const staticContentVersion = contentVersion;
 
   const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const ratSvg = ${sourceLiteral(emojiSvg)} as const;\n\nexport const faviconIcoBase64 = ${sourceLiteral(faviconIcoBase64)} as const;\n\nexport const appleTouchIconPngBase64 = ${sourceLiteral(appleTouchIconPngBase64)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
+
   const temporaryOutput = yield* fileSystem
     .makeTempFile({
       directory: path.dirname(output),
@@ -1584,6 +1733,7 @@ ${groupedSkills}
         buildError("create temporary file", output, cause)
       )
     );
+
   yield* fileSystem
     .writeFileString(temporaryOutput, generated)
     .pipe(

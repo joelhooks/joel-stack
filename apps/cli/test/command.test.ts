@@ -12,6 +12,7 @@ describe("command registration", () => {
     for (const capability of capabilities) {
       expect(names).toContain(capability.name);
     }
+
     expect(
       rootCommand.subcommands.flatMap((group) => group.commands)
     ).toHaveLength(capabilities.length + 4);

@@ -7,6 +7,7 @@ export {
   type CatalogEntry,
   type SearchMatch,
 } from "./catalog.js";
+
 export {
   ExecuteInput,
   ExecuteResult,

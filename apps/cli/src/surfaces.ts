@@ -21,7 +21,9 @@ import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi";
 import { VERSION } from "./version.js";
 
 export const http = toHttpApi("RatStack", capabilities);
+
 export const tools = toToolkit(capabilities);
+
 export const codeMode = toCodeMode(capabilities);
 
 /** Routes: the API, its OpenAPI document, and a Scalar reference page. */

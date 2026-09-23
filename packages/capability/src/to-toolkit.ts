@@ -94,10 +94,12 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   const layer = toolkit.toLayer(
     Effect.gen(function* buildHandlers() {
       const context = yield* Effect.context<RequirementsOf<Caps>>();
+
       const handlers: Record<
         string,
         (parameters: unknown) => Effect.Effect<unknown, unknown>
       > = {};
+
       for (const capability of capabilities) {
         // `Any` erased this capability's requirements to `unknown`; they are
         // a subset of `RequirementsOf<Caps>`, which `context` carries.
@@ -105,9 +107,11 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
         const run = capability.handler as (
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
+
         handlers[capability.name] = (parameters) =>
           run(parameters).pipe(Effect.provideContext(context));
       }
+
       // Same boundary as the toolkit cast: the record is keyed by the
       // capabilities' names, which is exactly `HandlersFrom<ToolsOf<Caps>>`.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion

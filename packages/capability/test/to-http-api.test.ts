@@ -13,11 +13,15 @@ const TestServices = Layer.mergeAll(
 ).pipe(Layer.provideMerge(FileSystem.layerNoop({})));
 
 const projection = toHttpApi("TestApi", [echo, greet]);
+
 const HandlersLayer = projection.layer.pipe(Layer.provide(Greeter.layer));
+
 const approvalProjection = toHttpApi("ApprovalApi", [approved]);
+
 const deniedApprovalLayer = approvalProjection.layer.pipe(
   Layer.provide(Approval.denyAll)
 );
+
 const allowedApprovalLayer = approvalProjection.layer.pipe(
   Layer.provide(Approval.allowAll)
 );
@@ -33,6 +37,7 @@ describe("toHttpApi", () => {
         const greeting = yield* client.capabilities.greet({
           payload: { name: "rat" },
         });
+
         const echoed = yield* client.capabilities.echo({
           payload: { text: "ab", times: 2 },
         });
@@ -58,6 +63,7 @@ describe("toHttpApi", () => {
           payload: { name: "nobody" },
           responseMode: "response-only",
         });
+
         expect(response.status).toBe(422);
       })
     );
@@ -81,6 +87,7 @@ describe("toHttpApi", () => {
       description: "Slow down",
       httpApiStatus: 429,
     });
+
     const document = toHttpApi("HostErrors", [echo, greet], {
       errors: [Throttled],
     }).openApi();
@@ -90,6 +97,7 @@ describe("toHttpApi", () => {
       expect(Object.keys(responses)).toContain("429");
       expect(Object.keys(responses)).toContain("200");
     }
+
     expect(JSON.stringify(document.paths["/greet"])).toContain("422");
   });
 
@@ -99,24 +107,29 @@ describe("toHttpApi", () => {
         const deniedClient = yield* HttpApiTest.groups(approvalProjection.api, [
           "capabilities",
         ]).pipe(Effect.provide(deniedApprovalLayer));
+
         const denied = yield* deniedClient.capabilities
           .approved({ payload: { message: "run" } })
           .pipe(Effect.flip);
+
         expect(denied).toBeInstanceOf(ApprovalDenied);
 
         const response = yield* deniedClient.capabilities.approved({
           payload: { message: "run" },
           responseMode: "response-only",
         });
+
         expect(response.status).toBe(403);
 
         const allowedClient = yield* HttpApiTest.groups(
           approvalProjection.api,
           ["capabilities"]
         ).pipe(Effect.provide(allowedApprovalLayer));
+
         const output = yield* allowedClient.capabilities.approved({
           payload: { message: "run" },
         });
+
         expect(output).toEqual({ ok: true });
       })
     );

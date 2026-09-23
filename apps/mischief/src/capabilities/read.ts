@@ -14,6 +14,7 @@ export const read = defineCapability("read", {
   failure: ResourceNotFound,
   handler: ({ id }) => {
     const resource = readContent(id);
+
     if (resource === undefined) {
       return Effect.fail(
         new ResourceNotFound({
@@ -22,6 +23,7 @@ export const read = defineCapability("read", {
         })
       );
     }
+
     return Effect.succeed(resource);
   },
   input: Schema.Struct({ id: Schema.String }),

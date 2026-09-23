@@ -30,6 +30,7 @@ it.effect("rejects values outside the literal set", () =>
     const error = yield* Effect.flip(
       Layer.build(withProvider({ APP_ENV: "staging" }))
     );
+
     expect(error._tag).toBe("ConfigError");
   })
 );

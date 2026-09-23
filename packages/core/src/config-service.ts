@@ -63,6 +63,7 @@ const Service =
             // Shape<Fields>.
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion
             const parsed = (yield* Config.all(fields)) as Shape<Fields>;
+
             return parsed;
           })
         );

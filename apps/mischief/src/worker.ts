@@ -45,32 +45,41 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       "EXECUTE_PER_IP",
       rateLimitDeclarations.EXECUTE_PER_IP
     );
+
     const webBotAuthEnabled = yield* Config.Boolean(
       "WEB_BOT_AUTH_ENABLED"
     ).pipe(Config.withDefault(false));
+
     const webBotAuthPrivateJwk = yield* Config.option(
       Config.Redacted("WEB_BOT_AUTH_PRIVATE_JWK")
     );
+
     const environment = yield* Cloudflare.WorkerEnvironment;
+
     // These are the native runtime bindings declared above. Alchemy's typed
     // environment is populated dynamically, so this is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const bindings = environment as unknown as RateLimitBindings & {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
     };
+
     const loader = bindings.CODE_SANDBOX;
+
     const rateLimits = makeRateLimits({
       API_PER_IP: bindings.API_PER_IP,
       EXECUTE_GLOBAL: bindings.EXECUTE_GLOBAL,
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
     });
+
     // Pre-2026-07-28 MCP clients get one object per session.
     const legacyMcp = yield* LegacyMcp;
+
     const workerRoutes = makeRoutes({
       legacyMcp: {
         forward: (session, request) => {
           const headers = new Headers(request.headers);
           headers.set(LEGACY_SESSION_HEADER, session);
+
           return legacyMcp
             .getByName(session)
             .fetch(HttpServerRequest.fromWeb(new Request(request, { headers })))

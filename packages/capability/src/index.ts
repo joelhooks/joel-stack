@@ -15,7 +15,9 @@ export {
   type PlainSchema,
   type RequirementsOf,
 } from "./capability.js";
+
 export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";
+
 export {
   searchCatalog,
   signatureOf,
@@ -25,6 +27,7 @@ export {
   type CatalogEntry,
   type SearchMatch,
 } from "./catalog.js";
+
 export {
   Sandbox,
   SandboxError,
@@ -32,10 +35,12 @@ export {
   type InvokeOutcome,
   type SandboxRun,
 } from "./sandbox-service.js";
+
 export {
   layerSubprocess,
   type SubprocessOptions,
 } from "./sandbox-subprocess.js";
+
 export {
   ExecuteInput,
   ExecuteResult,
@@ -45,13 +50,16 @@ export {
   type CodeModeOptions,
   type CodeModeProjection,
 } from "./to-code-mode.js";
+
 export { toCommand, type ToCommandOptions } from "./to-command.js";
+
 export {
   GROUP as HTTP_API_GROUP,
   toHttpApi,
   type HttpApiProjection,
   type HttpApiProjectionOptions,
 } from "./to-http-api.js";
+
 export {
   toToolkit,
   type ToolkitProjection,

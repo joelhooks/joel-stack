@@ -19,6 +19,7 @@ const writeTempFile = Effect.fn("writeTempFile")(function* writeTempFile(
   yield* typeof content === "string"
     ? fileSystem.writeFileString(file, content)
     : fileSystem.writeFile(file, content);
+
   return file;
 });
 
@@ -42,6 +43,7 @@ it.layer(TestLayer)("FileInspector", (test) => {
           "invalid-utf8.txt",
           Uint8Array.of(0xff)
         );
+
         const inspector = yield* FileInspector;
 
         const stats = yield* inspector.inspect(file);

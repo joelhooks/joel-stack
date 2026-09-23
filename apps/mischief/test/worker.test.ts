@@ -39,12 +39,14 @@ const makeFakeStaticResponseCache = (): FakeStaticResponseCache => {
   const matchKeys: string[] = [];
   const putKeys: string[] = [];
   const responses = new Map<string, Response>();
+
   return {
     // This fake deliberately matches Cloudflare's Promise-returning Cache API.
     // oxlint-disable-next-line typescript/promise-function-async
     match(request) {
       const key = request.url;
       matchKeys.push(key);
+
       return Promise.resolve(responses.get(key)?.clone());
     },
     matchKeys,
@@ -54,6 +56,7 @@ const makeFakeStaticResponseCache = (): FakeStaticResponseCache => {
       const key = request.url;
       putKeys.push(key);
       responses.set(key, response.clone());
+
       return Promise.resolve();
     },
     putKeys,
@@ -74,6 +77,7 @@ const expectedSecurityHeaders = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
 } as const;
+
 const expectedContentSecurityPolicy =
   "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
@@ -81,6 +85,7 @@ const expectSecurityHeaders = (response: Response, html: boolean) => {
   for (const [name, value] of Object.entries(expectedSecurityHeaders)) {
     expect(response.headers.get(name), name).toBe(value);
   }
+
   expect(response.headers.get("content-security-policy")).toBe(
     html ? expectedContentSecurityPolicy : null
   );
@@ -98,6 +103,7 @@ class FakeRateLimitBinding implements NativeRateLimitBinding {
   // oxlint-disable-next-line typescript/promise-function-async
   limit(options: { readonly key: string }) {
     this.keys.push(options.key);
+
     return Promise.resolve({ success: this.#results.shift() ?? true });
   }
 }
@@ -155,6 +161,7 @@ const postMcp = Effect.fnUntraced(function* postMcpRequest(
     },
     method: "POST",
   });
+
   return yield* Effect.promise(handler.bind(undefined, request));
 });
 
@@ -166,6 +173,7 @@ const readJson = Effect.fnUntraced(function* readJsonResponse(
   response: Response
 ) {
   const body = yield* Effect.promise(response.text.bind(response));
+
   return yield* decodeJson(body);
 });
 
@@ -338,6 +346,7 @@ const makeTestPrivateJwk = Effect.promise(
     if (!("privateKey" in keyPair)) {
       return Effect.die("Ed25519 key generation did not return a pair");
     }
+
     return Effect.promise(
       // Web Crypto owns the Promise at this test boundary.
       // oxlint-disable-next-line typescript/promise-function-async
@@ -355,6 +364,7 @@ it.effect(
         const markdownResponse = yield* Effect.promise(
           handler.bind(undefined, new Request("http://localhost/"))
         );
+
         const htmlResponse = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -363,6 +373,7 @@ it.effect(
             })
           )
         );
+
         const skillsHtmlResponse = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -371,6 +382,7 @@ it.effect(
             })
           )
         );
+
         const skillHtmlResponse = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -379,19 +391,23 @@ it.effect(
             })
           )
         );
+
         const resource = lawResources.find(
           (candidate) =>
             candidate.routePath === "/resources/effect-4-reference-projects.svx"
         );
+
         if (resource === undefined) {
           throw new Error("Missing Effect 4 reference resource");
         }
+
         const resourceMarkdownResponse = yield* Effect.promise(
           handler.bind(
             undefined,
             new Request(`http://localhost${resource.routePath}`)
           )
         );
+
         const resourceHtmlResponse = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -400,24 +416,31 @@ it.effect(
             })
           )
         );
+
         const markdown = yield* Effect.promise(
           markdownResponse.text.bind(markdownResponse)
         );
+
         const html = yield* Effect.promise(
           htmlResponse.text.bind(htmlResponse)
         );
+
         const skillsHtml = yield* Effect.promise(
           skillsHtmlResponse.text.bind(skillsHtmlResponse)
         );
+
         const skillHtml = yield* Effect.promise(
           skillHtmlResponse.text.bind(skillHtmlResponse)
         );
+
         const resourceMarkdown = yield* Effect.promise(
           resourceMarkdownResponse.text.bind(resourceMarkdownResponse)
         );
+
         const resourceHtml = yield* Effect.promise(
           resourceHtmlResponse.text.bind(resourceHtmlResponse)
         );
+
         const agentsHtmlResponse = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -426,12 +449,15 @@ it.effect(
             })
           )
         );
+
         const agentsHtml = yield* Effect.promise(
           agentsHtmlResponse.text.bind(agentsHtmlResponse)
         );
+
         const logResponse = yield* Effect.promise(
           handler.bind(undefined, new Request("http://localhost/log.md"))
         );
+
         const logMarkdown = yield* Effect.promise(
           logResponse.text.bind(logResponse)
         );
@@ -604,6 +630,7 @@ it.effect(
         const favicon = yield* Effect.promise(
           handler.bind(undefined, new Request("http://localhost/favicon.svg"))
         );
+
         const faviconBody = yield* Effect.promise(favicon.text.bind(favicon));
         expect(favicon.status).toBe(200);
         expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
@@ -617,6 +644,7 @@ it.effect(
           const icon = yield* Effect.promise(
             handler.bind(undefined, new Request(`http://localhost${iconPath}`))
           );
+
           expect(icon.status, iconPath).toBe(200);
           expect(icon.headers.get("content-type"), iconPath).toBe(contentType);
         }
@@ -631,12 +659,15 @@ it.effect(
           "/log.md",
         ]) {
           const imagePath = `/og${route === "/" ? "/home" : route}.png`;
+
           const image = yield* Effect.promise(
             handler.bind(undefined, new Request(`http://localhost${imagePath}`))
           );
+
           const bytes = new Uint8Array(
             yield* Effect.promise(image.arrayBuffer.bind(image))
           );
+
           expect(image.status).toBe(200);
           expect(image.headers.get("content-type")).toBe("image/png");
           expect(bytes.subarray(0, 8)).toEqual(
@@ -661,12 +692,15 @@ it.effect("sets security headers on every response", () =>
           })
         )
       );
+
       const markdownResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/"))
       );
+
       const openapiResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/openapi.json"))
       );
+
       const notFoundResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/not-found"))
       );
@@ -681,6 +715,7 @@ it.effect("sets security headers on every response", () =>
       const openapi: unknown = yield* Effect.promise(
         openapiResponse.json.bind(openapiResponse)
       );
+
       const executeResponses = (yield* Schema.decodeUnknownEffect(
         Schema.Struct({
           paths: Schema.Record(
@@ -693,6 +728,7 @@ it.effect("sets security headers on every response", () =>
           ),
         })
       )(openapi)).paths["/api/execute"]?.post.responses;
+
       expect(Object.keys(executeResponses ?? {})).toContain("429");
 
       // Images are meant to be embedded on other origins (preview cards,
@@ -700,6 +736,7 @@ it.effect("sets security headers on every response", () =>
       const imageResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/og/home.png"))
       );
+
       expect(imageResponse.headers.get("cross-origin-resource-policy")).toBe(
         "cross-origin"
       );
@@ -717,18 +754,21 @@ it.effect("sets security headers on every response", () =>
           new Request("http://localhost/", { method: "HEAD" })
         )
       );
+
       const headImage = yield* Effect.promise(
         handler.bind(
           undefined,
           new Request("http://localhost/og/home.png", { method: "HEAD" })
         )
       );
+
       const headMissing = yield* Effect.promise(
         handler.bind(
           undefined,
           new Request("http://localhost/nope", { method: "HEAD" })
         )
       );
+
       expect(headHome.status).toBe(200);
       expect(headHome.headers.get("content-type")).toContain("text/markdown");
       expect(headImage.status).toBe(200);
@@ -751,9 +791,11 @@ it.effect(
             })
           )
         );
+
         const plain = yield* Effect.promise(
           handler.bind(undefined, new Request("http://localhost/"))
         );
+
         const browser = yield* Effect.promise(
           handler.bind(
             undefined,
@@ -773,24 +815,29 @@ it.effect(
               new Request("http://localhost/", { headers })
             )
           );
+
         const validator = yield* request({
           accept: "*/*",
           "user-agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
         });
+
         const gptBot = yield* request({
           accept: "*/*",
           "user-agent":
             "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
         });
+
         const claudeBot = yield* request({
           "user-agent":
             "Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)",
         });
+
         const curl = yield* request({
           accept: "*/*",
           "user-agent": "curl/8.7.1",
         });
+
         const browserWantsMarkdown = yield* request({
           accept: "text/markdown",
           "user-agent": "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0",
@@ -816,25 +863,32 @@ it.effect(
   "caches each static representation and revalidates with its ETag",
   () => {
     const cache = makeFakeStaticResponseCache();
+
     return withHandler(
       (handler) =>
         Effect.gen(function* testStaticCache() {
           const firstHtml = yield* Effect.promise(
             handler.bind(undefined, htmlHomeRequest())
           );
+
           const firstHtmlBody = yield* Effect.promise(
             firstHtml.text.bind(firstHtml)
           );
+
           const secondHtml = yield* Effect.promise(
             handler.bind(undefined, htmlHomeRequest())
           );
+
           const secondHtmlBody = yield* Effect.promise(
             secondHtml.text.bind(secondHtml)
           );
+
           const markdownResponse = yield* Effect.promise(
             handler.bind(undefined, new Request("http://localhost/"))
           );
+
           const etag = firstHtml.headers.get("etag");
+
           const revalidated = yield* Effect.promise(
             handler.bind(
               undefined,
@@ -846,12 +900,15 @@ it.effect(
               })
             )
           );
+
           const mcp = yield* Effect.promise(
             handler.bind(undefined, new Request("http://localhost/mcp"))
           );
+
           const favicon = yield* Effect.promise(
             handler.bind(undefined, new Request("http://localhost/favicon.svg"))
           );
+
           const crawlerHtml = yield* Effect.promise(
             handler.bind(
               undefined,
@@ -912,6 +969,7 @@ it.effect("serves every public GET route and exact skill discovery bytes", () =>
         const response = yield* Effect.promise(
           handler.bind(undefined, new Request(`http://localhost${path}`))
         );
+
         expect(response.status, path).toBe(200);
       }
 
@@ -922,18 +980,22 @@ it.effect("serves every public GET route and exact skill discovery bytes", () =>
             new Request(`http://localhost${skill.routePath}`)
           )
         );
+
         const discovery = yield* Effect.promise(
           handler.bind(
             undefined,
             new Request(`http://localhost${agentSkillPath(skill.name)}`)
           )
         );
+
         const friendlyText = yield* Effect.promise(
           friendly.text.bind(friendly)
         );
+
         const discoveryText = yield* Effect.promise(
           discovery.text.bind(discovery)
         );
+
         const digest = yield* sha256(discoveryText);
 
         expect(friendlyText).toBe(skill.text);
@@ -950,27 +1012,32 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       const llms = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/llms.txt"))
       );
+
       const robots = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/robots.txt"))
       );
+
       const index = yield* Effect.promise(
         handler.bind(
           undefined,
           new Request("http://localhost/.well-known/agent-skills/index.json")
         )
       );
+
       const apiCatalog = yield* Effect.promise(
         handler.bind(
           undefined,
           new Request("http://localhost/.well-known/api-catalog")
         )
       );
+
       const mcpCard = yield* Effect.promise(
         handler.bind(
           undefined,
           new Request("http://localhost/.well-known/mcp.json")
         )
       );
+
       const openapi = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/openapi.json"))
       );
@@ -1001,12 +1068,15 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       );
 
       const openapiBody = yield* readJson(openapi);
+
       const OpenApiDocument = Schema.Struct({
         info: Schema.Struct({ title: Schema.String }),
         paths: Schema.Record(Schema.String, Schema.Unknown),
       });
+
       const document =
         yield* Schema.decodeUnknownEffect(OpenApiDocument)(openapiBody);
+
       expect(document.info.title).toBe("ratstack.sh");
       expect(Object.keys(document.paths).toSorted()).toEqual([
         "/api/execute",
@@ -1028,12 +1098,14 @@ it.effect(
             new Request("http://localhost/.well-known/agent-card.json")
           )
         );
+
         const legacyCard = yield* Effect.promise(
           handler.bind(
             undefined,
             new Request("http://localhost/.well-known/agent.json")
           )
         );
+
         const canonicalBody = yield* readJson(canonicalCard);
         const legacyBody = yield* readJson(legacyCard);
         const card = yield* Schema.decodeUnknownEffect(A2aCard)(canonicalBody);
@@ -1067,6 +1139,7 @@ it.effect(
             },
           },
         });
+
         const answered = yield* Schema.decodeUnknownEffect(A2aResponse)(
           yield* readJson(response)
         );
@@ -1096,12 +1169,15 @@ it.effect("serves the ARD manifest and honest anonymous auth.md", () =>
           new Request("http://localhost/.well-known/ai-catalog.json")
         )
       );
+
       const auth = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/auth.md"))
       );
+
       const manifest = yield* Schema.decodeUnknownEffect(ArdManifest)(
         yield* readJson(ard)
       );
+
       const authBody = yield* Effect.promise(auth.text.bind(auth));
 
       expect(ard.status).toBe(200);
@@ -1136,12 +1212,14 @@ it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
           )
         )
       );
+
       expect(disabled.status).toBe(404);
     })
   ).pipe(
     Effect.andThen(
       Effect.gen(function* testEnabledWebBotAuth() {
         const privateJwk = yield* makeTestPrivateJwk;
+
         return yield* Effect.acquireUseRelease(
           Effect.sync(() =>
             HttpRouter.toWebHandler(
@@ -1153,6 +1231,7 @@ it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
           ),
           ({ handler }) => {
             const webHandler: WebHandler = handler;
+
             return Effect.gen(function* testPublishedKey() {
               const response = yield* Effect.promise(
                 webHandler.bind(
@@ -1162,9 +1241,11 @@ it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
                   )
                 )
               );
+
               const directory = yield* Schema.decodeUnknownEffect(
                 WebBotKeyDirectory
               )(yield* readJson(response));
+
               const [key] = directory.keys;
 
               expect(response.status).toBe(200);
@@ -1193,17 +1274,21 @@ it.effect("projects search, read, and execute through HTTP", () =>
         limit: 1,
         query: "capability",
       });
+
       const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
         yield* readJson(searched)
       );
+
       const id = searchResult.matches[0]?.id;
       expect(searched.status).toBe(200);
       expect(id).toBeDefined();
 
       const read = yield* postJson(handler, "/api/read", { id });
+
       const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
         yield* readJson(read)
       );
+
       expect(readResult.text).toContain("capability");
 
       const executed = yield* postJson(handler, "/api/execute", {
@@ -1212,9 +1297,11 @@ it.effect("projects search, read, and execute through HTTP", () =>
           "return await tools.read({ id: found.matches[0].id });",
         ].join("\n"),
       });
+
       const executeResult = yield* Schema.decodeUnknownEffect(ExecuteResult)(
         yield* readJson(executed)
       );
+
       expect(executeResult.logs).toEqual(["test: search then read"]);
       expect(executeResult.result).toMatchObject({ id });
     })
@@ -1241,6 +1328,7 @@ it.effect("returns 429 after API_PER_IP denies a client IP", () => {
               method: "POST",
             })
           );
+
         const allowed = yield* Effect.promise(request);
         const denied = yield* Effect.promise(request);
 
@@ -1260,6 +1348,7 @@ it.effect("returns 429 after API_PER_IP denies a client IP", () => {
 it.effect("returns 429 before a second execute worker is created", () => {
   const executePerIp = new FakeRateLimitBinding([true, false]);
   const executeGlobal = new FakeRateLimitBinding();
+
   const bindings = fakeRateLimitBindings({
     EXECUTE_GLOBAL: executeGlobal,
     EXECUTE_PER_IP: executePerIp,
@@ -1286,6 +1375,7 @@ it.effect("returns 429 before a second execute worker is created", () => {
               method: "POST",
             })
           );
+
         const allowed = yield* Effect.promise(request);
         const denied = yield* Effect.promise(request);
 
@@ -1312,6 +1402,7 @@ it.effect("returns an MCP tool error when EXECUTE_GLOBAL denies", () => {
           "const found = await tools.search({ query: 'capability', limit: 1 });",
           "return await tools.read({ id: found.matches[0].id });",
         ].join("\n");
+
         const allowed = yield* postMcp(
           handler,
           "allowed-execute",
@@ -1322,6 +1413,7 @@ it.effect("returns an MCP tool error when EXECUTE_GLOBAL denies", () => {
           },
           "execute"
         );
+
         const denied = yield* postMcp(
           handler,
           "denied-execute",
@@ -1332,9 +1424,11 @@ it.effect("returns an MCP tool error when EXECUTE_GLOBAL denies", () => {
           },
           "execute"
         );
+
         const allowedResult = yield* Schema.decodeUnknownEffect(
           ToolCallResponse
         )(yield* readJson(allowed));
+
         const error = yield* Schema.decodeUnknownEffect(ToolErrorResponse)(
           yield* readJson(denied)
         );
@@ -1359,6 +1453,7 @@ it.effect("explains the required MCP version in plain text", () =>
       const getResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/mcp"))
       );
+
       const legacyResponse = yield* Effect.promise(
         handler.bind(
           undefined,
@@ -1374,6 +1469,7 @@ it.effect("explains the required MCP version in plain text", () =>
           })
         )
       );
+
       const expected = mcpVersionText("https://ratstack.sh");
 
       expect(expected).toContain("no initialize handshake");
@@ -1405,9 +1501,11 @@ it.effect(
           "legacy-initialize",
           "initialize"
         );
+
         const initializeError = yield* Schema.decodeUnknownEffect(
           ErrorResponse
         )(yield* readJson(legacyInitialize));
+
         expect(legacyInitialize.status).toBe(404);
         expect(initializeError.error.code).toBe(
           McpSchema.METHOD_NOT_FOUND_ERROR_CODE
@@ -1418,27 +1516,35 @@ it.effect(
           "discover",
           "server/discover"
         );
+
         const discovered = yield* Schema.decodeUnknownEffect(DiscoverResponse)(
           yield* readJson(discovery)
         );
+
         expect(discovered.result.supportedVersions).toEqual(["2026-07-28"]);
 
         const toolsList = yield* postMcp(handler, "tools", "tools/list");
+
         const resourcesList = yield* postMcp(
           handler,
           "resources",
           "resources/list"
         );
+
         const promptsList = yield* postMcp(handler, "prompts", "prompts/list");
+
         const { tools } = (yield* Schema.decodeUnknownEffect(NamedListResponse)(
           yield* readJson(toolsList)
         )).result;
+
         const toolNames = tools?.map((tool) => tool.name);
+
         const resourceNames = (yield* Schema.decodeUnknownEffect(
           NamedListResponse
         )(yield* readJson(resourcesList))).result.resources?.map(
           (resource) => resource.name
         );
+
         const promptNames = (yield* Schema.decodeUnknownEffect(
           NamedListResponse
         )(yield* readJson(promptsList))).result.prompts?.map(
@@ -1446,9 +1552,11 @@ it.effect(
         );
 
         expect(toolNames?.toSorted()).toEqual(["execute", "read", "search"]);
+
         const executeDescription = tools?.find(
           (tool) => tool.name === "execute"
         )?.description;
+
         expect(executeDescription).toContain("`code` argument");
         expect(executeDescription).toContain(
           "The program is the body of an async function"
@@ -1481,12 +1589,15 @@ it.effect(
           { arguments: { limit: 1, query: "capability" }, name: "search" },
           "search"
         );
+
         const searched = yield* Schema.decodeUnknownEffect(ToolCallResponse)(
           yield* readJson(searchResponse)
         );
+
         const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
           searched.result.structuredContent
         );
+
         const id = searchResult.matches[0]?.id;
         expect(id).toBeDefined();
 
@@ -1497,12 +1608,15 @@ it.effect(
           { arguments: { id }, name: "read" },
           "read"
         );
+
         const read = yield* Schema.decodeUnknownEffect(ToolCallResponse)(
           yield* readJson(readResponse)
         );
+
         const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
           read.result.structuredContent
         );
+
         expect(readResult.id).toBe(id);
 
         const executeResponse = yield* postMcp(
@@ -1520,19 +1634,24 @@ it.effect(
           },
           "execute"
         );
+
         const executed = yield* Schema.decodeUnknownEffect(ToolCallResponse)(
           yield* readJson(executeResponse)
         );
+
         const executeResult = yield* Schema.decodeUnknownEffect(ExecuteResult)(
           executed.result.structuredContent
         );
+
         expect(executeResult.result).toMatchObject({ id });
 
         const [law] = lawResources;
         expect(law).toBeDefined();
+
         if (law === undefined) {
           return;
         }
+
         const resourceResponse = yield* postMcp(
           handler,
           "read-law",
@@ -1540,9 +1659,11 @@ it.effect(
           { uri: law.id },
           law.id
         );
+
         const resource = yield* Schema.decodeUnknownEffect(
           ReadResourceResponse
         )(yield* readJson(resourceResponse));
+
         expect(resource.result.contents).toEqual([
           { text: law.text, uri: law.id },
         ]);

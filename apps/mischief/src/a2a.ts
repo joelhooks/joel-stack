@@ -30,6 +30,7 @@ const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
   question: string
 ) {
   const searched = yield* search.handler({ limit: 3, query: question });
+
   // Effect.forEach is the Effect combinator, not Array#forEach with a thisArg.
   // oxlint-disable-next-line unicorn/no-array-method-this-argument
   const sources = yield* Effect.forEach(searched.matches, (match) =>
@@ -57,12 +58,15 @@ const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
 export const handleA2aRequest = Effect.fn("A2A.handleRequest")(
   function* handleA2aRequest(body: unknown) {
     const request = yield* decodeA2aRequest(body);
+
     const question = request.params.message.parts
       .map((part) => part.text)
       .join("\n")
       .trim();
+
     const answer = yield* answerQuestion(question);
     const messageId = `reply-${request.params.message.messageId}`;
+
     const contextId =
       request.params.message.contextId ??
       `context-${request.params.message.messageId}`;

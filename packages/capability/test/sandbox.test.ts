@@ -29,6 +29,7 @@ describe("subprocess Sandbox", () => {
     test.effect("returns the program's value and captured logs", () =>
       Effect.gen(function* returnsValue() {
         const sandbox = yield* Sandbox;
+
         const run = yield* sandbox.run(
           `console.log("start", 1); const a = await tools.double({ n: 2 }); return a.doubled + 1;`,
           invoke
@@ -42,6 +43,7 @@ describe("subprocess Sandbox", () => {
     test.effect("lets the program catch a capability failure", () =>
       Effect.gen(function* catchesFailure() {
         const sandbox = yield* Sandbox;
+
         const run = yield* sandbox.run(
           `try { await tools.nothing({}); } catch (error) { return error._tag; }`,
           invoke
@@ -54,6 +56,7 @@ describe("subprocess Sandbox", () => {
     test.effect("reports a thrown error with reason threw", () =>
       Effect.gen(function* reportsThrow() {
         const sandbox = yield* Sandbox;
+
         const error = yield* sandbox
           .run(`throw new Error("boom")`, invoke)
           .pipe(Effect.flip);
@@ -66,6 +69,7 @@ describe("subprocess Sandbox", () => {
     test.effect("denies file system and child process access", () =>
       Effect.gen(function* deniesAccess() {
         const sandbox = yield* Sandbox;
+
         const run = yield* sandbox.run(
           `const codes = []; for (const name of ["node:fs", "node:child_process"]) { try { const m = await import(name); (m.readFileSync ?? m.execSync)("/etc/hosts"); codes.push("allowed"); } catch (error) { codes.push(error.code); } } return codes;`,
           invoke

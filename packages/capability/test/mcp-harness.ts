@@ -34,30 +34,37 @@ export const makeMcpClient = Effect.fnUntraced(function* makeMcpClient<A, E>(
   const { dispose, handler } = HttpRouter.toWebHandler(appLayer, {
     disableLogger: true,
   });
+
   yield* Effect.addFinalizer(() => Effect.promise(dispose));
 
   let sessionId: string | null = null;
   let protocolVersion: string | null = null;
+
   const fetchImpl = async (
     input: Parameters<typeof globalThis.fetch>[0],
     init?: RequestInit
   ): Promise<Response> => {
     const request = input instanceof Request ? input : new Request(input, init);
+
     if (sessionId !== null) {
       request.headers.set("Mcp-Session-Id", sessionId);
     }
+
     if (
       protocolVersion !== null &&
       !request.headers.has("Mcp-Protocol-Version")
     ) {
       request.headers.set("Mcp-Protocol-Version", protocolVersion);
     }
+
     const response = await handler(request);
     sessionId = response.headers.get("Mcp-Session-Id") ?? sessionId;
     protocolVersion =
       response.headers.get("Mcp-Protocol-Version") ?? protocolVersion;
+
     return response;
   };
+
   const fetch: typeof globalThis.fetch = Object.assign(fetchImpl, {
     preconnect() {
       /* not needed in-process */
@@ -79,13 +86,16 @@ export const makeMcpClient = Effect.fnUntraced(function* makeMcpClient<A, E>(
     ]),
     Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetch))
   );
+
   const client = yield* RpcClient.make(McpSchema.ClientRpcs).pipe(
     Effect.provide(clientLayer)
   );
+
   yield* client.initialize({
     capabilities: {},
     clientInfo: { name: "TestClient", version: "0.0.0" },
     protocolVersion: "2025-06-18",
   });
+
   return client;
 });

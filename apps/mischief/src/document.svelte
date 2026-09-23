@@ -12,6 +12,7 @@
   } = $props();
 
   const canonicalUrl = `${origin}${path}`;
+
   const isHome = path === "/";
 </script>
 

@@ -4,17 +4,20 @@ import { read } from "./read.js";
 import { search } from "./search.js";
 
 export { read } from "./read.js";
+
 export {
   ReadOutput,
   ResourceNotFound,
   SearchMatch,
   SearchOutput,
 } from "./schemas.js";
+
 export { search } from "./search.js";
 
 export const contentCapabilities = [search, read] as const;
 
 const generatedExecuteProjection = toExecuteCapability(contentCapabilities);
+
 const executeDescription = [
   generatedExecuteProjection.capability.description,
   "",
@@ -31,8 +34,10 @@ export const execute = {
   ...generatedExecuteProjection.capability,
   description: executeDescription,
 };
+
 export const executeProjection = {
   ...generatedExecuteProjection,
   capability: execute,
 };
+
 export const capabilities = [search, read, execute] as const;

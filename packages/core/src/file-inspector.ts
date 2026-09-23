@@ -28,6 +28,7 @@ export class FileInspector extends Context.Service<
             (error) => new FileStatsError({ path, reason: error.message })
           )
         );
+
       return summarizeBytes(path, content);
     });
 
