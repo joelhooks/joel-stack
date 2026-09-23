@@ -4,8 +4,6 @@ import { Effect, FileSystem, Layer, Path } from "effect";
 
 import { FileInspector } from "../src/index.js";
 
-// The test layer is the service under test wired to real Node services. Each
-// it.effect runs in its own Scope, so scoped temp directories clean themselves.
 const TestLayer = Layer.provideMerge(FileInspector.layer, NodeServices.layer);
 
 const writeTempFile = Effect.fn("writeTempFile")(function* writeTempFile(

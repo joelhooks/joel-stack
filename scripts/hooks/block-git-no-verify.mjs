@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-/**
- * Multiplexed shell gate for Cursor (`beforeShellExecution`) and Claude Code (`PreToolUse` Bash).
- * Reads JSON on stdin. Never prints secrets. Fail-open only on unreadable input.
- */
 import { applyCommandPolicy } from "../vcs-command-policy.js";
 
 const readStdin = async () => {

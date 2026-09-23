@@ -7,17 +7,6 @@ import { legacyMcpProtocols, mcpLayer } from "../app.js";
 
 type WebHandler = (request: Request) => Promise<Response>;
 
-/**
- * Effect's stateful MCP runtime for the legacy protocols, as a request
- * handler. The Durable Object and the tests build it the same way.
- *
- * Two details keep it honest:
- * - It builds with its own memo map, so it gets a private router even when
- *   built inside another router's request (where `HttpRouter.toHttpEffect`
- *   would reuse the caller's router and collide on `/mcp`).
- * - Effect sets `Mcp-Session-Id` and some statuses in pre-response handlers,
- *   which only a server wrapper runs. `HttpEffect.toWebHandler` is the wrapper.
- */
 export const legacyMcpRuntime = (sandbox: Layer.Layer<Sandbox>) =>
   Effect.gen(function* makeLegacyMcpRuntime() {
     const scope = yield* Effect.scope;

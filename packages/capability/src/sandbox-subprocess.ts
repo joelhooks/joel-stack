@@ -1,6 +1,3 @@
-// Node implementation of Sandbox: a fresh process under `--permission`
-// speaks newline-delimited JSON over stdio. Network egress is not blocked by
-// Node's permission model; use a Worker-side implementation for real isolation.
 import { Duration, Effect, Layer, Option, Queue, Schema, Stream } from "effect";
 import type { Cause } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
@@ -9,17 +6,6 @@ import { SandboxError } from "./sandbox-error.js";
 import { Sandbox } from "./sandbox-service.js";
 import type { Invoke, InvokeOutcome, SandboxRun } from "./sandbox-service.js";
 
-/**
- * The program the child runs, passed with `-e` so the permission model never
- * has to allow a file read. Protocol, one JSON object per line:
- *
- *   parent -> child  { type: "run", code }
- *   child  -> parent { type: "call", id, name, input }
- *   parent -> child  { type: "result", id, ok, value | error }
- *   child  -> parent { type: "done", result, logs } | { type: "error", message, logs }
- *
- * `console` inside the program is a capture; the real one is unavailable.
- */
 const RUNNER_SOURCE = String.raw`
 import { createInterface } from "node:readline";
 const pending = new Map();
@@ -90,7 +76,6 @@ const decodeChildMessage = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ChildMessage)
 );
 
-/** What the host writes to the child: start a program, or answer a call. */
 type HostMessage =
   | { readonly code: string; readonly type: "run" }
   | ({ readonly id: number; readonly type: "result" } & InvokeOutcome);
@@ -100,9 +85,7 @@ const encoder = new TextEncoder();
 const isSandboxError = Schema.is(SandboxError);
 
 export interface SubprocessOptions {
-  /** Wall-clock budget for one program; the process is killed after. */
   readonly timeout?: Duration.Input | undefined;
-  /** Node executable; defaults to the current one. */
   readonly nodePath?: string | undefined;
 }
 
@@ -228,7 +211,6 @@ const makeSubprocess = (options?: SubprocessOptions) =>
     } as const;
   });
 
-/** A Sandbox backed by a fresh Node subprocess per run. */
 export const layerSubprocess = (
   options?: SubprocessOptions
 ): Layer.Layer<Sandbox, never, ChildProcessSpawner.ChildProcessSpawner> =>

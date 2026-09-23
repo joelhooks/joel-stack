@@ -17,11 +17,9 @@ import { layerWorkerLoader, sandboxLimits } from "./sandbox-worker-loader.js";
 import type { WorkerLoaderBinding } from "./sandbox-worker-loader.js";
 
 const cloudflareStaticCache = {
-  // Cloudflare provides this global only when a request reaches the Worker.
-  // oxlint-disable-next-line typescript/promise-function-async
+  // oxlint-disable-next-line typescript/promise-function-async -- Cloudflare provides this global only when a request reaches the Worker.
   match: (request: Request) => caches.default.match(request),
-  // Cloudflare provides this global only when a request reaches the Worker.
-  // oxlint-disable-next-line typescript/promise-function-async
+  // oxlint-disable-next-line typescript/promise-function-async -- Cloudflare provides this global only when a request reaches the Worker.
   put: (request: Request, response: Response) =>
     caches.default.put(request, response),
 };
@@ -56,9 +54,7 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
 
     const environment = yield* Cloudflare.WorkerEnvironment;
 
-    // SAFETY: these are the native runtime bindings declared above. Alchemy
-    // types the environment as a dictionary it fills in at runtime, so this is
-    // the one boundary cast.
+    // SAFETY: these are the native runtime bindings declared above. Alchemy types the environment as a dictionary it fills in at runtime, so this is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const bindings = environment as RateLimitBindings & {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
@@ -72,7 +68,6 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
     });
 
-    // Pre-2026-07-28 MCP clients get one object per session.
     const legacyMcp = yield* LegacyMcp;
 
     const workerRoutes = mischiefRoutes({

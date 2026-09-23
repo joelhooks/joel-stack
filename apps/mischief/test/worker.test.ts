@@ -41,8 +41,7 @@ const makeFakeStaticResponseCache = (): FakeStaticResponseCache => {
   const responses = new Map<string, Response>();
 
   return {
-    // This fake deliberately matches Cloudflare's Promise-returning Cache API.
-    // oxlint-disable-next-line typescript/promise-function-async
+    // oxlint-disable-next-line typescript/promise-function-async -- This fake deliberately matches Cloudflare's Promise-returning Cache API.
     match(request) {
       const key = request.url;
       matchKeys.push(key);
@@ -50,8 +49,7 @@ const makeFakeStaticResponseCache = (): FakeStaticResponseCache => {
       return Promise.resolve(responses.get(key)?.clone());
     },
     matchKeys,
-    // This fake deliberately matches Cloudflare's Promise-returning Cache API.
-    // oxlint-disable-next-line typescript/promise-function-async
+    // oxlint-disable-next-line typescript/promise-function-async -- This fake deliberately matches Cloudflare's Promise-returning Cache API.
     put(request, response) {
       const key = request.url;
       putKeys.push(key);
@@ -99,8 +97,7 @@ class FakeRateLimitBinding implements NativeRateLimitBinding {
     this.#results = [...results];
   }
 
-  // The fake deliberately matches Cloudflare's Promise-returning binding.
-  // oxlint-disable-next-line typescript/promise-function-async
+  // oxlint-disable-next-line typescript/promise-function-async -- The fake deliberately matches Cloudflare's Promise-returning binding.
   limit(options: { readonly key: string }) {
     this.keys.push(options.key);
 
@@ -118,8 +115,7 @@ const fakeRateLimitBindings = (
 
 const sha256 = (text: string) =>
   Effect.promise(
-    // Web Crypto owns the Promise at this test boundary.
-    // oxlint-disable-next-line typescript/promise-function-async
+    // oxlint-disable-next-line typescript/promise-function-async -- Web Crypto owns the Promise at this test boundary.
     () => crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))
   ).pipe(
     Effect.map((bytes) =>
@@ -343,8 +339,7 @@ const WebBotKeyDirectory = Schema.Struct({
 });
 
 const makeTestPrivateJwk = Effect.promise(
-  // Web Crypto owns the Promise at this test boundary.
-  // oxlint-disable-next-line typescript/promise-function-async
+  // oxlint-disable-next-line typescript/promise-function-async -- Web Crypto owns the Promise at this test boundary.
   () => crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"])
 ).pipe(
   Effect.flatMap((keyPair) => {
@@ -353,8 +348,7 @@ const makeTestPrivateJwk = Effect.promise(
     }
 
     return Effect.promise(
-      // Web Crypto owns the Promise at this test boundary.
-      // oxlint-disable-next-line typescript/promise-function-async
+      // oxlint-disable-next-line typescript/promise-function-async -- Web Crypto owns the Promise at this test boundary.
       () => crypto.subtle.exportKey("jwk", keyPair.privateKey)
     );
   }),
@@ -475,7 +469,6 @@ it.effect(
         expect(markdown).toBe(markdownDocument("https://ratstack.sh"));
         expect(markdown).toContain("an app and its cloud as one typed program");
         expect(markdown).toContain("## Four ideas");
-        // A human lands and connects an agent before reading anything else.
         expect(markdown.indexOf("## Connect an agent")).toBeLessThan(
           markdown.indexOf("## Four ideas")
         );
@@ -502,16 +495,12 @@ it.effect(
         expect(html).not.toContain("<strong>🐀 Rat Stack</strong>");
         expect(skillHtml).toContain("<strong>🐀 Rat Stack</strong>");
         expect(skillHtml.match(/<h1\b/gu)).toHaveLength(1);
-        // Diagrams stay plain; code gets Shiki with the Catppuccin Latte
-        // theme, inline styles only, no runtime CSS classes to resolve.
         expect(html).toContain("<pre><code>");
         expect(skillHtml).toContain('<pre class="shiki catppuccin-latte"');
         expect(skillHtml).not.toContain('<link rel="stylesheet"');
         expect(html).toContain("│  defineCapability");
         expect(html).not.toContain("<svg");
         expect(html).not.toContain("prefers-color-scheme");
-        // Light only: no page background. Code boxes carry the Catppuccin
-        // Latte box colour inline, which is allowed.
         expect(html).not.toMatch(/(?:html|body)\s*\{[^}]*background/u);
         expect(html).toContain(
           '<link rel="icon" href="/favicon.ico" sizes="48x48"'
@@ -521,7 +510,6 @@ it.effect(
         expect(html).toContain("max-width:80ch");
         expect(html).toContain("ui-monospace");
         expect(html).toMatch(/pre \{[^}]*overflow-x:auto;[^}]*\}/u);
-        // Phones shrink the 65-column diagrams rather than scroll them.
         expect(html).toMatch(/figure pre[^{]*\{[^}]*font-size:clamp\(/u);
         expect(html).toMatch(
           /table \{[^}]*display:block;[^}]*overflow-x:auto;[^}]*\}/u
@@ -552,8 +540,6 @@ it.effect(
         expect(skillHtml).toContain('<h1 id="learn-the-stack">');
         expect(skillHtml).toContain("Trace one action");
         expect(skillHtml).not.toContain("description:");
-        // llmwiki cross-references: real repo paths link to GitHub, served
-        // pages and skills link inside the site, placeholders stay plain.
         expect(skillHtml).toContain(
           '<a href="https://github.com/joelhooks/rat-stack/blob/main/packages/core/src/inspect-file.ts"><code>packages/core/src/inspect-file.ts</code></a>'
         );
@@ -572,8 +558,6 @@ it.effect(
         expect(skillHtml).not.toContain(
           'href="https://github.com/joelhooks/rat-stack/blob/main/node_modules'
         );
-        // Stack pieces are entities: first plain mention links out, once per
-        // page, never inside headings or code.
         expect(skillHtml).toContain(
           '<a href="https://effect.website">Effect</a>'
         );
@@ -654,8 +638,6 @@ it.effect(
           expect(icon.headers.get("content-type"), iconPath).toBe(contentType);
         }
 
-        // Every page has a preview image, served from the versioned edge
-        // cache, 1200x630 PNG (magic bytes, then IHDR width and height).
         for (const route of [
           "/",
           "/skills",
@@ -716,7 +698,6 @@ it.effect("sets security headers on every response", () =>
       expectSecurityHeaders(notFoundResponse, false);
       expect(notFoundResponse.status).toBe(404);
 
-      // The fail-closed rate limit is part of the public contract.
       const openapi: unknown = yield* Effect.promise(
         openapiResponse.json.bind(openapiResponse)
       );
@@ -736,8 +717,6 @@ it.effect("sets security headers on every response", () =>
 
       expect(Object.keys(executeResponses ?? {})).toContain("429");
 
-      // Images are meant to be embedded on other origins (preview cards,
-      // validators, chat clients), so they relax the resource policy only.
       const imageResponse = yield* Effect.promise(
         handler.bind(undefined, new Request("http://localhost/og/home.png"))
       );
@@ -752,7 +731,6 @@ it.effect("sets security headers on every response", () =>
         "same-origin"
       );
 
-      // HEAD maps onto the GET routes; a wildcard 404 used to swallow it.
       const headHome = yield* Effect.promise(
         handler.bind(
           undefined,
@@ -810,9 +788,6 @@ it.effect(
           )
         );
 
-        // Open Graph validators and unfurl services borrow a browser user
-        // agent and send Accept: */*. Named AI crawlers do the same but are
-        // agents, so they keep Markdown. Explicit text/markdown always wins.
         const request = (headers: Record<string, string>) =>
           Effect.promise(
             handler.bind(
@@ -1320,8 +1295,7 @@ it.effect("returns 429 after API_PER_IP denies a client IP", () => {
   return withHandler(
     (handler) =>
       Effect.gen(function* testApiPerIpLimit() {
-        // Fetch owns this Promise-returning test boundary.
-        // oxlint-disable-next-line typescript/promise-function-async
+        // oxlint-disable-next-line typescript/promise-function-async -- Fetch owns this Promise-returning test boundary.
         const request = () =>
           handler(
             new Request("http://localhost/api/search", {
@@ -1362,8 +1336,7 @@ it.effect("returns 429 before a second execute worker is created", () => {
   return withHandler(
     (handler) =>
       Effect.gen(function* testExecutePerIpLimit() {
-        // Fetch owns this Promise-returning test boundary.
-        // oxlint-disable-next-line typescript/promise-function-async
+        // oxlint-disable-next-line typescript/promise-function-async -- Fetch owns this Promise-returning test boundary.
         const request = () =>
           handler(
             new Request("http://localhost/api/execute", {

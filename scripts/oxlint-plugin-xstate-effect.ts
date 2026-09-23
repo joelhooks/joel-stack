@@ -1,23 +1,3 @@
-// Ported from statelyai/xstate scripts/oxlint-plugin-xstate-effect.mjs at
-// xstate@6.0.0-alpha.58 (commit 0748e1b, MIT) onto the typed @oxlint/plugins
-// API. Behaviour is unchanged; diff the logic against upstream on refresh.
-//
-// `no-inline-effect` flags an Effect created inside an inline enqueue callback
-// or passed inline to `enq.spawn(...)`. XState only awaits returned promises,
-// so an Effect returned from an inline action is created and discarded, and
-// inline Effect logic is invisible to `RequirementsFrom`. Declare Effect
-// actions with `setupEffect({ actions })` and spawned Effect logic with
-// `actors` instead.
-//
-// The enqueue object is matched by name (`enq` or `enqueue`), the two names
-// the v6 transition signature is written with upstream and in the docs. A
-// differently named parameter is not matched.
-//
-// Limitation: an Effect is recognized only by its root identifier `Effect`,
-// so `enq(() => Effect.log('x'))` is reported while an Effect produced by a
-// helper (`enq(() => makeEffect())`), by a namespace import under another
-// name, or by a `Stream`/`Layer` root is not. Widening this needs type
-// information, which this syntactic rule does not have.
 import { definePlugin, defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 
@@ -29,13 +9,9 @@ const EFFECT_LOGIC_CONSTRUCTORS = new Set([
   "fromEffectEventStream",
 ]);
 
-// ESTree.Function covers FunctionExpression and FunctionDeclaration.
 type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
 
-// The walker below reads every child of an ESTree node generically, so each
-// child arrives as `unknown`. Lint tooling has no schema layer; this structural
-// guard is the boundary check the anti-slop rule asks for.
-/* oxlint-disable anti-slop/no-runtime-typeof */
+/* oxlint-disable anti-slop/no-runtime-typeof -- The walker below reads every child of an ESTree node generically, so each child arrives as `unknown`. Lint tooling has no schema layer; this structural guard is the boundary check the anti-slop rule asks for. */
 const isNode = (value: unknown): value is ESTree.Node =>
   typeof value === "object" &&
   value !== null &&
@@ -116,9 +92,6 @@ const isPromiseResolve = (node: ESTree.CallExpression): boolean =>
   node.callee.property.type === "Identifier" &&
   node.callee.property.name === "resolve";
 
-// An `Effect.*` call, or `Promise.resolve(<Effect call>)`. Core observes a
-// returned promise for rejection only, so a promise-wrapped Effect is
-// discarded the same way a bare one is.
 const isEffectExpression = (node: ESTree.Node): boolean => {
   if (node.type !== "CallExpression") {
     return false;

@@ -3,8 +3,6 @@ import { ConfigProvider, Effect, Layer } from "effect";
 
 import { AppConfig } from "../src/index.js";
 
-// AppConfig.layer reads whatever ConfigProvider is in scope, so a test can
-// feed it a plain object instead of the process environment.
 const withProvider = (root: Parameters<typeof ConfigProvider.fromUnknown>[0]) =>
   Layer.provide(
     AppConfig.layer,

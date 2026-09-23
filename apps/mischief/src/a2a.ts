@@ -24,7 +24,6 @@ const A2aRequest = Schema.Struct({
   }),
 });
 
-/** Parses a JSON-RPC body into an A2A request at the HTTP boundary. */
 export const decodeA2aRequest = Schema.decodeUnknownEffect(A2aRequest);
 
 const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
@@ -32,13 +31,10 @@ const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
 ) {
   const searched = yield* search.handler({ limit: 3, query: question });
 
-  // Effect.forEach is the Effect combinator, not Array#forEach with a thisArg.
-  // oxlint-disable-next-line unicorn/no-array-method-this-argument
+  // oxlint-disable-next-line unicorn/no-array-method-this-argument -- Effect.forEach is the Effect combinator, not Array#forEach with a thisArg.
   const sources = yield* Effect.forEach(searched.matches, (match) =>
     read.handler({ id: match.id }).pipe(
       Effect.map((resource) => ({ match, resource })),
-      // Search returns ids from the same in-memory corpus, so a missing read is
-      // an internal invariant violation rather than an A2A client failure.
       Effect.orDie
     )
   );

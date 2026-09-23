@@ -1,6 +1,5 @@
 import { Schema } from "effect";
 
-/** The typed failure returned when a host has not approved a capability call. */
 export class ApprovalDenied extends Schema.TaggedError<ApprovalDenied>()(
   "ApprovalDenied",
   {

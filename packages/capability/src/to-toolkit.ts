@@ -1,14 +1,4 @@
-// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off
-// A projection over a heterogeneous list of capabilities erases each one's
-// error and requirement types at the boundary and recovers them for callers
-// through `ToolsOf` / `RequirementsOf`. The three diagnostics above cannot
-// distinguish that boundary from a leak, so they are off for this file only.
-// Projection: Capabilities -> effect/unstable/ai Toolkit (the MCP surface).
-//
-// Each capability becomes one Tool with the same name, schemas, and
-// annotations. The handlers layer captures the capabilities' requirements once
-// at layer build time, so the Toolkit's own handler requirements stay `never`
-// and `McpServer.toolkit(toolkit)` composes with the same layers the CLI uses.
+// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off -- A projection over a heterogeneous list of capabilities erases each one's error and requirement types at the boundary and recovers them for callers through `ToolsOf` / `RequirementsOf`. The three diagnostics above cannot distinguish that boundary from a leak, so they are off for this file only.
 import type { Layer } from "effect";
 import { Effect } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
@@ -59,7 +49,6 @@ export type RequirementsOf<Caps extends readonly AnyCapability[]> =
 
 export interface ToolkitProjection<Caps extends readonly AnyCapability[]> {
   readonly toolkit: Toolkit.Toolkit<ToolsOf<Caps>>;
-  /** Handlers for every tool; requires whatever the capabilities require. */
   readonly layer: Layer.Layer<
     Tool.HandlersFor<ToolsOf<Caps>>,
     never,
@@ -85,9 +74,7 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps
 ): ToolkitProjection<Caps> => {
   const made: unknown = Toolkit.make(...capabilities.map(toTool));
-  // SAFETY: `Toolkit.make` is variadic over a tuple of tools; the tuple type
-  // is recovered by `ToolsOf<Caps>`, which `map` over the runtime array
-  // cannot carry. One cast at this boundary keeps every caller fully typed.
+  // SAFETY: `Toolkit.make` is variadic over a tuple of tools; the tuple type is recovered by `ToolsOf<Caps>`, which `map` over the runtime array cannot carry. One cast at this boundary keeps every caller fully typed.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const toolkit = made as Toolkit.Toolkit<ToolsOf<Caps>>;
 
@@ -97,15 +84,12 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
 
       const handlers: Record<
         string,
-        // The toolkit decodes each tool's parameters before calling; this
-        // record erases them because a loop cannot name each capability.
-        // oxlint-disable-next-line anti-slop/no-unknown-parameters
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The toolkit decodes each tool's parameters before calling; this record erases them because a loop cannot name each capability.
         (parameters: unknown) => Effect.Effect<unknown, unknown>
       > = {};
 
       for (const capability of capabilities) {
-        // SAFETY: `Any` erased this capability's requirements to `unknown`;
-        // they are a subset of `RequirementsOf<Caps>`, which `context` carries.
+        // SAFETY: `Any` erased this capability's requirements to `unknown`; they are a subset of `RequirementsOf<Caps>`, which `context` carries.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         const run = capability.handler as (
           // oxlint-disable-next-line anti-slop/no-unknown-parameters
@@ -116,8 +100,7 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
           run(parameters).pipe(Effect.provideContext(context));
       }
 
-      // SAFETY: same boundary as the toolkit cast: the record is keyed by the
-      // capabilities' names, which is exactly `HandlersFrom<ToolsOf<Caps>>`.
+      // SAFETY: same boundary as the toolkit cast: the record is keyed by the capabilities' names, which is exactly `HandlersFrom<ToolsOf<Caps>>`.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
       return handlers as unknown as Toolkit.HandlersFrom<ToolsOf<Caps>>;
     })

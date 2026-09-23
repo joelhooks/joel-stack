@@ -1,13 +1,4 @@
-// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off
-// See to-toolkit.ts: a projection over a heterogeneous list erases error and
-// requirement types at the boundary and recovers them for callers.
-//
-// Projection: Capabilities -> two MCP tools, `search` and `execute`.
-//
-// Instead of one tool per capability, the model gets a catalog it can search
-// and a sandbox in which its own program calls `tools.<name>(input)`. Every
-// call still goes through the capability's schemas and handler, so the
-// sandbox adds a surface, not a bypass. After Cloudflare Code Mode and Kody.
+// @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off -- See to-toolkit.ts: a projection over a heterogeneous list erases error and requirement types at the boundary and recovers them for callers.
 import type { Layer } from "effect";
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
@@ -77,7 +68,6 @@ type NeedsApprovalOf<Caps extends readonly AnyCapability[]> =
 
 export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   readonly catalog: Catalog;
-  /** The `.d.ts` shown to the model and usable for editor tooling. */
   readonly declarations: string;
   readonly toolkit: Toolkit.Toolkit<{
     readonly search: typeof search;
@@ -101,11 +91,6 @@ export interface CodeModeProjection<Caps extends readonly AnyCapability[]> {
   >;
 }
 
-/**
- * Turns a capability tuple into one ordinary `execute` Capability. The caller
- * can project it beside its public capabilities through MCP and HTTP while the
- * default `toCodeMode` projection keeps its compact search/execute toolkit.
- */
 export const toExecuteCapability = <
   const Caps extends readonly [AnyCapability, ...AnyCapability[]],
 >(
@@ -119,8 +104,7 @@ export const toExecuteCapability = <
   );
 
   const hasApproval = capabilities.some((item) => item.needsApproval);
-  // SAFETY: Caps preserves the literal approval flag for the generated
-  // capability, and `some` over the same array computes exactly that flag.
+  // SAFETY: Caps preserves the literal approval flag for the generated capability, and `some` over the same array computes exactly that flag.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
 
@@ -148,9 +132,7 @@ export const toExecuteCapability = <
           );
         }
 
-        // SAFETY: `AnyCapability` erased this capability's requirements to
-        // `unknown`; they are a subset of `RequirementsOf<Caps>`, which
-        // `context` carries. The input is decoded by its schema first.
+        // SAFETY: `AnyCapability` erased this capability's requirements to `unknown`; they are a subset of `RequirementsOf<Caps>`, which `context` carries. The input is decoded by its schema first.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         const run = item.handler as (
           // oxlint-disable-next-line anti-slop/no-unknown-parameters
@@ -198,8 +180,7 @@ export const toExecuteCapability = <
 
       return {
         logs: run.logs,
-        // SAFETY: every Sandbox implementation must JSON-round-trip a
-        // successful result before crossing this boundary.
+        // SAFETY: every Sandbox implementation must JSON-round-trip a successful result before crossing this boundary.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         result: run.result as typeof ExecuteResult.Type.result,
       };

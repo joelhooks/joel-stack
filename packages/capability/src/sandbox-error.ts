@@ -1,6 +1,5 @@
 import { Schema } from "effect";
 
-/** Why a sandboxed program produced no result. */
 export class SandboxError extends Schema.TaggedError<SandboxError>()(
   "SandboxError",
   {

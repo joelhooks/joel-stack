@@ -1,9 +1,4 @@
-// @effect-diagnostics asyncFunction:off
-// The fetch shim below must be a Promise-returning function because that is
-// what `FetchHttpClient.Fetch` calls; everything around it is Effect.
-// An in-process MCP client over an in-memory HTTP handler, after Effect's own
-// McpServer tests: the server layer becomes a web handler, a fetch shim keeps
-// the session headers, and RpcClient speaks JSON-RPC to it.
+// @effect-diagnostics asyncFunction:off -- The fetch shim below must be a Promise-returning function because that is what `FetchHttpClient.Fetch` calls; everything around it is Effect.
 import { Effect, Layer, Logger, References } from "effect";
 import { constVoid } from "effect/Function";
 import { McpProtocol, McpSchema, McpServer } from "effect/unstable/ai";
@@ -66,9 +61,7 @@ export const makeMcpClient = Effect.fnUntraced(function* makeMcpClient<A, E>(
   };
 
   const fetch: typeof globalThis.fetch = Object.assign(fetchImpl, {
-    preconnect() {
-      /* not needed in-process */
-    },
+    preconnect: constVoid,
   });
 
   const clientLayer = RpcClient.layerProtocolHttp({

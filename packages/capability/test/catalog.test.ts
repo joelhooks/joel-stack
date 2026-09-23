@@ -43,7 +43,6 @@ describe("typeOf", () => {
     );
     expect(typeOf({ not: {} })).toBe("never");
     expect(typeOf({ $ref: "#/$defs/NotFoundEncoded" })).toBe("NotFoundEncoded");
-    // A fragment the printer cannot parse prints as unknown.
     expect(typeOf({ type: 7 })).toBe("unknown");
   });
 });

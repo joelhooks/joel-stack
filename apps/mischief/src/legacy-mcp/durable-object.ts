@@ -1,11 +1,3 @@
-// One Durable Object per legacy MCP session. The Worker names the object after
-// the session id it gave the client; the object runs Effect's stateful MCP
-// runtime for the pre-2026-07-28 protocols and keeps the session's
-// `initialize` request in storage so it can rebuild after eviction.
-//
-// This is a cartridge: when every client speaks 2026-07-28, delete this
-// directory, the `LegacyMcp` line in worker.ts, and the `legacyMcp` route
-// option. Nothing else changes.
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
@@ -24,8 +16,7 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
   Effect.gen(function* makeLegacyMcp() {
     const environment = yield* Cloudflare.WorkerEnvironment;
 
-    // SAFETY: the object shares its Worker's environment. The Worker declares
-    // this binding; the object only reads it. This is the one boundary cast.
+    // SAFETY: the object shares its Worker's environment. The Worker declares this binding; the object only reads it. This is the one boundary cast.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const bindings = environment as {
       readonly CODE_SANDBOX: WorkerLoaderBinding;
@@ -37,8 +28,6 @@ export default class LegacyMcp extends Cloudflare.DurableObject<LegacyMcp>()(
       layerWorkerLoader(bindings.CODE_SANDBOX, sandboxLimits)
     );
 
-    // Alchemy's two-phase object: this outer Effect binds resources once, and
-    // the Effect it returns builds each instance.
     // @effect-diagnostics-next-line returnEffectInGen:off -- Alchemy's DurableObject contract returns the per-instance Effect.
     return Effect.gen(function* makeInstance() {
       const session = yield* openLegacySession({

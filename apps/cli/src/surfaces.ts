@@ -1,10 +1,6 @@
-// The Node HTTP server is the one place where nothing in Effect wraps the
-// built-in: `NodeHttpServer.layer` takes a `node:http` server factory.
-// @effect-diagnostics-next-line nodeBuiltinImport:off
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- The Node HTTP server is the one place where nothing in Effect wraps the built-in: `NodeHttpServer.layer` takes a `node:http` server factory.
 import { createServer } from "node:http";
 
-// The REST and MCP surfaces, each a projection of the same capabilities.
-// Nothing here knows what the capabilities do; it only chooses transports.
 import { NodeHttpServer } from "@effect/platform-node";
 import {
   layerSubprocess,
@@ -26,7 +22,6 @@ export const tools = toToolkit(capabilities);
 
 export const codeMode = toCodeMode(capabilities);
 
-/** Routes: the API, its OpenAPI document, and a Scalar reference page. */
 export const routes = Layer.merge(
   HttpApiBuilder.layer(http.api, { openapiPath: "/openapi.json" }).pipe(
     Layer.provide(http.layer)
@@ -49,14 +44,6 @@ const stdio = McpServer.layerStdio({
   version: VERSION,
 });
 
-/**
- * MCP over stdio. Stdout is the protocol channel, so logs go to stderr; the
- * three protocol versions are the ones current clients negotiate.
- *
- * `tools` lists one tool per capability. `codeMode` lists `search` and
- * `execute` instead, and runs model programs in a subprocess sandbox that can
- * only reach the same capabilities.
- */
 const withStdio = <A, E, R>(server: Layer.Layer<A, E, R>) =>
   server.pipe(
     Layer.provide(stdio),

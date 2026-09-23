@@ -1,5 +1,4 @@
-// Build-only hashing uses Node's stable SHA-256 implementation.
-// @effect-diagnostics-next-line nodeBuiltinImport:off
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- Build-only hashing uses Node's stable SHA-256 implementation.
 import { createHash } from "node:crypto";
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
@@ -26,8 +25,6 @@ const originToken = "__RATSTACK_ORIGIN__";
 
 const repoUrl = "https://github.com/joelhooks/rat-stack";
 
-// Backtick spans that look like repository paths. Placeholders such as
-// `packages/core/src/<capability>.ts` fail the character class on purpose.
 const repoPathToken =
   /^(?:\.brain|\.pi|\.cursor|\.claude|apps|packages|scripts|skills|vendor)\/[\w./-]+$|^[\w.-]+\.(?:md|ts|js|json|yml|yaml|toml|schema)$/u;
 
@@ -58,8 +55,6 @@ const escapeHtml = (value: string) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 
-// Commit subjects land inside a Svelte template, where angle brackets and
-// braces are markup. Neutralise them before mdsvex sees the text.
 const svelteSafeText = (value: string) =>
   value
     .replaceAll("<", "&lt;")
@@ -112,7 +107,6 @@ interface DocumentProps {
   readonly title: string;
 }
 
-// Compiled bodies take no props; the document shell takes all of them.
 type ServerComponent = Component<Partial<DocumentProps>>;
 
 const digest = (text: string) =>
@@ -121,8 +115,6 @@ const digest = (text: string) =>
 const buildError = (stage: string, sourcePath: string, cause: unknown) =>
   new ContentBuildError({ cause, sourcePath, stage });
 
-// A compiled Svelte server component is a function. The predicate is the
-// schema's boundary check for a freshly imported module.
 const ServerComponentSchema = Schema.declare(
   (value): value is ServerComponent => Predicate.isFunction(value)
 );
@@ -131,13 +123,10 @@ const CompiledModule = Schema.Struct({ default: ServerComponentSchema });
 
 const decodeCompiledModule = Schema.decodeUnknownSync(CompiledModule);
 
-// mdsvex resolves to undefined when it has nothing to compile; the decode
-// turns that into a build error.
 const decodeMdsvexOutput = Schema.decodeUnknownSync(
   Schema.Struct({ code: Schema.String })
 );
 
-/** A hast property value, as rehype stores it. */
 type HastPropertyValue =
   | boolean
   | number
@@ -146,10 +135,6 @@ type HastPropertyValue =
   | undefined
   | readonly (string | number)[];
 
-/**
- * The hast fields these plugins read and write. Unified hands every rehype
- * plugin a hast tree, so this describes the tree rather than guessing at it.
- */
 interface HastNode {
   readonly type: string;
   readonly tagName?: string;
@@ -190,8 +175,6 @@ const stableHeadingIds: Plugin<[], HastNode> = () => {
 const childrenTagged = (node: HastNode, tagName: string) =>
   (node.children ?? []).filter((child) => child.tagName === tagName);
 
-// Each body cell learns its column header so the shell can stack a table into
-// label and value rows on narrow screens with `attr(data-label)`.
 const tableCellLabels: Plugin<[], HastNode> = () => {
   const visit = (node: HastNode): void => {
     if (node.tagName === "table") {
@@ -220,8 +203,6 @@ const tableCellLabels: Plugin<[], HastNode> = () => {
   return visit;
 };
 
-// Inline code spans that name a public page, a skill, or a real repository
-// path become links. Fenced blocks and existing links are left alone.
 const linkCodeSpans =
   (targets: ReadonlyMap<string, string>): Plugin<[], HastNode> =>
   () => {
@@ -255,10 +236,6 @@ const linkCodeSpans =
     };
   };
 
-// The stack pieces are wiki entities. The first plain-text mention of each
-// on a page links to the tool's home. Longer names come first so "Effect
-// diagnostics" wins over "Effect". Headings, code, and existing links are
-// left alone. Verified 2026-09-22: every URL answered 200.
 const stackEntities: readonly (readonly [pattern: string, href: string])[] = [
   ["Effect diagnostics", "https://github.com/Effect-TS/language-service"],
   ["Cloudflare Workers?", "https://developers.cloudflare.com/workers/"],
@@ -365,8 +342,6 @@ const linkStackEntities: Plugin<[], HastNode> = () => {
   };
 };
 
-// Markdown and Svelte-flavoured sources compile under their own name so
-// mdsvex picks the right extension; generated pages compile under the title.
 const compileName = (spec: SourceSpec) =>
   /\.(?:md|svx)$/u.test(spec.sourcePath) ? spec.sourcePath : spec.title;
 
@@ -514,8 +489,6 @@ const renderOgImage = (
     },
   });
 
-// The rat is the logo. Icons are the same Twemoji SVG at fixed sizes; the
-// touch icon gets a white square because iOS fills transparency with black.
 const renderRatPng = (ratSvg: string, size: number, background?: string) =>
   Effect.try({
     catch: (cause) => buildError("icon", "assets/emoji/1f400.svg", cause),
@@ -553,12 +526,9 @@ const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
 
     const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(executable)}`;
 
-    // A module without a component export fails the decode and lands in
-    // `catch` with the rest of the load failures.
     const loaded = yield* Effect.tryPromise({
       catch: (cause) => buildError("Svelte module load", sourcePath, cause),
-      // Node's module loader owns this Promise-returning boundary.
-      // oxlint-disable-next-line typescript/promise-function-async
+      // oxlint-disable-next-line typescript/promise-function-async -- Node's module loader owns this Promise-returning boundary.
       try: () => import(moduleUrl).then(decodeCompiledModule),
     });
 
@@ -575,8 +545,6 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
   ) {
     const transformed = yield* Effect.tryPromise({
       catch: (cause) => buildError("mdsvex compile", sourcePath, cause),
-      // mdsvex 0.12.8 declares a nested Promise even though JavaScript adopts
-      // it. Decoding the fulfilled value checks the real boundary instead.
       // @effect-diagnostics-next-line asyncFunction:off -- mdsvex owns this Promise boundary.
       try: async () =>
         await compileMdsvex(deriveHtmlMarkdown(source), {
@@ -592,8 +560,7 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
             linkCodeSpans(targets),
             linkStackEntities,
           ],
-          // SAFETY: remark-gfm is a unified remark plugin; mdsvex types its
-          // options with `Plugin` from the unified version it bundles.
+          // SAFETY: remark-gfm is a unified remark plugin; mdsvex types its options with `Plugin` from the unified version it bundles.
           remarkPlugins: [remarkGfm as Plugin],
         }).then(decodeMdsvexOutput),
     });
@@ -795,7 +762,6 @@ const program = Effect.gen(function* generateContent() {
     "apps/mischief/src/document.svelte"
   );
 
-  // The rat emoji is the logo: the favicon, the icons, and every preview card.
   const emojiSvg = (yield* readText("assets/emoji/1f400.svg"))
     .replaceAll(/<!--[\s\S]*?-->\s*/gu, "")
     .trim();
@@ -846,8 +812,6 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
-  // The change log is the wiki's log.md: every commit that touched a served
-  // file, newest first. A shallow clone simply yields fewer entries.
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
 
   const gitLog = yield* spawner
@@ -1044,9 +1008,6 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
-  // Cross-references. A span that names a served page or a skill links inside
-  // the site; a span that names a real repository path links to GitHub. Paths
-  // are checked on disk, so the build cannot mint a dead link.
   const servedRoutes = new Map<string, string>();
   const titles = new Map<string, string>();
 
@@ -1134,7 +1095,6 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
-  // Backlinks: which pages point at this one. Only in-site links count.
   const linkedFrom = new Map<string, Set<string>>();
 
   const recordLinks = (from: string, targets: ReadonlyMap<string, string>) => {
@@ -1157,7 +1117,6 @@ const program = Effect.gen(function* generateContent() {
     recordLinks(skill.routePath, skillTargets[index] ?? emptyTargets);
   }
 
-  // Per-page provenance: the last commit that touched the source file.
   const lastChange = (sourcePath: string) =>
     spawner
       .string(
@@ -1490,9 +1449,6 @@ ${groupedSkills}
     concurrency: "unbounded",
   });
 
-  // Compute the cache version from rendered bodies before wrapping them in the
-  // shell. The shell receives this version in its og:image URL, so including
-  // complete documents here would create a digest cycle.
   const contentVersion = digest(
     [
       homeMarkdownTemplate,

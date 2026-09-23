@@ -79,8 +79,6 @@ describe("subprocess Sandbox", () => {
     );
   });
 
-  // `it.effect` and `it.layer` run on the TestClock, where a timeout never
-  // fires on its own; the child process is real, so this one runs live.
   it.live("kills a runaway program with reason timeout", () =>
     Effect.gen(function* timesOut() {
       const sandbox = yield* Sandbox;
