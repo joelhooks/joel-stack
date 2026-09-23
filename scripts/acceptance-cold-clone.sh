@@ -208,17 +208,20 @@ server_pid=""
 step="MCP capability tool"
 mcp_output="$tmp/mcp.jsonl"
 mcp_error="$tmp/mcp.stderr"
-if ! printf '%s\n' \
+mcp_status=0
+if printf '%s\n' \
   '{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"acceptance","version":"0.0.0"},"protocolVersion":"2025-06-18"}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"id":2,"jsonrpc":"2.0","method":"tools/list","params":{}}' \
   | node apps/cli/dist/cli.js mcp >"$mcp_output" 2>"$mcp_error"; then
-  cat "$mcp_error" >&2 || true
-  fail "MCP stdio conversation failed"
+  :
+else
+  mcp_status=$?
 fi
 cat "$mcp_output"
 if ! grep -Fq 'acceptanceProbe' "$mcp_output"; then
-  fail "MCP tools/list did not include acceptanceProbe"
+  cat "$mcp_error" >&2 || true
+  fail "MCP tools/list did not include acceptanceProbe (exit ${mcp_status})"
 fi
 printf 'MCP: acceptanceProbe appears in tools/list\n'
 
