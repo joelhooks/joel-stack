@@ -1,0 +1,150 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "729f1e2c-7b95-4c95-9b9f-4d76724722bb",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "isRlsEnabled": false,
+      "name": "run_logs",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "capability",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recorded_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "outcome",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "failure_tag",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "person_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "recorded_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "run_logs_person_recent_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "run_logs_pkey",
+      "schema": "public",
+      "table": "run_logs",
+      "entityType": "pks"
+    },
+    {
+      "value": "\"outcome\" IN ('Succeeded', 'Failed')",
+      "name": "run_logs_outcome_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "run_logs"
+    },
+    {
+      "value": "(\"outcome\" = 'Succeeded' AND \"failure_tag\" IS NULL) OR (\"outcome\" = 'Failed' AND \"failure_tag\" IS NOT NULL)",
+      "name": "run_logs_failure_tag_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "run_logs"
+    }
+  ],
+  "renames": []
+}
