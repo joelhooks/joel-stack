@@ -10,6 +10,7 @@ export {
 
 export {
   ActorNotFound,
+  AtomNotFound,
   CallNotFound,
   InvokeResultSchema,
   PathNotFound,
@@ -28,6 +29,14 @@ export {
   type ActorEntry,
   type ActorLogSnapshot,
 } from "./actor-log.js";
+
+export {
+  AtomLog,
+  AtomSnapshotSchema,
+  TabSchema,
+  type AtomSnapshot,
+  type Tab,
+} from "./atom-log.js";
 
 export { devtools, devtoolsLayer, record } from "./devtools.js";
 
