@@ -1,0 +1,105 @@
+---
+title: "Effect + Alchemy peer patterns for rat-stack"
+type: resource
+status: active
+created_at: "2026-09-23"
+privacy: "public"
+---
+
+# Effect + Alchemy peer patterns for rat-stack
+
+Source review for the web client, Alchemy resources, database, Better Auth, Worker tests, and boundary enforcement. The candidate roster came from main at `ac9f103`; `.brain/resources/peers.svx` is not in this worktree, so I left it untouched and recorded the inspected commits here. See [the layer-startups decision](../projects/layer-startups.svx) for the choices these patterns should serve.
+
+## Pin reality
+
+At this lane's base, `1c2a738`, rat-stack manifests pin Effect `4.0.0-rc.117`, Alchemy `2.0.0-beta.79`, and XState `6.0.0-alpha.59`. The checked-in `AGENTS.md` and [Effect reference note](./effect-4-reference-projects.svx) still say Effect rc.116 and XState alpha.58; use the package manifests as the source of truth until those docs are updated.
+
+Of the inspected repo snapshots, only `alchemy-run/alchemy` at `9802260db8f8b5a083c4b85eb7ea31ae1ff8f176` matches both current Effect and Alchemy lines: its package is beta.79 and its workspace requires Effect rc.117. Maple is one Effect RC behind at rc.116 / Alchemy beta.79; T3Code is rc.115 / beta.79. OpenSEO is Effect beta.93 / Alchemy beta.61, SolStatus beta.107 / beta.72, Smithers rc.115 / beta.76, Pivot beta.103 / beta.65, and Elianiva beta.101 / beta.64. The roster finds repos sharing prerelease lines, not necessarily exact pins; treat useful older source as evidence about shapes, not drop-in code.
+
+## Patterns
+
+### Browser RPC behind a private Worker binding — adopt
+
+**Source:** [Alchemy example README](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/README.md), [RPC schema](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/src/backend/rpc.ts), [browser client](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/src/rpc-client.ts), [proxy route](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/src/routes/rpc.ts), [Stack](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/alchemy.run.ts).
+
+One `RpcGroup` declares the wire contract; the backend serves it and `AtomRpc.Service` turns it into module-scope query and mutation atoms for React. The browser calls a same-origin TanStack `/rpc` route, which forwards to a private `BACKEND` service binding; the backend has no public Workers URL.
+
+**Verdict — adopt for the web bin.** **Cartridge:** keep capability schemas in `packages/core`, the `toRpc` projection in `packages/capability`, and UI atoms in the web app. **Fence:** one schema-derived contract carries payloads and typed failures across the wire, while the binding keeps the backend private. **One paved path:** all browser operations go through `toRpc` and the same `/rpc` transport, not a second hand-written route/API surface.
+
+### PlanetScale resources and migrations — adapt
+
+**Source:** [T3Code relay database](https://github.com/pingdotgg/t3code/blob/f5ef0ddb90a8c36584e181b1913e7b8a5df30ffc/infra/relay/src/db.ts) at `f5ef0ddb90a8c36584e181b1913e7b8a5df30ffc` (Effect rc.115, Alchemy beta.79).
+
+T3Code makes `Drizzle.Schema` the migration source, then provisions a PlanetScale database or stage branch, a runtime role, and a Hyperdrive connection from that role's origin. Production retains the shared database; non-production stages use branches. This is the closest inspected resource graph to rat-stack's planned PlanetScale Postgres Layer.
+
+**Verdict — adapt for the database cartridge.** **Cartridge:** the vendor Layer should own its schema, migration path, role, and Hyperdrive binding. **Fence:** use Alchemy Outputs and typed bindings instead of manually wiring connection strings; keep provider-specific Drizzle details behind the database service tag. **One paved path:** choose D1 or PlanetScale once with `Layer.provide`; do not bring T3Code's stage-mode branch into domain code.
+
+### Effect-native Drizzle and local Postgres tests — adapt
+
+**Source:** Maple's [`packages/db/src/client.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/packages/db/src/client.ts), [`pglite.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/packages/db/src/pglite.ts), and [`migrate.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/packages/db/src/migrate.ts) at `e7bc2d97bea87c99c8b9b33f377956e923d04373` (Effect rc.116, Alchemy beta.79).
+
+Maple builds Drizzle over `@effect/sql-pg`, opens the client inside an Effect `Scope`, and uses PGlite plus the same bundled migrations for local and test paths. Its exported `MapleDb` remains Postgres-specific, so this is a driver implementation and test technique, not a provider-neutral database cartridge.
+
+**Verdict — adapt for the database cartridge.** **Cartridge:** keep the public repository-shaped database service small and let each vendor Layer implement it. **Fence:** scope clients to one invocation and use a real embedded database for migrations and query tests; don't let Drizzle's driver type become the cross-provider API. **One paved path:** share the migration fixtures and service contract, while D1 and Postgres keep their own schemas and implementations as Joel decided.
+
+### Better Auth's database seam — adopt
+
+**Source:** Alchemy's [`Database.ts`](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/packages/better-auth/src/Database.ts), [`CloudflareD1.ts`](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/packages/better-auth/src/CloudflareD1.ts), [`CloudflareHyperdrive.ts`](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/packages/better-auth/src/CloudflareHyperdrive.ts), [`BetterAuth.ts`](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/packages/better-auth/src/BetterAuth.ts), and [example Worker](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-better-auth/src/worker.ts).
+
+`@alchemy.run/better-auth@2.0.0-beta.79` makes `Database` a service supplied by provider-specific Layers, and `BetterAuth` consumes that service. D1 uses a runtime Worker binding and a separate deploy-time migration connection; Hyperdrive accepts the origin URL for migrations because its runtime connection is minted per invocation, and the integration scopes auth/database work to that execution.
+
+**Verdict — adopt the official integration for the Better Auth lane.** **Cartridge:** it is already a separately published Alchemy package with provider subpaths, not a rat-stack-owned adapter to fork. **Fence:** its API and migration failures are typed, database clients are scoped, and the caller supplies one database Layer. **One paved path:** use one `BetterAuth` service and provide the database cartridge's selected Layer; do not add runtime D1/Postgres switching to auth code.
+
+### Runtime database-provider switching — reject
+
+**Source:** OpenSEO's [`auth.ts`](https://github.com/every-app/open-seo/blob/0ffff93101043aad7600a3b6a499a0cd2887ef49/src/lib/auth.ts), [`provider.ts`](https://github.com/every-app/open-seo/blob/0ffff93101043aad7600a3b6a499a0cd2887ef49/src/db/provider.ts), [`pg/client.ts`](https://github.com/every-app/open-seo/blob/0ffff93101043aad7600a3b6a499a0cd2887ef49/src/db/pg/client.ts), and [`alchemy.run.ts`](https://github.com/every-app/open-seo/blob/0ffff93101043aad7600a3b6a499a0cd2887ef49/alchemy.run.ts) at `0ffff93101043aad7600a3b6a499a0cd2887ef49` (Effect beta.93, Alchemy beta.61).
+
+OpenSEO constructs Better Auth directly and selects either a D1 Drizzle adapter or a Postgres adapter by reading `DATABASE_PROVIDER` at runtime. Its Postgres client is created inside an `AsyncLocalStorage` request scope and reaches the database through Hyperdrive, but the auth and schema code still branch on provider.
+
+**Verdict — reject the selector; retain the request-scope invariant.** **Cartridge:** the branch ties auth to both database implementations instead of letting either database Layer plug into one contract. **Fence:** an environment string chooses the driver at runtime, outside the `Schema`/Layer boundary. **One paved path:** keep the useful per-request Hyperdrive lifetime, but move provider choice to one `Layer.provide` at composition.
+
+### Fast Worker and Durable Object tests — adopt
+
+**Source:** Maple's [`worker-bridge.test.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/apps/api/src/worker-bridge.test.ts), [`ChatSessionObject.test.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/apps/ai/src/chat/ChatSessionObject.test.ts), and [`fake-do-state.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/apps/ai/test/chat/fake-do-state.ts), same Maple commit as above.
+
+The bridge test invokes Alchemy's `Cloudflare.Workers.makeRequestHandler` and checks the request scope, Worker environment, and response. Durable Object tests give the class a narrow fake state backed by real `node:sqlite`, including SQL storage, alarms, and `waitUntil`; they exercise object behavior without pretending to be a full `workerd` runtime.
+
+**Verdict — adopt for fast tests, not as the only runtime test.** **Cartridge:** keep fixtures beside the Worker or database cartridge that owns them. **Fence:** real SQL catches query/storage drift, and the narrow fake fails when tests ask for an unsupported state operation. **One paved path:** use the Alchemy bridge for deterministic Worker tests, then keep a separate integration test for real service bindings and deployed behavior.
+
+### D1 fixture backed by SQLite — adapt
+
+**Source:** Smithers' [`worker/test/d1.ts`](https://github.com/smithersai/smithers/blob/38846c64dd322d61e67efafadac1fbd9d34df64f/packages/smithers/build/infra/worker/test/d1.ts) and [`action-cache.test.ts`](https://github.com/smithersai/smithers/blob/38846c64dd322d61e67efafadac1fbd9d34df64f/packages/smithers/build/infra/worker/test/action-cache.test.ts) at `38846c64dd322d61e67efafadac1fbd9d34df64f` (Effect rc.115, Alchemy beta.76).
+
+The test adapter runs shipped SQL migrations against `node:sqlite`, implements only the D1 calls the code uses, and throws on every unsupported method. That makes it a useful D1 unit-test boundary, but it does not prove Cloudflare's D1 binding or runtime behavior.
+
+**Verdict — adapt for D1 cartridge tests.** **Cartridge:** expose a test-layer/helper from the D1 package, not a repo-wide mock database. **Fence:** unsupported calls fail loudly instead of silently faking D1. **One paved path:** use this for local SQL behavior and the Alchemy integration gate for binding behavior.
+
+### Deployed Alchemy integration tests — adopt as a separate gate
+
+**Source:** Alchemy's [`test/integ.test.ts`](https://github.com/alchemy-run/alchemy/blob/9802260db8f8b5a083c4b85eb7ea31ae1ff8f176/examples/cloudflare-tanstack-rpc-drizzle/test/integ.test.ts) at `9802260db8f8b5a083c4b85eb7ea31ae1ff8f176`.
+
+The example's `alchemy/Test/Bun` harness deploys the Stack before tests, retries readiness, sends CRUD calls through the `/rpc` proxy into the database, verifies a tagged failure crosses the wire, and destroys the Stack afterward. This is the closest inspected example of the real-resource integration path called for in `VISION.md`, but its Bun runner is not a fit for rat-stack's pnpm test stack.
+
+**Verdict — adapt as a credentialed integration gate, not every unit test.** **Cartridge:** the integration suite belongs to the Stack and can be removed with it. **Fence:** it proves the full binding, wire, and database path rather than a local paraphrase. **One paved path:** keep fast tests uncredentialed and port the deploy/test/destroy lifecycle into a pnpm-compatible harness; do not import `alchemy/Test/Bun`.
+
+### Boundary tests and agent guidance — adapt
+
+**Source:** Maple's [`vendor-isolation.test.ts`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/packages/chat-platform/src/vendor-isolation.test.ts) and [`CLAUDE.md`](https://github.com/MapleTechLabs/maple/blob/e7bc2d97bea87c99c8b9b33f377956e923d04373/CLAUDE.md), same Maple commit.
+
+The test scans explicitly named generic roots and files to keep chat-vendor names inside connector directories, and checks that guarded roots are non-empty and guarded files still exist. The guidance makes app, product-package, and vendor-neutral-library ownership explicit; it also says services capture implementation dependencies and keep request context invocation-scoped.
+
+**Verdict — adapt the proof, not the lexical rule.** **Cartridge:** package ownership and adapter isolation are concrete boundaries worth testing. **Fence:** move rat-stack's capability-only surface rule from prose into a test or type-aware lint rule, and include a check that the guard cannot go vacuous. **One paved path:** extend the current capability fence rather than introduce a second generic source-scanning framework; Maple's vendor-name scanner is product-specific.
+
+## Screened, not adopted
+
+`jonbeckman/solstatus` at `83b3e2f4400aa7a2f2f4b738334e0cf91dbf15f5` has Alchemy `Cloudflare.Website.Vite`, D1, and direct Better Auth, but pins Effect beta.107 / Alchemy beta.72; its runtime is too old to copy. `elianiva/elianiva.com` at `5799fcb6b5ddc48e1df0223f23a9a15da8d097ae` also has a Website.Vite Stack, but uses Effect beta.101 / Alchemy beta.64 and adds no stronger pattern than the current Alchemy example. `13kparkin/Pivot` at `1887824d1f96ea6b601fffbc283b836967d32a5c` shows PlanetScale/Hyperdrive but uses Effect beta.103 / Alchemy beta.65; T3Code's newer PlanetScale graph supersedes it for this decision.
+
+Symbol-screened without a relevant client/resource pattern: `Dhravya/radish`, `zonko-ai/harbor-sdk`, `dmmulroy/overseer`, `instructa/planr`, and `statelyai/agent`. `cameronapak/dotflowy` has Better Auth but no Alchemy integration and uses Effect rc.115 / XState alpha.12, so it is not a useful match for this lane. The earlier Effect reference note already covers the XState bridge; this note does not repeat it.
+
+## Recommendations by lane
+
+1. **TanStack web bin:** generate the browser client from capability Schemas as one `RpcGroup`, create module-scope `AtomRpc` atoms, and forward same-origin `/rpc` to a private `RpcWorker` binding.
+2. **Better Auth:** use `@alchemy.run/better-auth@2.0.0-beta.79`; provide the database cartridge's Layer and keep auth API/migration failures typed.
+3. **Database cartridge:** expose one repository-shaped service tag; let D1 and PlanetScale/Hyperdrive Layers own schemas, migrations, and bindings; choose with one `Layer.provide`.
+4. **Worker tests:** add `makeRequestHandler` and SQLite-backed DO/D1 fixtures for fast tests, plus one credentialed Alchemy deploy/test/destroy gate using a pnpm-compatible harness.
+5. **Capability fence:** test or lint that every surface, including `toRpc`, originates from the capability registry; make the test prove its guarded paths exist and contain files.
