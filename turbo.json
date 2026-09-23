@@ -32,6 +32,10 @@
     "@rat-stack/mischief#build": {
       "dependsOn": ["@rat-stack/mischief#generate", "^build"],
       "outputs": ["dist/**"]
+    },
+    "@rat-stack/web#typecheck": {
+      "dependsOn": ["^build", "^typecheck"],
+      "outputs": []
     }
   }
 }
