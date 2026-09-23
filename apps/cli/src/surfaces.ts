@@ -10,7 +10,7 @@ import {
   toToolkit,
 } from "@rat-stack/capability";
 import { capabilities } from "@rat-stack/core";
-import { CallLog, devtools } from "@rat-stack/devtools";
+import { devtools, devtoolsLayer } from "@rat-stack/devtools";
 import { Effect, Layer, Logger } from "effect";
 import { McpProtocol, McpServer } from "effect/unstable/ai";
 import { HttpRouter } from "effect/unstable/http";
@@ -99,7 +99,7 @@ export const devtoolsRoutes = withDevtools(
 
 export const devtoolsWebServer = (port: number) =>
   HttpRouter.serve(devtoolsRoutes).pipe(
-    Layer.provide(CallLog.layer()),
+    Layer.provide(devtoolsLayer()),
     Layer.provide(
       NodeHttpServer.layer(() => createServer(), { host: DEVTOOLS_HOST, port })
     )
@@ -114,7 +114,7 @@ export const mcpServer = {
   ),
   devtools: withStdio(
     withDevtools(({ capabilities: all }) => toolkitServer(all))
-  ).pipe(Layer.provide(CallLog.layer())),
+  ).pipe(Layer.provide(devtoolsLayer())),
   devtoolsCodeMode: withStdio(
     withDevtools(({ capabilities: all }) => {
       const projected = toCodeMode(all);
@@ -124,7 +124,7 @@ export const mcpServer = {
         Layer.provide(layerSubprocess())
       );
     })
-  ).pipe(Layer.provide(CallLog.layer())),
+  ).pipe(Layer.provide(devtoolsLayer())),
   tools: withStdio(
     McpServer.toolkit(tools.toolkit).pipe(Layer.provideMerge(tools.layer))
   ),
