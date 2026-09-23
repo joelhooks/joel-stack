@@ -158,11 +158,25 @@ describe("architecture boundary rules", () => {
     }
   );
 
+  it("resolves renamed workspace scopes for browser-safe contracts", () => {
+    const result = lintFixture(
+      "apps/cli/src/client",
+      'import * as contracts from "@sample/core/contracts";\nimport { toRpcGroup } from "@sample/capability/rpc-group";\n\nexport const browserContract = { contracts, toRpcGroup };\n'
+    );
+
+    expect(result.status).toBe(0);
+  });
+
   it.each([
     ["the core implementation barrel", "@rat-stack/core"],
+    ["a renamed core implementation barrel", "@sample/core"],
     [
       "the capability implementation entry point",
       "@rat-stack/capability/implement",
+    ],
+    [
+      "a renamed capability implementation entry point",
+      "@sample/capability/implement",
     ],
     [
       "an application capability handler",

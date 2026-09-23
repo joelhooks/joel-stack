@@ -20,9 +20,9 @@ const clientFactories = new Set([
   "makeRpcClient",
 ]);
 
-const browserContractImports = new Set([
-  "@rat-stack/capability/rpc-group",
-  "@rat-stack/core/contracts",
+const browserContractModules = new Set([
+  "packages/capability/rpc-group",
+  "packages/core/contracts",
 ]);
 
 const workspacePath = (filename: string) => {
@@ -85,8 +85,9 @@ const normalizeWorkspacePath = (
     return workspacePath(specifier);
   }
 
-  const workspacePackage =
-    /^@rat-stack\/(?<name>[^/]+)(?:\/(?<suffix>.*))?$/u.exec(specifier);
+  const workspacePackage = /^@[^/]+\/(?<name>[^/]+)(?:\/(?<suffix>.*))?$/u.exec(
+    specifier
+  );
 
   if (workspacePackage === null) {
     return null;
@@ -143,11 +144,15 @@ const importModule = (
 };
 
 const browserCapabilityModule = (filename: string, specifier: string) => {
-  if (browserContractImports.has(specifier)) {
+  const target = normalizeWorkspacePath(filename, specifier);
+
+  if (
+    specifier.startsWith("@") &&
+    target !== null &&
+    browserContractModules.has(target)
+  ) {
     return false;
   }
-
-  const target = normalizeWorkspacePath(filename, specifier);
 
   return (
     target !== null &&
