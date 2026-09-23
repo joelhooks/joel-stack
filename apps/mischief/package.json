@@ -14,11 +14,11 @@
   "dependencies": {
     "@rat-stack/capability": "workspace:*",
     "alchemy": "2.0.0-beta.79",
-    "effect": "4.0.0-rc.116"
+    "effect": "4.0.0-rc.117"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-rc.116",
-    "@effect/vitest": "4.0.0-rc.116",
+    "@effect/platform-node": "4.0.0-rc.117",
+    "@effect/vitest": "4.0.0-rc.117",
     "@resvg/resvg-js": "2.6.2",
     "@types/node": "24.13.6",
     "mdsvex": "0.12.8",
