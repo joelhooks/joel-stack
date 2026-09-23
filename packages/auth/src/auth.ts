@@ -20,6 +20,10 @@ export interface AuthLayerOptions {
   readonly secret?: BetterAuthProps["secret"];
 }
 
+export interface MemoryLayerOptions {
+  readonly baseURL?: string;
+}
+
 // @effect-diagnostics-next-line leakingRequirements:off -- Better Auth methods intentionally retain the per-request RuntimeContext requirement.
 export class Auth extends Context.Service<Auth, AuthInstance>()(
   "@rat-stack/auth/Auth"
@@ -58,10 +62,15 @@ export class Auth extends Context.Service<Auth, AuthInstance>()(
     );
   }
 
-  static memoryLayer(secret: string) {
+  static memoryLayer(secret: string, options: MemoryLayerOptions = {}) {
+    const configured =
+      options.baseURL === undefined
+        ? { ...authOptions, secret }
+        : { ...authOptions, baseURL: options.baseURL, secret };
+
     return Layer.effect(
       Auth,
-      BetterAuth({ ...authOptions, secret }).pipe(Effect.provide(Memory()))
+      BetterAuth(configured).pipe(Effect.provide(Memory()))
     );
   }
 }
