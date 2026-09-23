@@ -1,0 +1,114 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "f7737ae2-cd0b-4504-bf9e-a80b383ca461",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
+  "ddl": [
+    {
+      "name": "run_logs",
+      "entityType": "tables"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "person_id",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "capability",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "recorded_at",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "outcome",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure_tag",
+      "entityType": "columns",
+      "table": "run_logs"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "run_logs_pk",
+      "table": "run_logs",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "person_id",
+          "isExpression": false
+        },
+        {
+          "value": "recorded_at",
+          "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "run_logs_person_recent_idx",
+      "entityType": "indexes",
+      "table": "run_logs"
+    },
+    {
+      "value": "\"outcome\" IN ('Succeeded', 'Failed')",
+      "name": "run_logs_outcome_check",
+      "entityType": "checks",
+      "table": "run_logs"
+    },
+    {
+      "value": "(\"outcome\" = 'Succeeded' AND \"failure_tag\" IS NULL) OR (\"outcome\" = 'Failed' AND \"failure_tag\" IS NOT NULL)",
+      "name": "run_logs_failure_tag_check",
+      "entityType": "checks",
+      "table": "run_logs"
+    }
+  ],
+  "renames": []
+}
