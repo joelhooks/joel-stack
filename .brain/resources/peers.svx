@@ -1,0 +1,22 @@
+# Peers
+
+Public repos that pin at least two of the same prerelease lines as rat-stack. Found by `pnpm find-peers` (the `find-peers` skill). A repo stays on this list once seen; the Studied column links to what we learned from it.
+
+Lines on 2026-09-23: `effect@4.0.0-rc`, `alchemy@2.0.0-beta`, `xstate@6.0.0-alpha`, `@xstate/effect@0.1.0-alpha`.
+
+| Repo | First seen | Shared | Studied |
+| --- | --- | --- | --- |
+| [pingdotgg/t3code](https://github.com/pingdotgg/t3code) | 2026-09-23 | effect, alchemy | [effect-4-reference-projects](effect-4-reference-projects.svx) |
+| [MapleTechLabs/maple](https://github.com/MapleTechLabs/maple) | 2026-09-23 | effect, alchemy | |
+| [alchemy-run/alchemy](https://github.com/alchemy-run/alchemy) | 2026-09-23 | effect, alchemy | vendored in `.agent_sources` |
+| [Dhravya/radish](https://github.com/Dhravya/radish) | 2026-09-23 | effect, alchemy | |
+| [smithersai/smithers](https://github.com/smithersai/smithers) | 2026-09-23 | effect, alchemy | |
+| [dmmulroy/overseer](https://github.com/dmmulroy/overseer) | 2026-09-23 | effect, alchemy | |
+| [plannotator/artifact-server](https://github.com/plannotator/artifact-server) | 2026-09-23 | effect, alchemy | |
+| [Heilonng23/openheard](https://github.com/Heilonng23/openheard) | 2026-09-23 | effect, alchemy | |
+| [danieljvdm/effect-agent](https://github.com/danieljvdm/effect-agent) | 2026-09-23 | effect, alchemy | |
+| [danieljvdm/effect-cf](https://github.com/danieljvdm/effect-cf) | 2026-09-23 | effect, alchemy | |
+| [cameronapak/dotflowy](https://github.com/cameronapak/dotflowy) | 2026-09-23 | effect, xstate | |
+| [851-labs/tokenmaxxing](https://github.com/851-labs/tokenmaxxing) | 2026-09-23 | effect, alchemy | |
+| [irfndi/prism-liquidity-agent](https://github.com/irfndi/prism-liquidity-agent) | 2026-09-23 | effect, alchemy | |
+| [yehudacohen/typekro](https://github.com/yehudacohen/typekro) | 2026-09-23 | effect, alchemy | |

@@ -37,27 +37,9 @@ For each line that is behind:
 
 Commit each line separately, so a regression bisects to one library.
 
-## 3. Learn from repos on the same versions
+## 3. Learn from peers
 
-Some public repos run the same prereleases. They hit the breaking changes first and show idioms the docs do not have yet.
-
-Find them with Sourcegraph. The stream API needs a browser user agent:
-
-```sh
-q='patterntype:regexp file:package.json "alchemy":\s*"[\^~]?2\.0\.0-beta count:1000'
-curl -s -A 'Mozilla/5.0' -H 'Accept: text/event-stream' \
-  "https://sourcegraph.com/.api/search/stream?display=500&q=$(node -p 'encodeURIComponent(process.argv[1])' "$q")"
-```
-
-Run it once per line: `"effect":\s*"[\^~]?4\.0\.0-(beta|rc)`, `"xstate":\s*"[\^~]?6\.0\.0-alpha`, and `"@xstate/effect"`. The repos that appear in more than one result are the closest to us. `gh search code` misses most of these, because it splits on the hyphens in version strings.
-
-For each candidate:
-
-1. Ask DeepWiki (the `deepwiki` MCP server) a narrow question, such as "How does this repo bind a Durable Object to an Alchemy Worker?" Treat the answer as a pointer to files, not as fact.
-2. Read those files in the repo's source at the commit that uses our version. Adopt a pattern only after reading the code, and only if it is simpler than ours or fixes something we get wrong.
-3. Record what you adopted, and what you rejected with the reason, in `.brain/`. Link the repo and commit.
-
-Do not copy a pattern because a popular repo uses it. Stars show attention, not correctness.
+Run the `find-peers` skill after each bump. It finds public repos on the same prerelease lines, keeps the roster in `.brain/resources/peers.svx`, and says how to study the new ones.
 
 ## 4. Garden
 
@@ -78,7 +60,7 @@ End with a short report:
 
 - each pin moved, from and to;
 - upstream changes that affected us;
-- repos studied, and what was adopted or rejected;
+- peers studied, and what was adopted or rejected;
 - lint rules added, and the findings each one removed;
 - anything left undone.
 
