@@ -127,7 +127,7 @@ const indexPath = "packages/core/src/index.ts";
 const index = await readFile(indexPath, "utf8");
 const exported = index.replace(
   'export { capabilities, inspectFile } from "./inspect-file.js";',
-  'export { acceptanceProbe } from "./acceptance-probe.js";\nexport { capabilities, inspectFile } from "./inspect-file.js";'
+  'export { acceptanceProbe } from "./acceptance-probe.js";\n\nexport { capabilities, inspectFile } from "./inspect-file.js";'
 );
 if (exported === index) {
   throw new Error("add-a-capability export text did not match core/index.ts");
@@ -138,6 +138,11 @@ then
   fail "add-a-capability instructions did not match the scaffold"
 fi
 printf 'registered acceptanceProbe in packages/core/src/inspect-file.ts\n'
+
+step="format acceptance probe"
+if ! pnpm fix; then
+  fail "pnpm fix failed after adding the throwaway capability"
+fi
 
 step="full gate"
 if ! pnpm turbo run check test build; then
