@@ -2,6 +2,8 @@
 
 Source study of high-quality Effect v4 codebases, used to pressure-test the rat-stack floor. Clones inspected locally under `~/.repo-autopsy/`; versions read from each repo's lockfile or catalog on the day of study.
 
+For the browser client, Alchemy resources, database, auth, and Worker tests, see [Effect + Alchemy peer patterns](./same-version-repos.svx).
+
 ## Projects
 
 | Repo | Stars | Effect | Runtime | Why it matters to us |
