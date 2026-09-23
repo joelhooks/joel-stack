@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./capabilities": {
+      "types": "./src/capabilities/index.ts",
+      "import": "./src/capabilities/index.ts",
+      "default": "./src/capabilities/index.ts"
+    },
     "./rpc-worker": {
       "types": "./src/rpc-worker.ts",
       "import": "./src/rpc-worker.ts",
