@@ -15,9 +15,9 @@ Refs below are derived from the workspace `package.json` pins by `scripts/vendor
 
 | Path | Upstream | Ref | Why |
 | --- | --- | --- | --- |
-| `github.com/Effect-TS/effect` | https://github.com/Effect-TS/effect.git | `effect@4.0.0-rc.116` | Effect v4 Schema, Context.Service, Config, platform-node, CLI, `@effect/vitest` |
+| `github.com/Effect-TS/effect` | https://github.com/Effect-TS/effect.git | `effect@4.0.0-rc.117` | Effect v4 Schema, Context.Service, Config, platform-node, CLI, `@effect/vitest` |
 | `github.com/kitlangton/effect-solutions` | https://github.com/kitlangton/effect-solutions.git | `main` | Idiomatic Effect patterns (Kit) |
-| `github.com/statelyai/xstate` | https://github.com/statelyai/xstate.git | `xstate@6.0.0-alpha.58` | XState v6 core plus `packages/xstate-effect` (the `@xstate/effect` bridge and its docs) |
+| `github.com/statelyai/xstate` | https://github.com/statelyai/xstate.git | `xstate@6.0.0-alpha.59` | XState v6 core plus `packages/xstate-effect` (the `@xstate/effect` bridge and its docs) |
 | `github.com/alchemy-run/alchemy` | https://github.com/alchemy-run/alchemy.git | `v2.0.0-beta.79` | Alchemy resources, Cloudflare and AWS providers, Effect-native Stack API |
 
 **Not vendored here:** product-specific corpora (for example `xai-org/x-algorithm`). Add those in the consuming app's vendor script.

@@ -16,13 +16,13 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-rc.116",
+    "@effect/platform-node": "4.0.0-rc.117",
     "@rat-stack/capability": "workspace:*",
     "@rat-stack/core": "workspace:*",
-    "effect": "4.0.0-rc.116"
+    "effect": "4.0.0-rc.117"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.116",
+    "@effect/vitest": "4.0.0-rc.117",
     "@types/node": "24.13.6",
     "typescript": "7.0.2",
     "vitest": "5.0.1"
