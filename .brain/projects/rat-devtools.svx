@@ -149,3 +149,15 @@ Built on `worker/foldkit-explore`, base `8dffe1f`:
 
 Gotcha found on the way: `Schema.Struct({})` as a contract input projects to the JSON Schema `{"not":{"type":"null"}}`, which MCP rejects because a tool's `inputSchema` must have `"type": "object"`. Every devtools tool has at least one optional field, and a test asserts the object schema. The same trap applies to any future contract; it belongs in a projection test or a lint rule.
 
+## Slice 2 status
+
+The five lint rules from the translation table landed on the same branch, each with real-oxlint fixture tests (`packages/core/test/patterns-rule.test.ts` and new cases in `boundaries-rule.test.ts`). Breaking a rule on purpose fails its test.
+
+- `rat-stack-boundaries/no-hand-rolled-surface`
+- `rat-stack-boundaries/no-browser-globals-on-server`
+- `rat-stack-patterns/contract-binding-matches-name`
+- `rat-stack-patterns/no-module-level-mutable-state` (skips `.svelte`, where `let` in `<script>` is per-instance)
+- `rat-stack-patterns/acquire-release-constructs-in-acquire-body`
+
+All five start at zero findings. The only renames were code mode's `contract` to `executeContract` and the devtools contracts to `ratListCalls` and friends.
+

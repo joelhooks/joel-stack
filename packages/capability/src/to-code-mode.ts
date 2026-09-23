@@ -177,7 +177,7 @@ export const toExecuteCapability = <
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const needsApproval = hasApproval as NeedsApprovalOf<Caps>;
 
-  const contract = defineContract("execute", {
+  const executeContract = defineContract("execute", {
     annotations: {
       destructive: capabilities.some(
         (item) => item.contract.annotations.destructive
@@ -197,7 +197,7 @@ export const toExecuteCapability = <
   });
 
   const capability = implement(
-    contract,
+    executeContract,
     Effect.fn("CodeMode.execute")(function* execute({ code }) {
       const invoke = yield* invokerFor(capabilities);
 

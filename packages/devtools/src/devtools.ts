@@ -14,14 +14,14 @@ import type { CallEntry, CallLogSnapshot, Outcome } from "./call-log.js";
 import { CallNotFound } from "./call-not-found.js";
 import {
   InvokeResultSchema,
-  call,
-  countCalls,
-  describeContract,
-  diffCalls,
-  getCall,
-  listCalls,
-  listContracts,
-  replayCall,
+  ratCall,
+  ratCountCalls,
+  ratDescribeContract,
+  ratDiffCalls,
+  ratGetCall,
+  ratListCalls,
+  ratListContracts,
+  ratReplayCall,
 } from "./contracts.js";
 import type { InvokeResult } from "./contracts.js";
 import { ROOT, diff, readPath, summarize, toJson } from "./json.js";
@@ -164,7 +164,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
     });
 
   return [
-    implement(listContracts, ({ query }) => {
+    implement(ratListContracts, ({ query }) => {
       const needle = query?.toLowerCase();
 
       return Effect.succeed({
@@ -177,7 +177,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
           ),
       });
     }),
-    implement(describeContract, ({ name }) =>
+    implement(ratDescribeContract, ({ name }) =>
       Option.match(Option.fromUndefinedOr(byName.get(name)), {
         onNone: () =>
           Effect.fail(new UnknownCapability({ available: names, name })),
@@ -195,7 +195,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
       })
     ),
     implement(
-      listCalls,
+      ratListCalls,
       Effect.fn("Devtools.listCalls")(function* listCallsHandler({
         capability,
         fromEnd,
@@ -228,7 +228,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
       })
     ),
     implement(
-      countCalls,
+      ratCountCalls,
       Effect.fn("Devtools.countCalls")(function* countCallsHandler({
         capability,
       }) {
@@ -278,7 +278,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
       })
     ),
     implement(
-      getCall,
+      ratGetCall,
       Effect.fn("Devtools.getCall")(function* getCallHandler({
         expand,
         index,
@@ -291,11 +291,11 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
         return { value: expand === true ? value : summarize(value) };
       })
     ),
-    implement(call, ({ capability, input }) =>
+    implement(ratCall, ({ capability, input }) =>
       dispatch(capability, input).pipe(Effect.map((result) => ({ result })))
     ),
     implement(
-      replayCall,
+      ratReplayCall,
       Effect.fn("Devtools.replayCall")(function* replayCallHandler({ index }) {
         const entry = yield* findCall(yield* log.snapshot, index);
         const replayed = yield* dispatch(entry.capability, entry.input);
@@ -308,7 +308,7 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
       })
     ),
     implement(
-      diffCalls,
+      ratDiffCalls,
       Effect.fn("Devtools.diffCalls")(function* diffCallsHandler({ from, to }) {
         const snapshot = yield* log.snapshot;
         const before = yield* findCall(snapshot, from);
