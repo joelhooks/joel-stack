@@ -4,13 +4,14 @@ import * as AlchemyHttp from "alchemy/Http";
 import { Effect, Layer, Schema } from "effect";
 import * as McpProtocol from "effect/unstable/ai/McpProtocol";
 import * as McpServer from "effect/unstable/ai/McpServer";
+import * as HttpHeaders from "effect/unstable/http/Headers";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import * as HttpApiSchema from "effect/unstable/httpapi/HttpApiSchema";
 
-import { a2aError, handleA2aRequest } from "./a2a.js";
+import { a2aError, decodeA2aRequest, handleA2aRequest } from "./a2a.js";
 import { capabilities } from "./capabilities/index.js";
 import {
   a2aAgentCard,
@@ -55,7 +56,7 @@ const html = (body: string) =>
     contentType: "text/html; charset=utf-8",
   });
 
-const json = (body: unknown, contentType = "application/json") =>
+const json = (body: Schema.Json, contentType = "application/json") =>
   HttpServerResponse.jsonUnsafe(body, {
     contentType,
     headers: { "access-control-allow-origin": "*" },
@@ -175,12 +176,17 @@ const staticHeaders = (
   path: string,
   etag: string,
   cacheStatus: "HIT" | "MISS" | "REVALIDATED"
-) => ({
-  "cache-control": staticCacheControl,
-  etag,
-  ...(negotiatedHtmlPaths.has(path) ? { vary: "Accept" } : {}),
-  "x-ratstack-cache": cacheStatus,
-});
+) => {
+  const headers = HttpHeaders.fromInput({
+    "cache-control": staticCacheControl,
+    etag,
+    "x-ratstack-cache": cacheStatus,
+  });
+
+  return negotiatedHtmlPaths.has(path)
+    ? HttpHeaders.set(headers, "vary", "Accept")
+    : headers;
+};
 
 const staticCacheKey = (
   request: HttpServerRequest.HttpServerRequest,
@@ -421,6 +427,7 @@ const contentRoutes = Layer.mergeAll(
   ),
   HttpRouter.add("POST", "/a2a", (request) =>
     request.json.pipe(
+      Effect.flatMap(decodeA2aRequest),
       Effect.flatMap(handleA2aRequest),
       Effect.map((response) => json(response, "application/a2a+json")),
       Effect.orElseSucceed(() =>
@@ -553,7 +560,7 @@ const MODERN_MCP_VERSION = "2026-07-28";
 const sessionIdPattern =
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
 
-interface McpRequestShape {
+interface McpRequestRouting {
   readonly envelope: typeof JsonRpcEnvelope.Type | null;
   readonly isApi: boolean;
   readonly isExecute: boolean;
@@ -564,8 +571,8 @@ interface McpRequestShape {
 
 // Modern MCP clients name the method and tool in headers. Legacy clients name
 // them only in the JSON body, so rate limits read both.
-const shapeOf = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* shapeRequest() {
+const routingOf = (request: HttpServerRequest.HttpServerRequest) =>
+  Effect.gen(function* routeRequest() {
     const path = new URL(request.url, "https://ratstack.sh").pathname;
     const isMcp = path === "/mcp";
 
@@ -589,20 +596,20 @@ const shapeOf = (request: HttpServerRequest.HttpServerRequest) =>
       isMcp,
       mcpToolCall,
       modernMcp,
-    } satisfies McpRequestShape;
+    } satisfies McpRequestRouting;
   });
 
 const firstExceededLimit = (
   rateLimits: RateLimits,
   request: HttpServerRequest.HttpServerRequest,
-  shape: McpRequestShape
+  routing: McpRequestRouting
 ) =>
   Effect.gen(function* checkLimits() {
     const clientIp = request.headers["cf-connecting-ip"] ?? "unknown";
 
     const checks: readonly (readonly [RateLimitName, string])[] = [
       ["API_PER_IP", clientIp],
-      ...(shape.isExecute
+      ...(routing.isExecute
         ? ([
             ["EXECUTE_PER_IP", clientIp],
             ["EXECUTE_GLOBAL", "global"],
@@ -623,9 +630,9 @@ const firstExceededLimit = (
 // `initialize`. Modern and session-less requests stay in the Worker.
 const legacySessionOf = (
   request: HttpServerRequest.HttpServerRequest,
-  shape: McpRequestShape
+  routing: McpRequestRouting
 ) => {
-  if (!shape.isMcp || shape.modernMcp) {
+  if (!routing.isMcp || routing.modernMcp) {
     return null;
   }
 
@@ -635,7 +642,7 @@ const legacySessionOf = (
     return existing;
   }
 
-  if (shape.envelope?.method !== "initialize") {
+  if (routing.envelope?.method !== "initialize") {
     return null;
   }
 
@@ -647,12 +654,12 @@ const routeLegacyMcp = (
   router: LegacyMcpRouter,
   request: HttpServerRequest.HttpServerRequest,
   session: string,
-  shape: McpRequestShape
+  routing: McpRequestRouting
 ) =>
   Effect.gen(function* routeLegacy() {
     if (!sessionIdPattern.test(session)) {
       return HttpServerResponse.fromWeb(
-        legacySessionNotFound(shape.envelope?.id)
+        legacySessionNotFound(routing.envelope?.id)
       );
     }
 
@@ -664,13 +671,13 @@ const routeLegacyMcp = (
 // Without a legacy router (tests), explain the version instead of failing.
 const needsVersionHelp = (
   request: HttpServerRequest.HttpServerRequest,
-  shape: McpRequestShape
+  routing: McpRequestRouting
 ) =>
-  shape.isMcp &&
+  routing.isMcp &&
   (request.method === "GET" ||
     (request.method === "POST" &&
       request.headers["mcp-protocol-version"] === undefined &&
-      shape.envelope?.method === "initialize"));
+      routing.envelope?.method === "initialize"));
 
 const requestProtection = (options: {
   readonly legacyMcp?: LegacyMcpRouter;
@@ -680,20 +687,23 @@ const requestProtection = (options: {
     (httpEffect) =>
       Effect.gen(function* protectRequest() {
         const request = yield* HttpServerRequest.HttpServerRequest;
-        const shape = yield* shapeOf(request);
+        const routing = yield* routingOf(request);
 
-        if ((shape.isMcp || shape.isApi) && options.rateLimits !== undefined) {
+        if (
+          (routing.isMcp || routing.isApi) &&
+          options.rateLimits !== undefined
+        ) {
           const exceeded = yield* firstExceededLimit(
             options.rateLimits,
             request,
-            shape
+            routing
           );
 
           if (exceeded !== null) {
             return yield* rateLimitResponse(
               request,
               exceeded,
-              shape.mcpToolCall
+              routing.mcpToolCall
             );
           }
         }
@@ -701,21 +711,21 @@ const requestProtection = (options: {
         const session =
           options.legacyMcp === undefined
             ? null
-            : legacySessionOf(request, shape);
+            : legacySessionOf(request, routing);
 
         if (session !== null && options.legacyMcp !== undefined) {
           return yield* routeLegacyMcp(
             options.legacyMcp,
             request,
             session,
-            shape
+            routing
           );
         }
 
-        if (needsVersionHelp(request, shape)) {
+        if (needsVersionHelp(request, routing)) {
           return HttpServerResponse.text(mcpVersionText(originOf(request)), {
             contentType: "text/plain; charset=utf-8",
-            ...(request.method === "POST" ? { status: 400 } : {}),
+            status: request.method === "POST" ? 400 : 200,
           });
         }
 
@@ -751,18 +761,29 @@ const securityHeadersMiddleware = HttpRouter.middleware(
       Effect.map((response) => {
         const contentType = response.headers["content-type"] ?? "";
 
-        return HttpServerResponse.setHeaders(response, {
-          ...securityHeaders,
-          // Preview images and the favicon exist to be embedded elsewhere:
-          // link-preview cards, validators, chat clients. A same-origin
-          // resource policy makes browsers refuse them on other origins.
-          ...(contentType.startsWith("image/")
-            ? { "cross-origin-resource-policy": "cross-origin" }
-            : {}),
-          ...(contentType.startsWith("text/html")
-            ? { "content-security-policy": contentSecurityPolicy }
-            : {}),
-        });
+        const secured = HttpServerResponse.setHeaders(
+          response,
+          securityHeaders
+        );
+
+        // Preview images and the favicon exist to be embedded elsewhere:
+        // link-preview cards, validators, chat clients. A same-origin resource
+        // policy makes browsers refuse them on other origins.
+        const embeddable = contentType.startsWith("image/")
+          ? HttpServerResponse.setHeader(
+              secured,
+              "cross-origin-resource-policy",
+              "cross-origin"
+            )
+          : secured;
+
+        return contentType.startsWith("text/html")
+          ? HttpServerResponse.setHeader(
+              embeddable,
+              "content-security-policy",
+              contentSecurityPolicy
+            )
+          : embeddable;
       })
     ),
   { global: true }
@@ -770,13 +791,13 @@ const securityHeadersMiddleware = HttpRouter.middleware(
 
 export interface WebBotAuthOptions {
   readonly enabled: boolean;
-  readonly privateJwk?: string;
+  readonly privateJwk?: string | undefined;
 }
 
 export interface MischiefRouteOptions {
   readonly legacyMcp?: LegacyMcpRouter;
   readonly rateLimits?: RateLimits;
-  readonly staticCache?: StaticResponseCache;
+  readonly staticCache?: StaticResponseCache | undefined;
   readonly webBotAuth?: WebBotAuthOptions;
 }
 
@@ -813,7 +834,7 @@ const webBotAuthRoutes = (options: WebBotAuthOptions) =>
     webBotAuthResponse(options)
   );
 
-export const makeRoutes = (options: MischiefRouteOptions = {}) =>
+export const mischiefRoutes = (options: MischiefRouteOptions = {}) =>
   Layer.mergeAll(
     contentRoutes,
     apiRoutes,
@@ -830,4 +851,4 @@ export const makeRoutes = (options: MischiefRouteOptions = {}) =>
     webBotAuthRoutes(options.webBotAuth ?? { enabled: false })
   );
 
-export const routes = makeRoutes();
+export const routes = mischiefRoutes();

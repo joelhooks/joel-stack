@@ -24,7 +24,8 @@ const A2aRequest = Schema.Struct({
   }),
 });
 
-const decodeA2aRequest = Schema.decodeUnknownEffect(A2aRequest);
+/** Parses a JSON-RPC body into an A2A request at the HTTP boundary. */
+export const decodeA2aRequest = Schema.decodeUnknownEffect(A2aRequest);
 
 const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
   question: string
@@ -56,9 +57,7 @@ const answerQuestion = Effect.fn("A2A.answerQuestion")(function* answerQuestion(
 });
 
 export const handleA2aRequest = Effect.fn("A2A.handleRequest")(
-  function* handleA2aRequest(body: unknown) {
-    const request = yield* decodeA2aRequest(body);
-
+  function* handleA2aRequest(request: typeof A2aRequest.Type) {
     const question = request.params.message.parts
       .map((part) => part.text)
       .join("\n")

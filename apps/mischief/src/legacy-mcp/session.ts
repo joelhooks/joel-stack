@@ -62,9 +62,9 @@ const withSessionId = (
   }
 
   return new Request(request.url, {
+    body: request.method === "GET" || request.method === "HEAD" ? null : body,
     headers,
     method: request.method,
-    ...(request.method === "GET" || request.method === "HEAD" ? {} : { body }),
   });
 };
 
@@ -85,7 +85,7 @@ const presentAs = (response: Response, externalId: string) => {
 };
 
 /** The spec's answer to an unknown session: start a new one. */
-export const legacySessionNotFound = (id: unknown) =>
+export const legacySessionNotFound = (id: string | number | null | undefined) =>
   Response.json(
     {
       error: { code: -32_001, message: "Session not found" },
@@ -100,7 +100,7 @@ const initializedNotification = JSON.stringify({
   method: "notifications/initialized",
 });
 
-export const makeLegacySession = <R = never>(
+export const openLegacySession = <R = never>(
   options: LegacySessionOptions<R>
 ) =>
   Effect.gen(function* buildSession() {

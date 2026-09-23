@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Resvg } from "@resvg/resvg-js";
-import { Effect, FileSystem, Option, Path, Schema } from "effect";
+import { Effect, FileSystem, Option, Path, Predicate, Schema } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import { compile as compileMdsvex } from "mdsvex";
 import remarkGfm from "remark-gfm";
@@ -112,7 +112,8 @@ interface DocumentProps {
   readonly title: string;
 }
 
-type ServerComponent = Component<Record<string, unknown>>;
+// Compiled bodies take no props; the document shell takes all of them.
+type ServerComponent = Component<Partial<DocumentProps>>;
 
 const digest = (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -120,32 +121,45 @@ const digest = (text: string) =>
 const buildError = (stage: string, sourcePath: string, cause: unknown) =>
   new ContentBuildError({ cause, sourcePath, stage });
 
-const isServerComponent = (value: unknown): value is ServerComponent =>
-  typeof value === "function";
+// A compiled Svelte server component is a function. The predicate is the
+// schema's boundary check for a freshly imported module.
+const ServerComponentSchema = Schema.declare(
+  (value): value is ServerComponent => Predicate.isFunction(value)
+);
 
-const childNodes = (node: unknown): readonly unknown[] => {
-  if (typeof node !== "object" || node === null) {
-    return [];
-  }
+const CompiledModule = Schema.Struct({ default: ServerComponentSchema });
 
-  const children: unknown = Reflect.get(node, "children");
+const decodeCompiledModule = Schema.decodeUnknownSync(CompiledModule);
 
-  return Array.isArray(children) ? children : [];
-};
+// mdsvex resolves to undefined when it has nothing to compile; the decode
+// turns that into a build error.
+const decodeMdsvexOutput = Schema.decodeUnknownSync(
+  Schema.Struct({ code: Schema.String })
+);
 
-const nodeText = (node: unknown): string => {
-  if (typeof node !== "object" || node === null) {
-    return "";
-  }
+/** A hast property value, as rehype stores it. */
+type HastPropertyValue =
+  | boolean
+  | number
+  | string
+  | null
+  | undefined
+  | readonly (string | number)[];
 
-  const value: unknown = Reflect.get(node, "value");
+/**
+ * The hast fields these plugins read and write. Unified hands every rehype
+ * plugin a hast tree, so this describes the tree rather than guessing at it.
+ */
+interface HastNode {
+  readonly type: string;
+  readonly tagName?: string;
+  readonly value?: string;
+  properties?: Record<string, HastPropertyValue>;
+  children?: HastNode[];
+}
 
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return childNodes(node).map(nodeText).join("");
-};
+const nodeText = (node: HastNode): string =>
+  node.value ?? (node.children ?? []).map(nodeText).join("");
 
 const slugHeading = (value: string) =>
   value
@@ -153,31 +167,19 @@ const slugHeading = (value: string) =>
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "");
 
-const stableHeadingIds: Plugin = () => {
+const stableHeadingIds: Plugin<[], HastNode> = () => {
   const used = new Map<string, number>();
 
-  const visit = (node: unknown): void => {
-    if (typeof node !== "object" || node === null) {
-      return;
-    }
-
-    const tagName: unknown = Reflect.get(node, "tagName");
-
-    if (typeof tagName === "string" && /^h[1-6]$/u.test(tagName)) {
+  const visit = (node: HastNode): void => {
+    if (node.tagName !== undefined && /^h[1-6]$/u.test(node.tagName)) {
       const base = slugHeading(nodeText(node)) || "section";
       const count = used.get(base) ?? 0;
       used.set(base, count + 1);
       const id = count === 0 ? base : `${base}-${count + 1}`;
-      const properties: unknown = Reflect.get(node, "properties");
-      Reflect.set(node, "properties", {
-        ...(typeof properties === "object" && properties !== null
-          ? properties
-          : {}),
-        id,
-      });
+      node.properties = { ...node.properties, id };
     }
 
-    for (const child of childNodes(node)) {
+    for (const child of node.children ?? []) {
       visit(child);
     }
   };
@@ -185,58 +187,32 @@ const stableHeadingIds: Plugin = () => {
   return visit;
 };
 
-const isElement = (node: unknown, tagName: string) =>
-  typeof node === "object" &&
-  node !== null &&
-  Reflect.get(node, "tagName") === tagName;
-
-const rowsOf = (section: unknown) =>
-  childNodes(section).filter((row) => isElement(row, "tr"));
+const childrenTagged = (node: HastNode, tagName: string) =>
+  (node.children ?? []).filter((child) => child.tagName === tagName);
 
 // Each body cell learns its column header so the shell can stack a table into
 // label and value rows on narrow screens with `attr(data-label)`.
-const tableCellLabels: Plugin = () => {
-  const visit = (node: unknown): void => {
-    if (isElement(node, "table")) {
-      const headers = childNodes(node)
-        .filter((section) => isElement(section, "thead"))
-        .flatMap(rowsOf)
-        .flatMap((row) =>
-          childNodes(row)
-            .filter((cell) => isElement(cell, "th"))
-            .map(nodeText)
-        );
+const tableCellLabels: Plugin<[], HastNode> = () => {
+  const visit = (node: HastNode): void => {
+    if (node.tagName === "table") {
+      const headers = childrenTagged(node, "thead")
+        .flatMap((section) => childrenTagged(section, "tr"))
+        .flatMap((row) => childrenTagged(row, "th").map(nodeText));
 
-      for (const body of childNodes(node).filter((section) =>
-        isElement(section, "tbody")
-      )) {
-        for (const row of rowsOf(body)) {
-          const cells = childNodes(row).filter((cell) => isElement(cell, "td"));
-
-          for (const [index, cell] of cells.entries()) {
+      for (const body of childrenTagged(node, "tbody")) {
+        for (const row of childrenTagged(body, "tr")) {
+          for (const [index, cell] of childrenTagged(row, "td").entries()) {
             const label = headers[index];
 
-            if (
-              label === undefined ||
-              typeof cell !== "object" ||
-              cell === null
-            ) {
-              continue;
+            if (label !== undefined) {
+              cell.properties = { ...cell.properties, dataLabel: label };
             }
-
-            const properties: unknown = Reflect.get(cell, "properties");
-            Reflect.set(cell, "properties", {
-              ...(typeof properties === "object" && properties !== null
-                ? properties
-                : {}),
-              dataLabel: label,
-            });
           }
         }
       }
     }
 
-    for (const child of childNodes(node)) {
+    for (const child of node.children ?? []) {
       visit(child);
     }
   };
@@ -247,27 +223,17 @@ const tableCellLabels: Plugin = () => {
 // Inline code spans that name a public page, a skill, or a real repository
 // path become links. Fenced blocks and existing links are left alone.
 const linkCodeSpans =
-  (targets: ReadonlyMap<string, string>): Plugin =>
+  (targets: ReadonlyMap<string, string>): Plugin<[], HastNode> =>
   () => {
-    const visit = (node: unknown, insideBlock: boolean): void => {
-      if (typeof node !== "object" || node === null) {
-        return;
-      }
+    const visit = (node: HastNode, insideBlock: boolean): void => {
+      const children = node.children ?? [];
 
-      const children: unknown = Reflect.get(node, "children");
-
-      if (!Array.isArray(children)) {
-        return;
-      }
-
-      const list: unknown[] = children;
-
-      for (const [index, child] of list.entries()) {
-        if (!insideBlock && isElement(child, "code")) {
+      for (const [index, child] of children.entries()) {
+        if (!insideBlock && child.tagName === "code") {
           const href = targets.get(nodeText(child).trim());
 
           if (href !== undefined) {
-            list[index] = {
+            children[index] = {
               children: [child],
               properties: { href },
               tagName: "a",
@@ -279,12 +245,12 @@ const linkCodeSpans =
 
         visit(
           child,
-          insideBlock || isElement(child, "pre") || isElement(child, "a")
+          insideBlock || child.tagName === "pre" || child.tagName === "a"
         );
       }
     };
 
-    return (tree: unknown) => {
+    return (tree) => {
       visit(tree, false);
     };
   };
@@ -334,50 +300,33 @@ const skippedByEntityLinker = new Set([
   "figure",
 ]);
 
-const linkStackEntities: Plugin = () => {
-  const visit = (node: unknown, linked: Set<string>): void => {
-    if (typeof node !== "object" || node === null) {
+const linkStackEntities: Plugin<[], HastNode> = () => {
+  const visit = (node: HastNode, linked: Set<string>): void => {
+    if (node.tagName !== undefined && skippedByEntityLinker.has(node.tagName)) {
       return;
     }
 
-    const nodeTagName: unknown = Reflect.get(node, "tagName");
+    const children = node.children ?? [];
 
-    if (
-      typeof nodeTagName === "string" &&
-      skippedByEntityLinker.has(nodeTagName)
-    ) {
-      return;
-    }
+    for (let index = 0; index < children.length; index += 1) {
+      const child = children[index];
 
-    const children: unknown = Reflect.get(node, "children");
-
-    if (!Array.isArray(children)) {
-      return;
-    }
-
-    const list: unknown[] = children;
-
-    for (let index = 0; index < list.length; index += 1) {
-      const child = list[index];
-
-      if (typeof child !== "object" || child === null) {
+      if (
+        child === undefined ||
+        (child.tagName !== undefined &&
+          skippedByEntityLinker.has(child.tagName))
+      ) {
         continue;
       }
 
-      const tagName: unknown = Reflect.get(child, "tagName");
+      const { value } = child;
 
-      if (typeof tagName === "string" && skippedByEntityLinker.has(tagName)) {
-        continue;
-      }
-
-      const value: unknown = Reflect.get(child, "value");
-
-      if (Reflect.get(child, "type") !== "text" || typeof value !== "string") {
+      if (child.type !== "text" || value === undefined) {
         visit(child, linked);
         continue;
       }
 
-      const replacement: unknown[] = [];
+      const replacement: HastNode[] = [];
       let cursor = 0;
 
       for (const match of value.matchAll(entityPattern)) {
@@ -406,12 +355,12 @@ const linkStackEntities: Plugin = () => {
       }
 
       replacement.push({ type: "text", value: value.slice(cursor) });
-      list.splice(index, 1, ...replacement);
+      children.splice(index, 1, ...replacement);
       index += replacement.length - 1;
     }
   };
 
-  return (tree: unknown) => {
+  return (tree) => {
     visit(tree, new Set<string>());
   };
 };
@@ -570,14 +519,19 @@ const renderOgImage = (
 const renderRatPng = (ratSvg: string, size: number, background?: string) =>
   Effect.try({
     catch: (cause) => buildError("icon", "assets/emoji/1f400.svg", cause),
-    try: () =>
-      new Resvg(ratSvg, {
-        ...(background === undefined ? {} : { background }),
+    try: () => {
+      const options = {
         fitTo: { mode: "width", value: size },
         font: { loadSystemFonts: false },
-      })
+      } as const;
+
+      return new Resvg(
+        ratSvg,
+        background === undefined ? options : { ...options, background }
+      )
         .render()
-        .asPng(),
+        .asPng();
+    },
   });
 
 const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
@@ -599,27 +553,16 @@ const loadCompiledComponent = Effect.fn("loadCompiledComponent")(
 
     const moduleUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(executable)}`;
 
-    const loaded: unknown = yield* Effect.tryPromise({
+    // A module without a component export fails the decode and lands in
+    // `catch` with the rest of the load failures.
+    const loaded = yield* Effect.tryPromise({
       catch: (cause) => buildError("Svelte module load", sourcePath, cause),
       // Node's module loader owns this Promise-returning boundary.
       // oxlint-disable-next-line typescript/promise-function-async
-      try: () => import(moduleUrl).then((module): unknown => module),
+      try: () => import(moduleUrl).then(decodeCompiledModule),
     });
 
-    const component: unknown =
-      typeof loaded === "object" && loaded !== null
-        ? Reflect.get(loaded, "default")
-        : undefined;
-
-    if (!isServerComponent(component)) {
-      return yield* new ContentBuildError({
-        cause: new TypeError("Compiled module has no component export"),
-        sourcePath,
-        stage: "Svelte module load",
-      });
-    }
-
-    return component;
+    return loaded.default;
   }
 );
 
@@ -630,10 +573,10 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
     highlighter: Highlighter,
     targets: ReadonlyMap<string, string> = emptyTargets
   ) {
-    const transformed: unknown = yield* Effect.tryPromise({
+    const transformed = yield* Effect.tryPromise({
       catch: (cause) => buildError("mdsvex compile", sourcePath, cause),
-      // mdsvex 0.12.8 declares a nested Promise even though JavaScript adopts it.
-      // Mapping the fulfilled value to unknown lets us validate the real boundary.
+      // mdsvex 0.12.8 declares a nested Promise even though JavaScript adopts
+      // it. Decoding the fulfilled value checks the real boundary instead.
       // @effect-diagnostics-next-line asyncFunction:off -- mdsvex owns this Promise boundary.
       try: async () =>
         await compileMdsvex(deriveHtmlMarkdown(source), {
@@ -649,24 +592,16 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
             linkCodeSpans(targets),
             linkStackEntities,
           ],
+          // SAFETY: remark-gfm is a unified remark plugin; mdsvex types its
+          // options with `Plugin` from the unified version it bundles.
           remarkPlugins: [remarkGfm as Plugin],
-        }).then((value): unknown => value),
+        }).then(decodeMdsvexOutput),
     });
 
-    const componentSource: unknown =
-      typeof transformed === "object" && transformed !== null
-        ? Reflect.get(transformed, "code")
-        : undefined;
-
-    if (typeof componentSource !== "string") {
-      return yield* new ContentBuildError({
-        cause: new TypeError("mdsvex returned no component source"),
-        sourcePath,
-        stage: "mdsvex compile",
-      });
-    }
-
-    const component = yield* loadCompiledComponent(componentSource, sourcePath);
+    const component = yield* loadCompiledComponent(
+      transformed.code,
+      sourcePath
+    );
 
     return yield* Effect.try({
       catch: (cause) => buildError("Svelte body render", sourcePath, cause),
@@ -727,7 +662,7 @@ const frontmatterValue = (text: string, field: string) => {
   return value;
 };
 
-const sourceLiteral = (value: unknown) =>
+const sourceLiteral = (value: Schema.Json) =>
   JSON.stringify(value, null, 2).replaceAll(
     "@effect-diagnostics",
     "\\u0040effect-diagnostics"
@@ -1347,16 +1282,15 @@ const program = Effect.gen(function* generateContent() {
   );
 
   const groupedSkills = skillGroups
-    .map((group) => {
-      const members = skillBodies
-        .map(({ skill }) => skill)
-        .filter((skill) => group.names.some((name) => name === skill.name));
+    .flatMap((group) => {
+      const members = skillBodies.flatMap(({ skill }) =>
+        group.names.some((name) => name === skill.name) ? [skill] : []
+      );
 
       return members.length === 0
-        ? ""
-        : `### ${group.title}\n\n${entryList(members)}`;
+        ? []
+        : [`### ${group.title}\n\n${entryList(members)}`];
     })
-    .filter((group) => group !== "")
     .join("\n\n");
 
   const searchCapabilitySource = yield* readText(

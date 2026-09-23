@@ -398,7 +398,7 @@ export const searchContent = (
   const queryText = terms.join(" ");
 
   return contentResources
-    .map((resource) => {
+    .flatMap((resource) => {
       const title = resource.title.toLowerCase();
       const description = resource.description.toLowerCase();
       const text = resource.text.toLowerCase();
@@ -414,9 +414,8 @@ export const searchContent = (
           0
         );
 
-      return { resource, score };
+      return queryText === "" || score > 0 ? [{ resource, score }] : [];
     })
-    .filter(({ score }) => queryText === "" || score > 0)
     .toSorted(
       (left, right) =>
         right.score - left.score ||

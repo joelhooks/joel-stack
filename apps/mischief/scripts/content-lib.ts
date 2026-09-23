@@ -38,19 +38,8 @@ export const deriveAgentMarkdown = (source: string): string => {
 
   const withDiagramText = withoutHuman.replaceAll(
     diagramBlock,
-    (_match, ...captures: unknown[]) => {
-      const groups = captures.at(-1);
-
-      const record =
-        typeof groups === "object" && groups !== null
-          ? (groups as { alt?: string; fence?: string })
-          : {};
-
-      const fence = record.fence ?? "```text\n\n```";
-      const alt = record.alt ?? "Diagram";
-
-      return `${fence}\nDiagram: ${alt}`;
-    }
+    // The pattern's groups are positional: 1 is `alt`, 2 is `fence`.
+    (_match: string, alt: string, fence: string) => `${fence}\nDiagram: ${alt}`
   );
 
   return withDiagramText.replaceAll(agentBlock, "$<content>");
@@ -63,22 +52,11 @@ export const deriveHtmlMarkdown = (source: string): string => {
 
   const withDiagrams = source.replaceAll(
     diagramBlock,
-    (_match, ...captures: unknown[]) => {
-      const groups = captures.at(-1);
-
-      const record =
-        typeof groups === "object" && groups !== null
-          ? (groups as { alt?: string; fence?: string })
-          : {};
-
-      const alt = record.alt ?? "Diagram";
-      const fence = record.fence ?? "```text\n\n```";
-
-      // The fence stays Markdown so it takes the same code path as every other
-      // block. Raw HTML must fit one Markdown block, and folding the diagram
-      // into it lost its line breaks.
-      return `<figure role="img" aria-label="${escapeHtml(alt)}">\n\n${fence}\n\n<figcaption>${escapeHtml(alt)}</figcaption></figure>`;
-    }
+    // The fence stays Markdown so it takes the same code path as every other
+    // block. Raw HTML must fit one Markdown block, and folding the diagram
+    // into it lost its line breaks.
+    (_match: string, alt: string, fence: string) =>
+      `<figure role="img" aria-label="${escapeHtml(alt)}">\n\n${fence}\n\n<figcaption>${escapeHtml(alt)}</figcaption></figure>`
   );
 
   const withoutAgent = withDiagrams.replaceAll(agentBlock, "");
