@@ -34,6 +34,7 @@ import {
 } from "./contracts.js";
 import type { InvokeResult } from "./contracts.js";
 import { ROOT, diff, readPath, summarize, toJson } from "./json.js";
+import type { DevtoolsOptions, RunAs } from "./run-as.js";
 import { UnknownCapability } from "./unknown-capability.js";
 
 const DEFAULT_LIST_LIMIT = 50;
@@ -67,10 +68,29 @@ const outcomeOf = <A, E>(contract: AnyContract, exit: Exit.Exit<A, E>) =>
           ),
       });
 
+const identityOf = <Identifier, Value>(
+  runAs: RunAs<Identifier, Value> | undefined
+) =>
+  runAs === undefined
+    ? Effect.succeed<Schema.Json>(null)
+    : Effect.serviceOption(runAs.tag).pipe(
+        Effect.flatMap(
+          Option.match({
+            onNone: () => Effect.succeed<Schema.Json>(null),
+            onSome: (value) => toJson(runAs.schema, value),
+          })
+        )
+      );
+
 const recorder =
-  (log: CallLog["Service"], watcher: ActorWatchService): Around =>
+  <Identifier, Value>(
+    log: CallLog["Service"],
+    watcher: ActorWatchService,
+    runAs: RunAs<Identifier, Value> | undefined
+  ): Around =>
   (contract, input, run) =>
     Effect.gen(function* recordCall() {
+      const as = yield* identityOf(runAs);
       const startedAt = yield* Clock.currentTimeMillis;
 
       const exit = yield* Effect.exit(
@@ -80,6 +100,7 @@ const recorder =
       const finishedAt = yield* Clock.currentTimeMillis;
 
       yield* log.append({
+        as,
         capability: contract.name,
         durationMs: finishedAt - startedAt,
         input: yield* toJson(contract.input, input),
@@ -90,14 +111,19 @@ const recorder =
       return yield* exit;
     });
 
-export const record = <const Caps extends readonly AnyCapability[]>(
-  capabilities: Caps
+export const record = <
+  const Caps extends readonly AnyCapability[],
+  Identifier = never,
+  Value = never,
+>(
+  capabilities: Caps,
+  options: DevtoolsOptions<Identifier, Value> = {}
 ) =>
   Effect.gen(function* recordCapabilities() {
     const log = yield* CallLog;
     const watcher = yield* actorWatcher;
 
-    return aroundHandlers(capabilities, recorder(log, watcher));
+    return aroundHandlers(capabilities, recorder(log, watcher, options.runAs));
   });
 
 const summaryOf = ({ contract }: AnyCapability) => ({
@@ -139,6 +165,7 @@ const invokeResultOf = (result: InvokeResult): Schema.Json =>
     : { ok: false, value: result.error };
 
 const comparableOf = (entry: CallEntry): Schema.Json => ({
+  as: entry.as,
   capability: entry.capability,
   input: entry.input,
   result: resultOf(entry.outcome),
@@ -178,10 +205,20 @@ const latestActors = (snapshot: ActorLogSnapshot) => {
 const encodeActorEntry = (entry: ActorEntry) =>
   toJson(ActorEntrySchema, entry).pipe(Effect.map(summarize));
 
-const toolsFor = <const Caps extends readonly AnyCapability[]>(
+const refused = (reason: string): InvokeResult => ({
+  error: { reason },
+  ok: false,
+});
+
+const toolsFor = <
+  const Caps extends readonly AnyCapability[],
+  Identifier,
+  Value,
+>(
   capabilities: Caps,
   log: CallLog["Service"],
-  actors: ActorLog["Service"]
+  actors: ActorLog["Service"],
+  runAs: RunAs<Identifier, Value> | undefined
 ) => {
   const byName = new Map(
     capabilities.map((capability) => [capability.contract.name, capability])
@@ -189,18 +226,46 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
 
   const names = [...byName.keys()];
 
-  const dispatch = (name: string, input: Schema.Json) =>
+  const invokeAs = (as: Schema.Json) => {
+    if (as === null) {
+      return Effect.succeedSome(invokerFor(capabilities));
+    }
+
+    if (runAs === undefined) {
+      return Effect.succeedNone;
+    }
+
+    return Schema.decodeEffect(runAs.schema)(as).pipe(
+      Effect.map((value) =>
+        Option.some(
+          invokerFor(capabilities).pipe(Effect.provideService(runAs.tag, value))
+        )
+      ),
+      Effect.orElseSucceed(() => Option.none())
+    );
+  };
+
+  const dispatch = (name: string, input: Schema.Json, as: Schema.Json) =>
     Effect.gen(function* dispatchCall() {
-      const invoke = yield* invokerFor(capabilities);
+      const invoker = yield* invokeAs(as);
+
+      if (Option.isNone(invoker)) {
+        return refused(
+          runAs === undefined
+            ? "This runtime has no runAs identity, so `as` cannot be used"
+            : `\`as\` is not a valid ${runAs.label}`
+        );
+      }
+
+      const invoke = yield* invoker.value;
       const outcome = yield* invoke(name, input);
 
       return yield* Schema.decodeUnknownEffect(InvokeResultSchema)(
         outcome
       ).pipe(
-        Effect.orElseSucceed((): InvokeResult => ({
-          error: { reason: "The result could not be encoded as JSON" },
-          ok: false,
-        }))
+        Effect.orElseSucceed(() =>
+          refused("The result could not be encoded as JSON")
+        )
       );
     });
 
@@ -332,14 +397,21 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
         return { value: expand === true ? value : summarize(value) };
       })
     ),
-    implement(ratCall, ({ capability, input }) =>
-      dispatch(capability, input).pipe(Effect.map((result) => ({ result })))
+    implement(ratCall, ({ as, capability, input }) =>
+      dispatch(capability, input, as ?? null).pipe(
+        Effect.map((result) => ({ result }))
+      )
     ),
     implement(
       ratReplayCall,
       Effect.fn("Devtools.replayCall")(function* replayCallHandler({ index }) {
         const entry = yield* findCall(yield* log.snapshot, index);
-        const replayed = yield* dispatch(entry.capability, entry.input);
+
+        const replayed = yield* dispatch(
+          entry.capability,
+          entry.input,
+          entry.as
+        );
 
         return {
           changes: diff(resultOf(entry.outcome), invokeResultOf(replayed)),
@@ -435,15 +507,25 @@ const toolsFor = <const Caps extends readonly AnyCapability[]>(
   ] as const;
 };
 
-export const devtools = <const Caps extends readonly AnyCapability[]>(
-  capabilities: Caps
+export const devtools = <
+  const Caps extends readonly AnyCapability[],
+  Identifier = never,
+  Value = never,
+>(
+  capabilities: Caps,
+  options: DevtoolsOptions<Identifier, Value> = {}
 ) =>
   Effect.gen(function* buildDevtools() {
     const log = yield* CallLog;
     const actors = yield* ActorLog;
     const watcher = yield* actorWatcher;
-    const recorded = aroundHandlers(capabilities, recorder(log, watcher));
-    const tools = toolsFor(recorded, log, actors);
+
+    const recorded = aroundHandlers(
+      capabilities,
+      recorder(log, watcher, options.runAs)
+    );
+
+    const tools = toolsFor(recorded, log, actors, options.runAs);
 
     return {
       capabilities: [...recorded, ...tools] as const,
