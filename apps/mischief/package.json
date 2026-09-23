@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./rpc-worker": {
+      "types": "./src/rpc-worker.ts",
+      "import": "./src/rpc-worker.ts",
+      "default": "./src/rpc-worker.ts"
+    }
+  },
   "scripts": {
     "generate": "node scripts/generate-content.ts",
     "typecheck": "pnpm run --silent generate && tsc --noEmit -p tsconfig.json",
