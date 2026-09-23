@@ -83,13 +83,4 @@ clone_source better-auth better-auth https://github.com/better-auth/better-auth.
 clone_source TanStack router https://github.com/TanStack/router.git "@tanstack/react-start@${TANSTACK_START_VERSION}" \
   "TanStack Start and Router matching apps/web @tanstack/react-start@${TANSTACK_START_VERSION}; the router packages sit at that commit, not at the react-router pin."
 
-# The pi-effect tool reads .agent-sources/effect. Point it at the pinned mirror
-# instead of letting it hydrate a floating branch.
-PI_EFFECT_LINK="${ROOT}/.agent-sources/effect"
-if [[ ! -e "$PI_EFFECT_LINK" ]]; then
-  mkdir -p "$(dirname "$PI_EFFECT_LINK")"
-  ln -s ../.agent_sources/github.com/Effect-TS/effect "$PI_EFFECT_LINK"
-  echo "link .agent-sources/effect -> .agent_sources/github.com/Effect-TS/effect"
-fi
-
 echo "done — agent sources under ${PREFIX}"

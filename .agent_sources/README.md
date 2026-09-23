@@ -11,7 +11,7 @@ Layout: `.agent_sources/github.com/<owner>/<repo>/` with `.agent-source.json` me
 
 ## Inventory (core template libs)
 
-Refs below are derived from the workspace `package.json` pins by `scripts/vendor-agent-sources.sh`; the table records what that resolves to today. The script also links `.agent-sources/effect` (read by the `pi-effect` tool) to the Effect mirror.
+Refs below are derived from the workspace `package.json` pins by `scripts/vendor-agent-sources.sh`; the table records what that resolves to today.
 
 | Path | Upstream | Ref | Why |
 | --- | --- | --- | --- |
