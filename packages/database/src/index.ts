@@ -1,5 +1,9 @@
 export { RunLog } from "./run-log.js";
 
+export { DatabaseVendor } from "./vendor.js";
+
+export type { DatabaseVendorResource } from "./vendor.js";
+
 export {
   DatabaseError,
   DatabaseOperationSchema,
@@ -10,6 +14,8 @@ export {
   RunLogEntrySchema,
   RunOutcomeSchema,
 } from "./model.js";
+
+export { InvalidDatabaseInput } from "./invalid-database-input.js";
 
 export type {
   DatabaseOperation,

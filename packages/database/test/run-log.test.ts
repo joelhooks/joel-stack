@@ -2,7 +2,7 @@ import { expect, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
 
 import {
-  DatabaseError,
+  InvalidDatabaseInput,
   PersonIdSchema,
   RunLog,
   RunOutcomeSchema,
@@ -148,10 +148,23 @@ for (const backend of backends) {
           runLog.listRecent(primaryPerson, 101)
         );
 
-        expect(belowMinimum).toBeInstanceOf(DatabaseError);
+        const invalidRecord = yield* Effect.flip(
+          runLog.record({
+            capability: "",
+            outcome: RunOutcomeSchema.cases.Succeeded.make({}),
+            personId: primaryPerson,
+          })
+        );
+
+        expect(belowMinimum).toBeInstanceOf(InvalidDatabaseInput);
+        expect(belowMinimum._tag).toBe("InvalidDatabaseInput");
         expect(belowMinimum.operation).toBe("listRecent");
-        expect(aboveMaximum).toBeInstanceOf(DatabaseError);
+        expect(aboveMaximum).toBeInstanceOf(InvalidDatabaseInput);
+        expect(aboveMaximum._tag).toBe("InvalidDatabaseInput");
         expect(aboveMaximum.operation).toBe("listRecent");
+        expect(invalidRecord).toBeInstanceOf(InvalidDatabaseInput);
+        expect(invalidRecord._tag).toBe("InvalidDatabaseInput");
+        expect(invalidRecord.operation).toBe("record");
       })
     );
   });
