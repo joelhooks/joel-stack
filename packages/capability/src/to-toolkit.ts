@@ -84,10 +84,10 @@ const toTool = (capability: AnyCapability) =>
 export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps
 ): ToolkitProjection<Caps> => {
-  // `Toolkit.make` is variadic over a tuple of tools; the tuple type is
-  // recovered by `ToolsOf<Caps>`, which `map` over the runtime array cannot
-  // carry. One cast at this boundary keeps every caller fully typed.
   const made: unknown = Toolkit.make(...capabilities.map(toTool));
+  // SAFETY: `Toolkit.make` is variadic over a tuple of tools; the tuple type
+  // is recovered by `ToolsOf<Caps>`, which `map` over the runtime array
+  // cannot carry. One cast at this boundary keeps every caller fully typed.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const toolkit = made as Toolkit.Toolkit<ToolsOf<Caps>>;
 
@@ -97,14 +97,18 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
 
       const handlers: Record<
         string,
+        // The toolkit decodes each tool's parameters before calling; this
+        // record erases them because a loop cannot name each capability.
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters
         (parameters: unknown) => Effect.Effect<unknown, unknown>
       > = {};
 
       for (const capability of capabilities) {
-        // `Any` erased this capability's requirements to `unknown`; they are
-        // a subset of `RequirementsOf<Caps>`, which `context` carries.
+        // SAFETY: `Any` erased this capability's requirements to `unknown`;
+        // they are a subset of `RequirementsOf<Caps>`, which `context` carries.
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion
         const run = capability.handler as (
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters
           input: unknown
         ) => Effect.Effect<unknown, unknown, RequirementsOf<Caps>>;
 
@@ -112,9 +116,9 @@ export const toToolkit = <const Caps extends readonly AnyCapability[]>(
           run(parameters).pipe(Effect.provideContext(context));
       }
 
-      // Same boundary as the toolkit cast: the record is keyed by the
+      // SAFETY: same boundary as the toolkit cast: the record is keyed by the
       // capabilities' names, which is exactly `HandlersFrom<ToolsOf<Caps>>`.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
       return handlers as unknown as Toolkit.HandlersFrom<ToolsOf<Caps>>;
     })
   );

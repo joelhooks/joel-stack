@@ -70,7 +70,7 @@ rl.on("line", async (line) => {
 const ChildMessage = Schema.Union([
   Schema.Struct({
     id: Schema.Finite,
-    input: Schema.Unknown,
+    input: Schema.Json,
     name: Schema.String,
     type: Schema.Literal("call"),
   }),
@@ -89,6 +89,11 @@ const ChildMessage = Schema.Union([
 const decodeChildMessage = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ChildMessage)
 );
+
+/** What the host writes to the child: start a program, or answer a call. */
+type HostMessage =
+  | { readonly code: string; readonly type: "run" }
+  | ({ readonly id: number; readonly type: "result" } & InvokeOutcome);
 
 const encoder = new TextEncoder();
 
@@ -136,7 +141,7 @@ const makeSubprocess = (options?: SubprocessOptions) =>
         Effect.forkScoped
       );
 
-      const send = (message: unknown) =>
+      const send = (message: HostMessage) =>
         Queue.offer(outbox, encoder.encode(`${JSON.stringify(message)}\n`));
 
       yield* send({ code, type: "run" });

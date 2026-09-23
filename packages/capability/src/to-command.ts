@@ -9,8 +9,7 @@
 //
 // Output is the encoded output schema as JSON, or `render(output)` when a
 // renderer is supplied, in which case `--json` switches back to JSON.
-import type { SchemaAST } from "effect";
-import { Console, Effect, Option, Schema } from "effect";
+import { Console, Effect, Option, Predicate, Schema, SchemaAST } from "effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
 
 import { Approval } from "./approval.js";
@@ -32,43 +31,39 @@ export interface ToCommandOptions<Output> {
   readonly render?: ((output: Output) => string) | undefined;
 }
 
-interface FieldShape {
+interface FieldSpec {
   readonly description: string | undefined;
   readonly kind: "string" | "number" | "boolean" | "literals" | "json";
   readonly literals: readonly string[];
   readonly optional: boolean;
 }
 
-const isUndefinedAst = (ast: SchemaAST.AST): boolean =>
-  ast._tag === "Undefined";
-
 const literalOf = (ast: SchemaAST.AST): string | undefined =>
-  ast._tag === "Literal" && typeof ast.literal === "string"
+  SchemaAST.isLiteral(ast) && Predicate.isString(ast.literal)
     ? ast.literal
     : undefined;
 
 const primitiveKinds: Partial<
-  Record<SchemaAST.AST["_tag"], FieldShape["kind"]>
+  Record<SchemaAST.AST["_tag"], FieldSpec["kind"]>
 > = {
   Boolean: "boolean",
   Number: "number",
   String: "string",
 };
 
-const primitiveKind = (ast: SchemaAST.AST): FieldShape["kind"] =>
+const primitiveKind = (ast: SchemaAST.AST): FieldSpec["kind"] =>
   primitiveKinds[ast._tag] ?? "json";
 
-const describe = (field: PlainSchema): FieldShape => {
+const describe = (field: PlainSchema): FieldSpec => {
   let ast: SchemaAST.AST = field.ast;
   let optional = ast.context?.isOptional === true;
 
-  const description =
-    typeof ast.annotations?.description === "string"
-      ? ast.annotations.description
-      : undefined;
+  const description = SchemaAST.resolveDescription(ast);
 
-  if (ast._tag === "Union") {
-    const members = ast.types.filter((member) => !isUndefinedAst(member));
+  if (SchemaAST.isUnion(ast)) {
+    const members = ast.types.filter(
+      (member) => !SchemaAST.isUndefined(member)
+    );
 
     if (members.length < ast.types.length) {
       optional = true;
@@ -102,46 +97,46 @@ const describe = (field: PlainSchema): FieldShape => {
 
 const jsonFlag = (name: string, field: PlainSchema) =>
   Flag.String(name).pipe(
-    // A JSON-string flag decoded by the field's own schema. `withSchema` wants
-    // a codec with the CLI environment as its services; a plain field schema
-    // needs none, which `never` satisfies.
+    // SAFETY: a JSON-string flag decoded by the field's own schema.
+    // `withSchema` wants a codec with the CLI environment as its services; a
+    // plain field schema needs none, which `never` satisfies.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     Flag.withSchema(Schema.fromJsonString(field) as never),
     Flag.withMetavar("JSON")
   );
 
 const flagBuilders: Record<
-  FieldShape["kind"],
-  (name: string, field: PlainSchema, shape: FieldShape) => Flag.Flag<unknown>
+  FieldSpec["kind"],
+  (name: string, field: PlainSchema, spec: FieldSpec) => Flag.Flag<unknown>
 > = {
   boolean: (name) => Flag.Boolean(name).pipe(Flag.withDefault(false)),
   json: (name, field) => jsonFlag(name, field),
-  literals: (name, _field, shape) => Flag.Literals(name, shape.literals),
+  literals: (name, _field, spec) => Flag.Literals(name, spec.literals),
   number: (name) => Flag.Finite(name),
   string: (name) => Flag.String(name),
 };
 
 const flagFor = (name: string, field: PlainSchema): Flag.Flag<unknown> => {
-  const shape = describe(field);
-  const base = flagBuilders[shape.kind](name, field, shape);
+  const spec = describe(field);
+  const base = flagBuilders[spec.kind](name, field, spec);
 
   const described =
-    shape.description === undefined
+    spec.description === undefined
       ? base
-      : base.pipe(Flag.withDescription(shape.description));
+      : base.pipe(Flag.withDescription(spec.description));
 
-  return shape.optional && shape.kind !== "boolean"
+  return spec.optional && spec.kind !== "boolean"
     ? described.pipe(Flag.optional, Flag.map(Option.getOrUndefined))
     : described;
 };
 
 const argumentBuilders: Record<
-  FieldShape["kind"],
-  (name: string, shape: FieldShape) => Argument.Argument<unknown>
+  FieldSpec["kind"],
+  (name: string, spec: FieldSpec) => Argument.Argument<unknown>
 > = {
   boolean: (name) => Argument.String(name),
   json: (name) => Argument.String(name),
-  literals: (name, shape) => Argument.Literals(name, shape.literals),
+  literals: (name, spec) => Argument.Literals(name, spec.literals),
   number: (name) => Argument.Finite(name),
   string: (name) => Argument.String(name),
 };
@@ -150,12 +145,12 @@ const argumentFor = (
   name: string,
   field: PlainSchema
 ): Argument.Argument<unknown> => {
-  const shape = describe(field);
-  const base = argumentBuilders[shape.kind](name, shape);
+  const spec = describe(field);
+  const base = argumentBuilders[spec.kind](name, spec);
 
-  return shape.description === undefined
+  return spec.description === undefined
     ? base
-    : base.pipe(Argument.withDescription(shape.description));
+    : base.pipe(Argument.withDescription(spec.description));
 };
 
 const JSON_FLAG = "json";
@@ -198,8 +193,8 @@ export const toCommand = <C extends AnyCapability>(
   const decodeInput = Schema.decodeUnknownEffect(capability.input);
   const encodeOutput = Schema.encodeEffect(capability.output);
 
-  // `C extends Any` widens the handler's channels to `unknown`; the extractors
-  // recover the concrete ones from `C`.
+  // SAFETY: `C extends Any` widens the handler's channels to `unknown`; the
+  // extractors recover the concrete ones from `C`.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const run = capability.handler as (
     input: InputOf<C>["Type"]

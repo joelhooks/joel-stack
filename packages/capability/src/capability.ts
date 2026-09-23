@@ -6,7 +6,7 @@
 // approval). Projections (to-command, to-http-api, to-toolkit) are pure
 // functions from Capabilities to an Effect surface; they add nothing the
 // Capability did not already say.
-import { Effect, Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 
 import { Approval, ApprovalDenied } from "./approval.js";
 
@@ -87,6 +87,11 @@ export interface AnyCapability {
   readonly needsApproval: boolean;
   readonly handler: (input: never) => Effect.Effect<unknown, unknown, unknown>;
 }
+
+/** The runtime value behind every capability; the tag comes from the class. */
+class CapabilityRecord extends Data.TaggedClass("Capability")<
+  Omit<AnyCapability, "_tag">
+> {}
 
 // Extractors infer every parameter at once: matching against a partly fixed
 // `Capability<...>` would compare handler parameter types contravariantly and
@@ -235,8 +240,7 @@ export function defineCapability<
         })
       : options.handler(input);
 
-  return {
-    _tag: "Capability",
+  return new CapabilityRecord({
     annotations: { ...defaultAnnotations, ...options.annotations },
     description: options.description,
     failure: options.failure,
@@ -245,7 +249,7 @@ export function defineCapability<
     name,
     needsApproval,
     output: options.output,
-  };
+  });
 }
 
 /** Adds ApprovalDenied to a projected failure schema when required. */
@@ -260,8 +264,8 @@ export const failureSchemaOf = <
     ? Schema.Union([capability.failure, ApprovalDenied])
     : capability.failure;
 
-  // The runtime branch preserves the exact schema members represented by the
-  // literal `NeedsApproval` type supplied by the capability.
+  // SAFETY: the runtime branch preserves the exact schema members represented
+  // by the literal `NeedsApproval` type supplied by the capability.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return schema as FailureSchemaOf<F, NeedsApproval>;
 };

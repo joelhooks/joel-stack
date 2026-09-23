@@ -1,8 +1,8 @@
 import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option, Schema } from "effect";
 
-import { Sandbox } from "../src/sandbox-service.js";
+import { Sandbox, invokeFailure } from "../src/sandbox-service.js";
 import type { Invoke } from "../src/sandbox-service.js";
 import { layerSubprocess } from "../src/sandbox-subprocess.js";
 
@@ -11,17 +11,16 @@ const TestLayer = Layer.provide(
   NodeServices.layer
 );
 
+const decodeDouble = Schema.decodeUnknownOption(
+  Schema.Struct({ n: Schema.Finite })
+);
+
 const invoke: Invoke = (name, input) =>
   Effect.succeed(
-    name === "double" &&
-      typeof input === "object" &&
-      input !== null &&
-      "n" in input
-      ? { ok: true, value: { doubled: Number(input.n) * 2 } }
-      : {
-          error: { _tag: "UnknownCapability", message: `no ${name}` },
-          ok: false,
-        }
+    Option.match(name === "double" ? decodeDouble(input) : Option.none(), {
+      onNone: () => invokeFailure("UnknownCapability", `no ${name}`),
+      onSome: ({ n }) => ({ ok: true, value: { doubled: n * 2 } }),
+    })
   );
 
 describe("subprocess Sandbox", () => {

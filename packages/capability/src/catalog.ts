@@ -3,6 +3,7 @@
 // declaration of the `tools` object a sandboxed program sees, and a small
 // ranked search over it. After Executor's kernel IR and Cloudflare's Code
 // Mode: types are generated from JSON Schema, never from Effect internals.
+import { Option, Schema } from "effect";
 import type { JsonSchema } from "effect";
 import { Tool } from "effect/unstable/ai";
 
@@ -41,60 +42,99 @@ export const toCatalog = (capabilities: readonly AnyCapability[]): Catalog => ({
 // JSON Schema -> TypeScript
 // ---------------------------------------------------------------------------
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+/** A JSON value the printer can render as a TypeScript literal type. */
+type JsonLiteral = string | number | boolean | null;
 
-const stringArray = (value: unknown): readonly string[] =>
-  Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+/** The JSON Schema keywords the printer reads, parsed once at the boundary. */
+interface JsonSchemaNode {
+  readonly $defs?: Readonly<Record<string, JsonSchemaNode>>;
+  readonly $ref?: string;
+  readonly anyOf?: readonly JsonSchemaNode[];
+  readonly const?: JsonLiteral;
+  readonly description?: string;
+  readonly enum?: readonly JsonLiteral[];
+  readonly items?: JsonSchemaNode;
+  readonly not?: JsonSchemaNode;
+  readonly oneOf?: readonly JsonSchemaNode[];
+  readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
+  readonly required?: readonly string[];
+  readonly type?: string | readonly string[];
+}
+
+const JsonLiteralSchema = Schema.Union([
+  Schema.String,
+  Schema.Finite,
+  Schema.Boolean,
+  Schema.Null,
+]);
+
+const JsonSchemaNodeSchema: Schema.Codec<JsonSchemaNode> = Schema.Struct({
+  $defs: Schema.optionalKey(
+    Schema.Record(
+      Schema.String,
+      Schema.suspend(() => JsonSchemaNodeSchema)
+    )
+  ),
+  $ref: Schema.optionalKey(Schema.String),
+  anyOf: Schema.optionalKey(
+    Schema.Array(Schema.suspend(() => JsonSchemaNodeSchema))
+  ),
+  const: Schema.optionalKey(JsonLiteralSchema),
+  description: Schema.optionalKey(Schema.String),
+  enum: Schema.optionalKey(Schema.Array(JsonLiteralSchema)),
+  items: Schema.optionalKey(Schema.suspend(() => JsonSchemaNodeSchema)),
+  not: Schema.optionalKey(Schema.suspend(() => JsonSchemaNodeSchema)),
+  oneOf: Schema.optionalKey(
+    Schema.Array(Schema.suspend(() => JsonSchemaNodeSchema))
+  ),
+  properties: Schema.optionalKey(
+    Schema.Record(
+      Schema.String,
+      Schema.suspend(() => JsonSchemaNodeSchema)
+    )
+  ),
+  required: Schema.optionalKey(Schema.Array(Schema.String)),
+  type: Schema.optionalKey(
+    Schema.Union([Schema.String, Schema.Array(Schema.String)])
+  ),
+});
+
+const parseNode = Schema.decodeUnknownOption(JsonSchemaNodeSchema);
 
 const quoteKey = (key: string): string =>
   /^[A-Za-z_$][\w$]*$/u.test(key) ? key : JSON.stringify(key);
 
-const literal = (value: unknown): string => {
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
-    return JSON.stringify(value);
-  }
+const literal = (value: JsonLiteral): string =>
+  value === null ? "null" : JSON.stringify(value);
 
-  return value === null ? "null" : "unknown";
-};
-
-const refName = (ref: unknown): string | undefined =>
-  typeof ref === "string" && ref.startsWith("#/$defs/")
+const refName = (ref: string | undefined): string | undefined =>
+  ref?.startsWith("#/$defs/") === true
     ? ref.slice("#/$defs/".length)
     : undefined;
 
-const objectType = (schema: Record<string, unknown>): string => {
-  const properties = isRecord(schema.properties) ? schema.properties : {};
-  const required = new Set(stringArray(schema.required));
+const objectType = (node: JsonSchemaNode): string => {
+  const required = new Set(node.required);
 
-  const members = Object.entries(properties).map(([key, value]) => {
+  const members = Object.entries(node.properties ?? {}).map(([key, value]) => {
     const optional = required.has(key) ? "" : "?";
 
     const description =
-      isRecord(value) && typeof value.description === "string"
-        ? `/** ${value.description} */ `
-        : "";
+      value.description === undefined ? "" : `/** ${value.description} */ `;
 
-    // typeOf and the object/primitive printers are mutually recursive.
+    // printNode and the object/primitive printers are mutually recursive.
     // oxlint-disable-next-line no-use-before-define
-    return `${description}readonly ${quoteKey(key)}${optional}: ${typeOf(value)}`;
+    return `${description}readonly ${quoteKey(key)}${optional}: ${printNode(value)}`;
   });
 
   return members.length === 0 ? "{}" : `{ ${members.join("; ")} }`;
 };
 
-const primitive = (type: string, schema: Record<string, unknown>): string => {
+const primitive = (type: string, node: JsonSchemaNode): string => {
   switch (type) {
     case "string": {
-      const enumeration = Array.isArray(schema.enum) ? schema.enum : undefined;
-
-      return enumeration === undefined
+      return node.enum === undefined
         ? "string"
-        : enumeration.map(literal).join(" | ");
+        : node.enum.map(literal).join(" | ");
     }
 
     case "number":
@@ -111,12 +151,14 @@ const primitive = (type: string, schema: Record<string, unknown>): string => {
     }
 
     case "array": {
-      // oxlint-disable-next-line no-use-before-define
-      return `ReadonlyArray<${typeOf(schema.items)}>`;
+      return node.items === undefined
+        ? "ReadonlyArray<unknown>"
+        : // oxlint-disable-next-line no-use-before-define
+          `ReadonlyArray<${printNode(node.items)}>`;
     }
 
     case "object": {
-      return objectType(schema);
+      return objectType(node);
     }
 
     default: {
@@ -125,53 +167,55 @@ const primitive = (type: string, schema: Record<string, unknown>): string => {
   }
 };
 
-/** Prints a TypeScript type for a JSON Schema fragment; `unknown` when unsure. */
-export const typeOf = (schema: unknown): string => {
-  if (!isRecord(schema)) {
-    return "unknown";
-  }
-
-  const ref = refName(schema.$ref);
+const printNode = (node: JsonSchemaNode): string => {
+  const ref = refName(node.$ref);
 
   if (ref !== undefined) {
     return ref;
   }
 
-  if ("const" in schema) {
-    return literal(schema.const);
+  if (node.const !== undefined) {
+    return literal(node.const);
   }
 
-  if (isRecord(schema.not) && Object.keys(schema.not).length === 0) {
+  if (node.not !== undefined && Object.keys(node.not).length === 0) {
     return "never";
   }
 
-  const variants = schema.anyOf ?? schema.oneOf;
+  const variants = node.anyOf ?? node.oneOf;
 
-  if (Array.isArray(variants)) {
-    return variants.map(typeOf).join(" | ");
+  if (variants !== undefined) {
+    return variants.map(printNode).join(" | ");
   }
 
-  const { type } = schema;
+  // `type` is one name or a list of names; flattening covers both.
+  const types = [node.type ?? []].flat();
 
-  if (Array.isArray(type)) {
-    return type.map((member) => primitive(String(member), schema)).join(" | ");
+  if (types.length > 0) {
+    return types.map((member) => primitive(member, node)).join(" | ");
   }
 
-  if (typeof type === "string") {
-    return primitive(type, schema);
-  }
-
-  if (Array.isArray(schema.enum)) {
-    return schema.enum.map(literal).join(" | ");
+  if (node.enum !== undefined) {
+    return node.enum.map(literal).join(" | ");
   }
 
   return "unknown";
 };
 
-const definitions = (schema: unknown): readonly [string, unknown][] =>
-  isRecord(schema) && isRecord(schema.$defs)
-    ? Object.entries(schema.$defs)
-    : [];
+/** Prints a TypeScript type for a JSON Schema fragment; `unknown` when unsure. */
+export const typeOf = (schema: JsonSchema.JsonSchema): string =>
+  Option.match(parseNode(schema), {
+    onNone: () => "unknown",
+    onSome: printNode,
+  });
+
+const definitions = (
+  schema: JsonSchema.JsonSchema
+): readonly (readonly [string, JsonSchemaNode])[] =>
+  Option.match(parseNode(schema), {
+    onNone: () => [],
+    onSome: (node) => Object.entries(node.$defs ?? {}),
+  });
 
 const docComment = (lines: readonly string[]): string =>
   ["/**", ...lines.map((line) => ` * ${line}`), " */"].join("\n");
@@ -203,7 +247,7 @@ export const signatureOf = (entry: CatalogEntry): string => {
 
 /** The `.d.ts` a sandboxed program can rely on: named failures, then `tools`. */
 export const toTypeScript = (catalog: Catalog): string => {
-  const named = new Map<string, unknown>();
+  const named = new Map<string, JsonSchemaNode>();
 
   for (const entry of catalog.capabilities) {
     for (const [name, schema] of [
@@ -216,7 +260,7 @@ export const toTypeScript = (catalog: Catalog): string => {
   }
 
   const aliases = [...named].map(
-    ([name, schema]) => `type ${name} = ${typeOf(schema)};`
+    ([name, node]) => `type ${name} = ${printNode(node)};`
   );
 
   const members = catalog.capabilities.map((entry) =>
@@ -262,9 +306,10 @@ export const searchCatalog = (
   const wanted = new Set(tokens(query));
 
   const scored = catalog.capabilities.map((entry) => {
-    const fields = isRecord(entry.input.properties)
-      ? Object.keys(entry.input.properties)
-      : [];
+    const fields = Option.match(parseNode(entry.input), {
+      onNone: () => [],
+      onSome: (node) => Object.keys(node.properties ?? {}),
+    });
 
     const haystack = [
       ...tokens(entry.name).map((token) => [token, 3] as const),
