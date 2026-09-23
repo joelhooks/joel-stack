@@ -31,10 +31,13 @@ export const routes = Layer.merge(
   HttpApiScalar.layer(http.api, { path: "/docs" })
 );
 
+export const SERVE_HOST = "127.0.0.1";
+
+export const serverLayer = (port: number) =>
+  NodeHttpServer.layer(() => createServer(), { host: SERVE_HOST, port });
+
 export const webServer = (port: number) =>
-  HttpRouter.serve(routes).pipe(
-    Layer.provide(NodeHttpServer.layer(() => createServer(), { port }))
-  );
+  HttpRouter.serve(routes).pipe(Layer.provide(serverLayer(port)));
 
 const protocols = [
   McpProtocol.v2025_06_18,
@@ -53,8 +56,6 @@ const withStdio = <A, E, R>(server: Layer.Layer<A, E, R>) =>
     Layer.provide(stdio),
     Layer.provide(Layer.succeed(Logger.LogToStderr, true))
   );
-
-export const DEVTOOLS_HOST = "127.0.0.1";
 
 export const DEVTOOLS_MCP_PATH = "/__rat/mcp";
 
@@ -100,9 +101,7 @@ export const devtoolsRoutes = withDevtools(
 export const devtoolsWebServer = (port: number) =>
   HttpRouter.serve(devtoolsRoutes).pipe(
     Layer.provide(devtoolsLayer()),
-    Layer.provide(
-      NodeHttpServer.layer(() => createServer(), { host: DEVTOOLS_HOST, port })
-    )
+    Layer.provide(serverLayer(port))
   );
 
 export const mcpServer = {

@@ -8,10 +8,16 @@ import {
   devtoolsLayer,
 } from "@rat-stack/devtools";
 import { Effect, FileSystem, Layer, Path, Schema } from "effect";
-import { HttpClient, HttpRouter } from "effect/unstable/http";
+import { HttpClient, HttpRouter, HttpServer } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
 
-import { devtoolsRoutes, http, routes } from "../src/surfaces.js";
+import {
+  SERVE_HOST,
+  devtoolsRoutes,
+  http,
+  routes,
+  serverLayer,
+} from "../src/surfaces.js";
 
 const decodeOpenApi = Schema.decodeUnknownSync(
   Schema.Struct({ paths: Schema.Record(Schema.String, Schema.Unknown) })
@@ -26,6 +32,17 @@ const AppLayer = HttpRouter.serve(routes, {
 );
 
 describe("serve routes", () => {
+  it.effect("binds serve to the loopback interface only", () =>
+    Effect.gen(function* bindsLoopback() {
+      const server = yield* HttpServer.HttpServer;
+
+      expect(HttpServer.formatAddress(server.address)).toMatch(
+        /^http:\/\/127\.0\.0\.1:\d+$/u
+      );
+      expect(SERVE_HOST).toBe("127.0.0.1");
+    }).pipe(Effect.provide(serverLayer(0)))
+  );
+
   it.effect("publishes the OpenAPI document and the docs page", () =>
     Effect.gen(function* publishesDocs() {
       const openapi = yield* HttpClient.get("/openapi.json");
