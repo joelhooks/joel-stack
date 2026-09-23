@@ -1,0 +1,56 @@
+{
+  "name": "@rat-stack/database",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "dist",
+    "src",
+    "migrations"
+  ],
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./d1": {
+      "types": "./src/d1.ts",
+      "import": "./dist/d1.js",
+      "default": "./dist/d1.js"
+    },
+    "./hyperdrive-postgres": {
+      "types": "./src/hyperdrive-postgres.ts",
+      "import": "./dist/hyperdrive-postgres.js",
+      "default": "./dist/hyperdrive-postgres.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "check": "pnpm run typecheck",
+    "pretest": "pnpm run --silent build"
+  },
+  "dependencies": {
+    "@effect/sql-pg": "4.0.0-rc.116",
+    "alchemy": "2.0.0-beta.79",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "effect": "4.0.0-rc.116",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260917.1",
+    "@effect/platform-node": "4.0.0-rc.116",
+    "@effect/vitest": "4.0.0-rc.116",
+    "@electric-sql/pglite": "0.3.15",
+    "@types/node": "24.13.6",
+    "@types/pg": "8.20.0",
+    "@types/sql.js": "1.4.11",
+    "drizzle-kit": "1.0.0-rc.5-ab785fc",
+    "sql.js": "1.14.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}
