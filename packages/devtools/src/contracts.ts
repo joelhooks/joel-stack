@@ -152,14 +152,23 @@ export const ratCall = defineContract("rat_call", {
   description:
     "Call a capability by name. The input is decoded by that capability's contract first, approval-gated capabilities stay gated, and the call is recorded like any other.",
   failure: Schema.Never,
-  input: Schema.Struct({ capability: Schema.String, input: Schema.Json }),
+  input: Schema.Struct({
+    as: Schema.optional(
+      Schema.Json.annotate({
+        description:
+          "Identity to run the call as, decoded by the runtime's runAs schema, such as a test person's id from rat_test_person. Omit to use the runtime's own identity.",
+      })
+    ),
+    capability: Schema.String,
+    input: Schema.Json,
+  }),
   output: Schema.Struct({ result: InvokeResultSchema }),
 });
 
 export const ratReplayCall = defineContract("rat_replay_call", {
   annotations: { destructive: true, openWorld: true },
   description:
-    "Run a recorded call's input again and diff the new result against the recorded one, path by path.",
+    "Run a recorded call's input again, as the same identity, and diff the new result against the recorded one, path by path.",
   failure: CallNotFound,
   input: Schema.Struct({ index: Index }),
   output: Schema.Struct({

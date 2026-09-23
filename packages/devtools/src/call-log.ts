@@ -12,6 +12,7 @@ export const OutcomeSchema = Schema.TaggedUnion({
 export type Outcome = typeof OutcomeSchema.Type;
 
 export const CallEntrySchema = Schema.Struct({
+  as: Schema.Json,
   capability: Schema.String,
   durationMs: Schema.Int,
   index: Schema.Int,

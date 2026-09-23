@@ -20,6 +20,8 @@ export {
 
 export { DEFAULT_CAPACITY } from "./ring.js";
 
+export type { DevtoolsOptions, RunAs } from "./run-as.js";
+
 export {
   ActorEntrySchema,
   ActorLog,
