@@ -378,13 +378,13 @@ importers:
         version: link:../capability
       '@xstate/effect':
         specifier: 0.1.0-alpha.2
-        version: 0.1.0-alpha.2(effect@4.0.0-rc.117)(xstate@6.0.0-alpha.58)
+        version: 0.1.0-alpha.2(effect@4.0.0-rc.117)(xstate@6.0.0-alpha.59)
       effect:
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117
       xstate:
-        specifier: 6.0.0-alpha.58
-        version: 6.0.0-alpha.58
+        specifier: 6.0.0-alpha.59
+        version: 6.0.0-alpha.59
     devDependencies:
       '@effect/vitest':
         specifier: 4.0.0-rc.117
@@ -3789,8 +3789,8 @@ packages:
   xmlchars@2.2.0:
     resolution: {integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==}
 
-  xstate@6.0.0-alpha.58:
-    resolution: {integrity: sha512-Ju9t3biPWcl0o18A+MiFIQF5bsqMO/rE3WEjSUuuAThzrQZgCKxosJIfavaY5ureDaPrtrrujwjAZA9u8SViKw==}
+  xstate@6.0.0-alpha.59:
+    resolution: {integrity: sha512-IDBLFTCkMgRzoxecswgXKnZin6aca237WhogmMeuebGnYn+NeQUq9IcAeWKuf/Y0TDYZFwupnx5tP23GMSl1Ww==}
     hasBin: true
 
   y18n@5.0.8:
@@ -5347,10 +5347,10 @@ snapshots:
 
   '@vitest/spy@5.0.1': {}
 
-  '@xstate/effect@0.1.0-alpha.2(effect@4.0.0-rc.117)(xstate@6.0.0-alpha.58)':
+  '@xstate/effect@0.1.0-alpha.2(effect@4.0.0-rc.117)(xstate@6.0.0-alpha.59)':
     dependencies:
       effect: 4.0.0-rc.117
-      xstate: 6.0.0-alpha.58
+      xstate: 6.0.0-alpha.59
 
   acorn@8.18.0: {}
 
@@ -7091,7 +7091,7 @@ snapshots:
 
   xmlchars@2.2.0: {}
 
-  xstate@6.0.0-alpha.58:
+  xstate@6.0.0-alpha.59:
     dependencies:
       saxes: 6.0.0
 

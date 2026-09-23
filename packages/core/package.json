@@ -27,7 +27,7 @@
     "@rat-stack/capability": "workspace:*",
     "@xstate/effect": "0.1.0-alpha.2",
     "effect": "4.0.0-rc.117",
-    "xstate": "6.0.0-alpha.58"
+    "xstate": "6.0.0-alpha.59"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.117",
