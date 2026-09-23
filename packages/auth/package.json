@@ -13,6 +13,11 @@
       "types": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./devtools": {
+      "types": "./src/devtools.ts",
+      "import": "./dist/devtools.js",
+      "default": "./dist/devtools.js"
     }
   },
   "scripts": {
@@ -24,6 +29,7 @@
   },
   "dependencies": {
     "@alchemy.run/better-auth": "2.0.0-beta.79",
+    "@rat-stack/capability": "workspace:*",
     "@rat-stack/database": "workspace:*",
     "alchemy": "2.0.0-beta.79",
     "better-auth": "1.6.2",
@@ -33,7 +39,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260901.1",
     "@effect/vitest": "4.0.0-rc.117",
-    "@rat-stack/capability": "workspace:*",
+    "@rat-stack/devtools": "workspace:*",
     "@types/node": "24.13.6",
     "@types/pg": "8.20.0",
     "typescript": "7.0.2",
