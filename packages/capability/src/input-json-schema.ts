@@ -13,16 +13,15 @@ export const inputJsonSchemaOf = (
     return schema;
   }
 
-  const nullGuard = schema.not;
+  const { not: nullGuard, ...withoutGuard } = schema;
 
-  if (
+  const base =
     Predicate.isObject(nullGuard) &&
     Object.keys(nullGuard).length === 1 &&
     "type" in nullGuard &&
     nullGuard.type === "null"
-  ) {
-    delete schema.not;
-  }
+      ? withoutGuard
+      : schema;
 
-  return { ...schema, properties: {}, type: "object" };
+  return { ...base, properties: {}, type: "object" };
 };
