@@ -74,3 +74,29 @@ const mixedContract = defineContract("mixed", {
 });
 
 export const mixed = implement(mixedContract, (input) => Effect.succeed(input));
+
+const noArgsContract = defineContract("noArgs", {
+  description: "Return a fixed value without input",
+  failure: Schema.Never,
+  input: Schema.Struct({}),
+  output: Schema.String,
+});
+
+export const noArgs = implement(noArgsContract, () => Effect.succeed("ready"));
+
+const checkedInputContract = defineContract("checkedInput", {
+  description: "Use checked enum and array-length constraints",
+  failure: Schema.Never,
+  input: Schema.Struct({
+    mode: Schema.Literals(["fast", "slow"]),
+    values: Schema.Array(Schema.String)
+      .check(Schema.isMinLength(1))
+      .check(Schema.isMaxLength(3)),
+  }),
+  output: Schema.String,
+});
+
+export const checkedInput = implement(
+  checkedInputContract,
+  ({ mode, values }) => Effect.succeed(`${mode}:${values.length}`)
+);

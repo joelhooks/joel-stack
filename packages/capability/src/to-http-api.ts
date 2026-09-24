@@ -1,5 +1,5 @@
 // @effect-diagnostics anyUnknownInErrorContext:off unsafeEffectTypeAssertion:off missingEffectContext:off -- See to-toolkit.ts: a projection over a heterogeneous list erases error and requirement types at the boundary and recovers them for callers.
-import type { Effect, Layer, Schema } from "effect";
+import type { Effect, JsonSchema, Layer, Schema } from "effect";
 import {
   HttpApi,
   HttpApiBuilder,
@@ -20,6 +20,7 @@ import type {
   OutputOf,
   PlainSchema,
 } from "./contract.js";
+import { inputJsonSchemaOf } from "./input-json-schema.js";
 import type { RequirementsOf } from "./to-toolkit.js";
 
 export const GROUP = "capabilities";
@@ -177,5 +178,67 @@ export const toHttpApi = <
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions
   const layer = built as unknown as HttpApiProjection<Id, Caps>["layer"];
 
-  return { api, layer, openApi: () => OpenApi.fromApi(api) };
+  const emptyInputsByOperationId: ReadonlyMap<string, JsonSchema.JsonSchema> =
+    new Map(
+      capabilities
+        .filter(
+          ({ contract }) => Object.keys(contract.input.fields).length === 0
+        )
+        .map(({ contract }) => [
+          `${GROUP}.${contract.name}`,
+          inputJsonSchemaOf(contract.input),
+        ])
+    );
+
+  const openApi = (): OpenApi.OpenAPISpec => {
+    const document = OpenApi.fromApi(api);
+
+    if (emptyInputsByOperationId.size === 0) {
+      return document;
+    }
+
+    const paths = Object.fromEntries(
+      Object.entries(document.paths).map(([path, pathItem]) => {
+        const operation = pathItem.post;
+        const requestBody = operation?.requestBody;
+
+        const inputSchema =
+          operation === undefined
+            ? undefined
+            : emptyInputsByOperationId.get(operation.operationId);
+
+        if (
+          operation === undefined ||
+          requestBody === undefined ||
+          inputSchema === undefined
+        ) {
+          return [path, pathItem];
+        }
+
+        const content = Object.fromEntries(
+          Object.entries(requestBody.content).map(
+            ([contentType, mediaType]) => [
+              contentType,
+              { ...mediaType, schema: inputSchema },
+            ]
+          )
+        );
+
+        return [
+          path,
+          {
+            ...pathItem,
+            post: {
+              ...operation,
+              requestBody: { ...requestBody, content },
+            },
+          },
+        ];
+      })
+    );
+
+    return { ...document, paths };
+  };
+
+  return { api, layer, openApi };
 };

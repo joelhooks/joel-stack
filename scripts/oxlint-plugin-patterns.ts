@@ -251,68 +251,12 @@ const watchEffectActors = defineRule({
   },
 });
 
-const isEmptyStruct = (node: ESTree.Node) =>
-  node.type === "CallExpression" &&
-  node.callee.type === "MemberExpression" &&
-  node.callee.object.type === "Identifier" &&
-  node.callee.object.name === "Schema" &&
-  node.callee.property.type === "Identifier" &&
-  node.callee.property.name === "Struct" &&
-  node.arguments.length === 1 &&
-  node.arguments[0]?.type === "ObjectExpression" &&
-  node.arguments[0].properties.length === 0;
-
-const noEmptyContractInput = defineRule({
-  create(context) {
-    if (!isRuntimeSource(workspacePath(context.filename))) {
-      return {};
-    }
-
-    return {
-      CallExpression(node) {
-        const [, options] = node.arguments;
-
-        if (
-          contractName(node) === null ||
-          options === undefined ||
-          options.type !== "ObjectExpression"
-        ) {
-          return;
-        }
-
-        for (const property of options.properties) {
-          if (
-            property.type === "Property" &&
-            property.key.type === "Identifier" &&
-            property.key.name === "input" &&
-            isEmptyStruct(property.value)
-          ) {
-            context.report({ messageId: "emptyInput", node: property.value });
-          }
-        }
-      },
-    };
-  },
-  meta: {
-    docs: {
-      description:
-        "Give every contract input at least one field, so every projection accepts it.",
-    },
-    messages: {
-      emptyInput:
-        'Schema.Struct({}) projects to the JSON Schema {"not":{"type":"null"}}, which MCP rejects because a tool input must have "type": "object". Give the input one optional field, such as a filter.',
-    },
-    type: "problem",
-  },
-});
-
 export default definePlugin({
   meta: { name: "rat-stack-patterns" },
   rules: {
     "acquire-release-constructs-in-acquire-body":
       acquireReleaseConstructsInAcquireBody,
     "contract-binding-matches-name": contractBindingMatchesName,
-    "no-empty-contract-input": noEmptyContractInput,
     "no-module-level-mutable-state": noModuleLevelMutableState,
     "watch-effect-actors": watchEffectActors,
   },

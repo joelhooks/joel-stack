@@ -147,7 +147,7 @@ Built on `worker/foldkit-explore`, base `8dffe1f`:
 - `rat serve --devtools` and `rat mcp --devtools [--code-mode]`.
 - Verified live: a REST call to `serve --devtools` shows up in `rat_list_calls` over MCP HTTP, and the listener is on `127.0.0.1` only.
 
-Gotcha found on the way: `Schema.Struct({})` as a contract input projects to the JSON Schema `{"not":{"type":"null"}}`, which MCP rejects because a tool's `inputSchema` must have `"type": "object"`. Every devtools tool has at least one optional field, and a test asserts the object schema. The same trap applies to any future contract; it belongs in a projection test or a lint rule.
+A `Schema.Struct({})` contract input originally projected to `{"not":{"type":"null"}}`, which MCP rejected because a tool's `inputSchema` needs `"type": "object"`. The toolkit projection now advertises the empty object shape and leaves decoding to the contract schema; integration tests cover registration, listing, and calling. OpenAPI and the code-mode catalog use the same empty-input schema normalization.
 
 ## Slice 2 status
 
@@ -241,10 +241,7 @@ Everything Joel queued has shipped on main:
 - the production guardrail;
 - the web dev loop.
 
-Main has since deployed `Website` and `RpcBackend` to prod, where `/__rat/mcp` returns 404, and moved `pnpm dev` to portless at `http://rat-stack.localhost:1355`. The last pass added two things:
-
-- `rat-stack-patterns/no-empty-contract-input`, which turns the MCP trap above into a lint error;
-- `baseURL` for the dev Better Auth, read from `PORTLESS_URL` (declared in `.env.schema`). It silences the "Base URL could not be determined" warning on every `pnpm dev`. Without portless, for example the `vite dev` tests, the URL is unset and the warning returns, which is harmless.
+Main has since deployed `Website` and `RpcBackend` to prod, where `/__rat/mcp` returns 404, and moved `pnpm dev` to portless at `http://rat-stack.localhost:1355`. The last pass also added `baseURL` for the dev Better Auth, read from `PORTLESS_URL` (declared in `.env.schema`). It silences the "Base URL could not be determined" warning on every `pnpm dev`. Without portless, for example the `vite dev` tests, the URL is unset and the warning returns, which is harmless.
 
 `rat serve` binding to `127.0.0.1` also landed on main, in `91a6dcc`.
 
