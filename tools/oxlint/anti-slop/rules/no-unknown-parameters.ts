@@ -39,7 +39,8 @@ function isRejectionHandler(owner: ParameterOwner): boolean {
 
   if (
     call?.type !== "CallExpression" ||
-    call.callee.type !== "MemberExpression"
+    call.callee.type !== "MemberExpression" ||
+    call.callee.computed
   ) {
     return false;
   }

@@ -61,6 +61,7 @@ describe("anti-slop/no-unknown-parameters", () => {
       [
         "export const fulfilled = (p: Promise<unknown>) => p.then((value: unknown) => value);",
         "export const second = (p: Promise<number>) => p.then(() => null, (error: unknown, extra: unknown) => [error, extra]);",
+        'export const computed = (p: Promise<number>, then: "then") => p[then](() => null, (reason: unknown) => reason);',
         "export const plain = (input: unknown) => input;",
         "",
       ].join("\n")
@@ -69,6 +70,7 @@ describe("anti-slop/no-unknown-parameters", () => {
     expect(result.output).toContain("Parameter `value` leaves input unparsed");
     expect(result.output).toContain("Parameter `extra` leaves input unparsed");
     expect(result.output).toContain("Parameter `input` leaves input unparsed");
+    expect(result.output).toContain("Parameter `reason` leaves input unparsed");
     expect(result.output).not.toContain(
       "Parameter `error` leaves input unparsed"
     );
