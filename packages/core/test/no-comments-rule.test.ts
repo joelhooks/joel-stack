@@ -74,6 +74,31 @@ describe("no-comments rule", () => {
     expect(remaining).toBe(0);
   });
 
+  it("keeps TypeScript directives and folds a reason into them", () => {
+    const { fixed, remaining } = lintFixed(
+      "sample.ts",
+      [
+        "// The fixture needs a string here.",
+        "// @ts-expect-error",
+        'export const wrong: number = "x";',
+        "// @ts-ignore -- kept so ban-ts-comment can report it",
+        'export const other: number = "y";',
+        "",
+      ].join("\n")
+    );
+
+    expect(fixed).toBe(
+      [
+        "// @ts-expect-error -- The fixture needs a string here.",
+        'export const wrong: number = "x";',
+        "// @ts-ignore -- kept so ban-ts-comment can report it",
+        'export const other: number = "y";',
+        "",
+      ].join("\n")
+    );
+    expect(remaining).toBe(0);
+  });
+
   it("keeps a SAFETY invariant on one line", () => {
     const { fixed, remaining } = lintFixed(
       "safety.ts",
