@@ -66,6 +66,11 @@ const expectRule = (result: LintResult, message: string) => {
   expect(result.output).toContain(message);
 };
 
+const expectRuleSoft = (result: LintResult, message: string) => {
+  expect.soft(result.status).not.toBe(0);
+  expect.soft(result.output).toContain(message);
+};
+
 describe("architecture boundary rules", () => {
   it("wires browser boundary rules to the feature and client globs", () => {
     const configSource = readFileSync(
@@ -126,6 +131,48 @@ describe("architecture boundary rules", () => {
     );
   });
 
+  it("blocks aliased require, module.require, import-equals, and asserted module strings", () => {
+    const aliased = lintFixture(
+      "packages/core/src",
+      'const load = require;\n\nload("../../../../apps/cli/src/cli.ts");\n'
+    );
+
+    const moduleRequire = lintFixture(
+      "packages/core/src",
+      'module.require("../../../../apps/cli/src/cli.ts");\n'
+    );
+
+    const destructuredRequire = lintFixture(
+      "packages/core/src",
+      'const { require: load } = module;\nload("../../../../apps/cli/src/cli.ts");\n'
+    );
+
+    const importEquals = lintFixture(
+      "packages/core/src",
+      'import cli = require("../../../../apps/cli/src/cli.ts");\nexport { cli };\n'
+    );
+
+    const asserted = lintFixture(
+      "packages/core/src",
+      'import("../../../../apps/cli/src/cli.ts" as string);\n'
+    );
+
+    const createRequire = lintFixture(
+      "packages/core/src",
+      'import { createRequire } from "node:module";\n\nconst load = createRequire(import.meta.url);\nload("../../../../apps/cli/src/cli.ts");\n'
+    );
+
+    expectRuleSoft(aliased, "Packages cannot import application code.");
+    expectRuleSoft(moduleRequire, "Packages cannot import application code.");
+    expectRuleSoft(
+      destructuredRequire,
+      "Packages cannot import application code."
+    );
+    expectRuleSoft(importEquals, "Packages cannot import application code.");
+    expectRuleSoft(asserted, "Packages cannot import application code.");
+    expectRuleSoft(createRequire, "Packages cannot import application code.");
+  });
+
   it.each([
     ["Node builtins", "node:fs"],
     ["Alchemy", "alchemy/AdoptPolicy"],
@@ -149,6 +196,18 @@ describe("architecture boundary rules", () => {
     const result = lintFixture(
       "apps/cli/src/client",
       'import "server-only";\n\nexport const client = true;\n'
+    );
+
+    expectRule(
+      result,
+      "Feature and client modules cannot import Node, Alchemy, Worker, infra, or server-only modules."
+    );
+  });
+
+  it("blocks unprefixed Node builtins in browser modules", () => {
+    const result = lintFixture(
+      "apps/cli/src/client",
+      'import { readFile } from "fs/promises";\n\nexport const read = readFile;\n'
     );
 
     expectRule(
@@ -253,6 +312,87 @@ describe("architecture boundary rules", () => {
     );
   });
 
+  it("tracks aliased transport factories and global fetch references", () => {
+    const factory = lintFixture(
+      "apps/cli/src/features",
+      'import { createHttpClient as makeClient } from "effect/unstable/httpapi/HttpClient";\n\nexport const client = makeClient();\n'
+    );
+
+    const fetchCall = lintFixture(
+      "apps/cli/src/features",
+      'export const send = fetch.call(globalThis, "/rpc");\n'
+    );
+
+    const fetchAlias = lintFixture(
+      "apps/cli/src/features",
+      "export const send = fetch;\n"
+    );
+
+    const namespaceClient = lintFixture(
+      "apps/cli/src/features",
+      'import * as Client from "effect/unstable/rpc/RpcClient";\n\nexport const client = Client.make();\n'
+    );
+
+    const namespaceHttpApi = lintFixture(
+      "apps/cli/src/features",
+      'import * as HttpApi from "effect/unstable/httpapi";\n\nexport const api = HttpApi;\n'
+    );
+
+    const namespacedConstructor = lintFixture(
+      "apps/cli/src/features",
+      'import * as Client from "effect/unstable/rpc/RpcClient";\n\nexport const client = new Client.RpcClient();\n'
+    );
+
+    const localFactory = lintFixture(
+      "apps/cli/src/features",
+      "export const build = (makeClient: () => object) => makeClient();\n"
+    );
+
+    const requiredClient = lintFixture(
+      "apps/cli/src/features",
+      'const Client = require("effect/unstable/rpc/RpcClient");\nexport const client = Client.make();\n'
+    );
+
+    const dynamicClient = lintFixture(
+      "apps/cli/src/features",
+      'export const load = () => import("effect/unstable/rpc/RpcClient");\n'
+    );
+
+    expectRuleSoft(
+      factory,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      fetchCall,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      fetchAlias,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      namespaceClient,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      namespacedConstructor,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      namespaceHttpApi,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      requiredClient,
+      "do not use fetch or construct transport clients here."
+    );
+    expectRuleSoft(
+      dynamicClient,
+      "do not use fetch or construct transport clients here."
+    );
+    expect(localFactory.status).toBe(0);
+  });
+
   it("allows the client module to own transport", () => {
     const result = lintFixture(
       "apps/cli/src/client",
@@ -287,6 +427,57 @@ describe("architecture boundary rules", () => {
     expectRule(endpoint, "HttpApiEndpoint.post hand-rolls a surface.");
     expectRule(aliased, "HttpApiEndpoint.get hand-rolls a surface.");
     expectRule(namespaced, "RpcGroup.make hand-rolls a surface.");
+  });
+
+  it("blocks computed and namespaced surface constructors without mistaking computed identifiers for names", () => {
+    const computed = lintFixture(
+      "apps/web/src/server",
+      'import { Rpc } from "effect/unstable/rpc";\n\nexport const route = Rpc["make"]("route");\n'
+    );
+
+    const namespaceModule = lintFixture(
+      "apps/web/src/server",
+      'import * as R from "effect/unstable/rpc/Rpc";\n\nexport const route = R.make("route");\n'
+    );
+
+    const call = lintFixture(
+      "apps/web/src/server",
+      'import { Rpc } from "effect/unstable/rpc";\n\nexport const route = Rpc.make.call(Rpc, "route");\n'
+    );
+
+    const computedIdentifier = lintFixture(
+      "apps/web/src/server",
+      'import { Rpc } from "effect/unstable/rpc";\n\nconst make = "other";\nexport const route = Rpc[make]("route");\n'
+    );
+
+    const destructuredMethod = lintFixture(
+      "apps/web/src/server",
+      'import * as R from "effect/unstable/rpc/Rpc";\n\nconst { make: build } = R;\nexport const route = build("route");\n'
+    );
+
+    const requiredNamespace = lintFixture(
+      "apps/web/src/server",
+      'const Rpc = require("effect/unstable/rpc/Rpc");\nexport const route = Rpc.make("route");\n'
+    );
+
+    const dynamicNamespace = lintFixture(
+      "apps/web/src/server",
+      'const Rpc = await import("effect/unstable/rpc/Rpc");\nexport const route = Rpc.make("route");\n'
+    );
+
+    const destructuredRequire = lintFixture(
+      "apps/web/src/server",
+      'const { require: load } = module;\nconst Rpc = load("effect/unstable/rpc/Rpc");\nexport const route = Rpc.make("route");\n'
+    );
+
+    expectRuleSoft(computed, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(namespaceModule, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(call, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(destructuredMethod, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(requiredNamespace, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(dynamicNamespace, "Rpc.make hand-rolls a surface.");
+    expectRuleSoft(destructuredRequire, "Rpc.make hand-rolls a surface.");
+    expect.soft(computedIdentifier.status).toBe(0);
   });
 
   it("lets packages/capability build surfaces", () => {
@@ -324,6 +515,33 @@ describe("architecture boundary rules", () => {
     expectRule(throughGlobal, "window exists only in a browser.");
     expectRule(throughGlobal, "document exists only in a browser.");
     expect(serverGlobal.status).toBe(0);
+  });
+
+  it("blocks bare browser globals and aliases on the server", () => {
+    const bare = lintFixture(
+      "apps/web/src/server",
+      "consume(window);\nexport let target: unknown;\ntarget = document;\nexport const here = navigator;\nexport const keyed = values[window];\n"
+    );
+
+    const aliases = lintFixture(
+      "apps/web/src/server",
+      'const root = globalThis;\nexport const here = root["window"].location.href;\nconst { document: documentTitle } = self;\nexport const title = documentTitle;\n'
+    );
+
+    const templateKey = lintFixture(
+      "apps/web/src/server",
+      "export const title = globalThis[`document`].title;\n"
+    );
+
+    const typeOnlyShadow = lintFixture(
+      "apps/web/src/server",
+      "interface document { readonly title: string }\n\nexport const title: document = document;\n"
+    );
+
+    expectRuleSoft(bare, "exists only in a browser.");
+    expectRuleSoft(aliases, "exists only in a browser.");
+    expectRuleSoft(templateKey, "exists only in a browser.");
+    expectRuleSoft(typeOnlyShadow, "exists only in a browser.");
   });
 
   it("allows browser globals in client and feature modules", () => {
@@ -369,6 +587,39 @@ describe("architecture boundary rules", () => {
 
     expectRule(worker, "Devtools and test people");
     expectRule(testPeople, "Devtools and test people");
+  });
+
+  it("blocks devtools through require, distribution paths, and production test folders", () => {
+    const required = lintFixture(
+      "apps/web/src/server",
+      'export const tools = require("@rat-stack/devtools");\n'
+    );
+
+    const authDistribution = lintFixture(
+      "apps/web/src/server",
+      'import { ratTestPerson } from "@rat-stack/auth/dist/devtools.js";\nexport const person = ratTestPerson;\n'
+    );
+
+    const sourceTest = lintFixture(
+      "apps/web/src/test",
+      'import { devtools } from "@rat-stack/devtools";\nexport const tool = devtools;\n'
+    );
+
+    const authBarrel = lintFixture(
+      "packages/auth/src",
+      'export { ratTestPerson } from "@rat-stack/auth/devtools";\n'
+    );
+
+    const typeImport = lintFixture(
+      "apps/web/src/server",
+      'type Devtools = import("@rat-stack/devtools").Devtools;\nexport type Tools = Devtools;\n'
+    );
+
+    expectRuleSoft(required, "Devtools and test people");
+    expectRuleSoft(authDistribution, "Devtools and test people");
+    expectRuleSoft(sourceTest, "Devtools and test people");
+    expectRuleSoft(authBarrel, "Devtools and test people");
+    expectRuleSoft(typeImport, "Devtools and test people");
   });
 
   it("allows devtools in a dev folder, the CLI, and tests", () => {

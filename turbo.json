@@ -17,8 +17,11 @@
       "dependsOn": ["@rat-stack/mischief#generate"],
       "outputs": []
     },
+    "//#typecheck-scripts": {
+      "outputs": []
+    },
     "check": {
-      "dependsOn": ["typecheck", "//#lint"],
+      "dependsOn": ["typecheck", "//#lint", "//#typecheck-scripts"],
       "outputs": []
     },
     "@rat-stack/mischief#generate": {

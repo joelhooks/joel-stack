@@ -25,6 +25,7 @@
     "prepare": "effect-tsgo patch && lefthook install",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "typecheck-scripts": "tsc --noEmit -p tsconfig.json",
     "vendor:agent-sources": "./scripts/vendor-agent-sources.sh",
     "find-peers": "node scripts/find-peers.ts"
   },
