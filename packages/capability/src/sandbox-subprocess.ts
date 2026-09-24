@@ -8,47 +8,109 @@ import type { Invoke, InvokeOutcome, SandboxRun } from "./sandbox-service.js";
 
 const RUNNER_SOURCE = String.raw`
 import { createInterface } from "node:readline";
-const pending = new Map();
+import { createContext, Script } from "node:vm";
 const logs = [];
-let nextId = 1;
-const send = (message) => process.stdout.write(JSON.stringify(message) + "\n");
-const capture = (level) => (...parts) =>
-  logs.push(level + ": " + parts.map((part) => (typeof part === "string" ? part : JSON.stringify(part))).join(" "));
-const console = { debug: capture("debug"), error: capture("error"), info: capture("info"), log: capture("log"), warn: capture("warn") };
-const tools = new Proxy({}, {
-  get: (_target, name) => (input) =>
-    new Promise((resolve, reject) => {
-      const id = nextId++;
-      pending.set(id, { resolve, reject });
-      send({ type: "call", id, name: String(name), input: input === undefined ? {} : input });
-    }),
+const send = (message) => new Promise((resolve, reject) => {
+  process.stdout.write(JSON.stringify(message) + "\n", (error) => {
+    if (error) reject(error);
+    else resolve();
+  });
 });
-const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+const context = createContext(Object.create(null), {
+  codeGeneration: { strings: false, wasm: false },
+  microtaskMode: "afterEvaluate",
+});
+context.__hostCall = (id, name, input) => {
+  send({ type: "call", id, name, input: JSON.parse(input) }).catch(() => {
+    process.exitCode = 1;
+  });
+};
+context.__hostLog = (level, text) => {
+  logs.push(level + ": " + text);
+};
+context.__hostDone = (encoded) => {
+  const outcome = JSON.parse(encoded);
+  send({ ...outcome, logs }).then(
+    () => process.exit(0),
+    () => {
+      process.exitCode = 1;
+    }
+  );
+};
+const bridge = new Script([
+  "(() => {",
+  "  const hostCall = globalThis.__hostCall;",
+  "  const hostLog = globalThis.__hostLog;",
+  "  const hostDone = globalThis.__hostDone;",
+  "  delete globalThis.__hostCall;",
+  "  delete globalThis.__hostLog;",
+  "  delete globalThis.__hostDone;",
+  "  const parse = JSON.parse;",
+  "  const stringify = JSON.stringify;",
+  "  const ContextError = Error;",
+  "  const assign = Object.assign;",
+  "  const pending = new Map();",
+  "  let nextId = 1;",
+  "  const tools = new Proxy(Object.create(null), {",
+  "    get: (_target, name) => {",
+  '      if (typeof name !== "string") return undefined;',
+  "      return (input) => new Promise((resolve, reject) => {",
+  "        const id = nextId++;",
+  "        pending.set(id, { resolve, reject });",
+  "        hostCall(id, name, stringify(input === undefined ? {} : input));",
+  "      });",
+  "    },",
+  "  });",
+  '  const capture = (level) => (...parts) => hostLog(level, parts.map((part) => typeof part === "string" ? part : stringify(part)).join(" "));',
+  '  const console = Object.freeze({ debug: capture("debug"), error: capture("error"), info: capture("info"), log: capture("log"), warn: capture("warn") });',
+  "  const deliver = (id, encoded) => {",
+  "    const waiter = pending.get(id);",
+  "    pending.delete(id);",
+  "    if (waiter === undefined) return;",
+  "    const message = parse(encoded);",
+  "    if (message.ok) waiter.resolve(message.value);",
+  "    else {",
+  '      const error = new ContextError((message.error && message.error.message) || "capability failed");',
+  "      assign(error, message.error);",
+  "      waiter.reject(error);",
+  "    }",
+  "  };",
+  "  const execute = async (program) => {",
+  "    try {",
+  "      const result = await program(tools, console);",
+  '      hostDone(stringify({ type: "done", result: result === undefined ? null : result }));',
+  "    } catch (error) {",
+  '      hostDone(stringify({ type: "error", message: error instanceof Error ? error.message : String(error) }));',
+  "    }",
+  "  };",
+  "  return { tools, console, deliver, execute };",
+  "})()",
+].join(String.fromCharCode(10))).runInContext(context);
 const rl = createInterface({ input: process.stdin });
-rl.on("line", async (line) => {
+rl.on("line", (line) => {
   if (line.trim() === "") return;
   const message = JSON.parse(line);
   if (message.type === "result") {
-    const waiter = pending.get(message.id);
-    pending.delete(message.id);
-    if (waiter === undefined) return;
-    if (message.ok) waiter.resolve(message.value);
-    else {
-      const error = new Error((message.error && message.error.message) || "capability failed");
-      Object.assign(error, message.error);
-      waiter.reject(error);
-    }
+    bridge.deliver(message.id, JSON.stringify(message));
+    new Script("void 0").runInContext(context);
     return;
   }
-  if (message.type === "run") {
-    try {
-      const program = new AsyncFunction("tools", "console", message.code);
-      const result = await program(tools, console);
-      send({ type: "done", result: result === undefined ? null : result, logs });
-    } catch (error) {
-      send({ type: "error", message: error instanceof Error ? error.message : String(error), logs });
-    }
-    process.exit(0);
+  if (message.type !== "run") return;
+  try {
+    const program = new Script("(async function(tools, console) {" + String.fromCharCode(10) + message.code + String.fromCharCode(10) + "})").runInContext(context);
+    bridge.execute(program);
+    new Script("void 0").runInContext(context);
+  } catch (error) {
+    const outcome = {
+      type: "error",
+      message: error instanceof Error ? error.message : String(error),
+    };
+    send({ ...outcome, logs }).then(
+      () => process.exit(0),
+      () => {
+        process.exitCode = 1;
+      }
+    );
   }
 });
 `;
@@ -95,12 +157,17 @@ const makeSubprocess = (options?: SubprocessOptions) =>
     const timeout = Duration.fromInputUnsafe(options?.timeout ?? "10 seconds");
     const nodePath = options?.nodePath ?? process.execPath;
 
-    const command = ChildProcess.make(nodePath, [
-      "--permission",
-      "--input-type=module",
-      "-e",
-      RUNNER_SOURCE,
-    ]);
+    const command = ChildProcess.make(
+      nodePath,
+      [
+        "--permission",
+        "--disallow-code-generation-from-strings",
+        "--input-type=module",
+        "-e",
+        RUNNER_SOURCE,
+      ],
+      { env: {}, extendEnv: false }
+    );
 
     const run = Effect.fn("Sandbox.run")(function* run(
       code: string,

@@ -1,11 +1,39 @@
 import { NodeServices } from "@effect/platform-node";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { TestConsole } from "effect/testing";
 import { CliOutput, Command } from "effect/unstable/cli";
 
-import { ApprovalDenied, toCommand } from "../src/index.js";
+import {
+  ApprovalDenied,
+  defineContract,
+  implement,
+  toCommand,
+} from "../src/index.js";
 import { Greeter, approved, echo, greet, mixed } from "./fixtures.js";
+
+const reservedJsonContract = defineContract("reservedJson", {
+  description: "A capability with a json field",
+  failure: Schema.Never,
+  input: Schema.Struct({ json: Schema.String }),
+  output: Schema.String,
+});
+
+const reservedJson = implement(reservedJsonContract, ({ json }) =>
+  Effect.succeed(json)
+);
+
+const reservedYesContract = defineContract("reservedYes", {
+  description: "A capability with a yes field",
+  failure: Schema.Never,
+  input: Schema.Struct({ yes: Schema.String }),
+  needsApproval: true,
+  output: Schema.String,
+});
+
+const reservedYes = implement(reservedYesContract, ({ yes }) =>
+  Effect.succeed(yes)
+);
 
 const TestLayer = Layer.mergeAll(
   TestConsole.layer,
@@ -92,6 +120,59 @@ describe("toCommand", () => {
 
         expect(denied).toBeInstanceOf(ApprovalDenied);
         yield* run(toCommand(approved), ["--message", "run", "--yes"]);
+      })
+    );
+
+    test.effect("decodes boolean and JSON positional values", () =>
+      Effect.gen(function* decodesPositionals() {
+        const positionalCommand = toCommand(mixed, {
+          positional: ["enabled", "mode", "tags"],
+        });
+
+        yield* run(positionalCommand, ["true", "slow", '["a","b"]']);
+
+        expect(JSON.parse(yield* lastLine)).toEqual({
+          enabled: true,
+          mode: "slow",
+          tags: ["a", "b"],
+        });
+      })
+    );
+
+    test.effect("decodes numeric positional values", () =>
+      Effect.gen(function* numericPositional() {
+        const numericCommand = toCommand(echo, {
+          positional: ["text", "times"],
+        });
+
+        yield* run(numericCommand, ["hi", "3"]);
+
+        expect(JSON.parse(yield* lastLine)).toEqual({ text: "hihihi" });
+      })
+    );
+
+    test.effect("allows optional positional values to be omitted", () =>
+      Effect.gen(function* optionalPositional() {
+        const optionalCommand = toCommand(echo, {
+          positional: ["text", "times"],
+        });
+
+        yield* run(optionalCommand, ["hi"]);
+
+        expect(JSON.parse(yield* lastLine)).toEqual({ text: "hi" });
+      })
+    );
+
+    test.effect("rejects input fields reserved by output flags", () =>
+      Effect.sync(() => {
+        expect(() =>
+          toCommand(reservedJson, { render: (output) => output })
+        ).toThrow(
+          "Input field `json` conflicts with the reserved `--json` flag"
+        );
+        expect(() => toCommand(reservedYes)).toThrow(
+          "Input field `yes` conflicts with the reserved `--yes` flag"
+        );
       })
     );
   });
