@@ -1,21 +1,57 @@
 import { Effect } from "effect";
 
-export const rateLimitDeclarations = {
-  API_PER_IP: {
-    namespaceId: 1001,
-    simple: { limit: 120, period: 60 },
-  },
-  EXECUTE_GLOBAL: {
-    namespaceId: 1002,
-    simple: { limit: 300, period: 60 },
-  },
-  EXECUTE_PER_IP: {
-    namespaceId: 1003,
-    simple: { limit: 6, period: 60 },
-  },
-} as const;
+const stageHash = (stage: string) => {
+  let hash = 5381;
 
-export type RateLimitName = keyof typeof rateLimitDeclarations;
+  for (const character of stage) {
+    const codePoint = character.codePointAt(0);
+
+    if (codePoint !== undefined) {
+      hash = (hash * 33 + codePoint) % 2 ** 32;
+    }
+  }
+
+  return hash % 100_000_000;
+};
+
+export const rateLimitNamespaceIds = (stage: string) => {
+  if (stage === "prod") {
+    return {
+      API_PER_IP: 1001,
+      EXECUTE_GLOBAL: 1002,
+      EXECUTE_PER_IP: 1003,
+    } as const;
+  }
+
+  const blockStart = 1_000_000 + stageHash(stage) * 4;
+
+  return {
+    API_PER_IP: blockStart + 1,
+    EXECUTE_GLOBAL: blockStart + 2,
+    EXECUTE_PER_IP: blockStart + 3,
+  };
+};
+
+export const rateLimitDeclarations = (stage: string) => {
+  const namespaceIds = rateLimitNamespaceIds(stage);
+
+  return {
+    API_PER_IP: {
+      namespaceId: namespaceIds.API_PER_IP,
+      simple: { limit: 120, period: 60 },
+    },
+    EXECUTE_GLOBAL: {
+      namespaceId: namespaceIds.EXECUTE_GLOBAL,
+      simple: { limit: 300, period: 60 },
+    },
+    EXECUTE_PER_IP: {
+      namespaceId: namespaceIds.EXECUTE_PER_IP,
+      simple: { limit: 6, period: 60 },
+    },
+  } as const;
+};
+
+export type RateLimitName = keyof ReturnType<typeof rateLimitDeclarations>;
 
 export interface NativeRateLimitBinding {
   readonly limit: (options: {
