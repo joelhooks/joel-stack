@@ -19,6 +19,11 @@
       "import": "./dist/actor-watch.js",
       "default": "./dist/actor-watch.js"
     },
+    "./approval": {
+      "types": "./src/approval.ts",
+      "import": "./dist/approval.js",
+      "default": "./dist/approval.js"
+    },
     "./contract": {
       "types": "./src/contract.ts",
       "import": "./dist/contract.js",
