@@ -1,0 +1,37 @@
+---
+title: "Oxlint rule limits"
+type: "resource"
+status: "current"
+created_at: "2026-09-24"
+privacy: "public"
+---
+
+# Oxlint rule limits
+
+These ten rules are bounded syntax checks, not a TypeScript module resolver or whole-program proof. They follow literal module sources, lexical import identities, and unchanged local aliases where the rule needs them. Reopen a limit when the policy or runtime changes; do not turn a known static-analysis boundary into a recurring bypass report.
+
+## Limits
+
+| Rule | Covered now | Residual limit and why |
+| --- | --- | --- |
+| `no-cross-layer-imports` | Imports, exports, `import()`, TS import-equals/import types, direct and aliased `require`, `module.require`, imported `createRequire`, and unchanged local aliases. | Dynamic specifiers, `createRequire` initialized from unknown/dynamic sources, custom tsconfig/package aliases, export-condition resolution, and re-export paths across files need a resolver or graph walk. |
+| `no-browser-server-imports` | Browser-zone imports use the shared static-source visitors; `node:` and unprefixed Node builtins, server-only markers, Alchemy, Workers, and infra paths are rejected. | Dynamic sources and package aliases/conditions are not resolved. The denylist does not classify every server-only module in auth or database packages; expanding that policy is a separate decision. |
+| `no-feature-transport` | Global `fetch` references and aliases, browser-global fetch members, known client/factory imports and stable aliases, namespace clients, static require/import sources, and `new HttpClient()` are reported. | Cross-file wrappers/re-exports, dynamic module/key values, mutable aliases, and transport hidden behind unknown factories need dataflow or resolution. The canonical-name `new HttpClient()` guard intentionally retains its legacy false positive for a local class with that name. |
+| `no-hand-rolled-surface` | Known imported surface constructors, static computed keys, namespace/require/dynamic-import aliases, destructured API methods, stable aliases, and `.call`/`.apply` wrappers are recognized. | Dynamic keys, arbitrary local object shapes, re-export chains, and constructors hidden behind helpers in other files need type or graph analysis. |
+| `no-browser-globals-on-server` | Bare runtime references, literal/template member keys, `globalThis`/`self`/`global`/`window`, unchanged aliases, and destructuring are checked with value-scope awareness. Type positions, property names, local runtime shadows, and `typeof` guards are excluded intentionally. | Computed values, reflection, mutable aliases, and cross-file aliases cannot be resolved syntactically. |
+| `no-devtools-in-production` | Static imports, exports, `import()`, TS import-equals/import types, direct/aliased require, `module.require`, imported `createRequire`, auth distribution paths, and production `src/test` paths are checked. | Dynamic sources, package resolution, and whole-graph reachability through helper/re-export files are outside the rule. CLI, tests, dev folders, and the devtools package are deliberate permitted roots. |
+| `acquire-release-constructs-in-acquire-body` | Imported Effect calls and stable aliases, transparent TS wrappers, eager `Effect.succeed`, captured identifiers/member values, block returns, and default-parameter captures are checked. | Arbitrary helper functions, complex control flow, and Effect values whose resource ownership is hidden behind other abstractions need semantic analysis. A syntax rule cannot prove interruption safety. |
+| `no-module-level-mutable-state` | Module-scope `let`/`var` and nested module-scoped `var` are reported; immutable `using` and `await using` remain allowed. | Mutation behind `const`, static fields, imported shared state, and block-scoped bindings that escape through closures are not binding-level `let`/`var` findings. |
+| `contract-binding-matches-name` | Imported `defineContract`, stable aliases, static string/template names, transparent wrappers, and later identifier assignments are checked. | Dynamic names, destructured bindings, unknown computed members, and aliases/re-exports crossing files need resolution. |
+| `watch-effect-actors` | Each assigned `createEffectActor` binding is matched to an identifier passed to `watchActor`; inline actor calls are matched separately. Stable aliases and direct `.call`/static `.apply` forms are recognized. | A watcher in dead code still counts, and lint cannot prove execution or coverage on every branch. Dynamic/spread arguments and helper calls in other files require flow analysis. |
+
+## Copy surface for drovr
+
+- From `scripts/oxlint-plugin-boundaries.ts`: `isStringModule`, `staticPropertyName`, `importIdentity`, `variableOf`, `isStableVariable`, `moduleSourceVisitors`, `isReference`, `isTypePosition`, and the focused visitors in `noFeatureTransport`, `noHandRolledSurface`, and `noBrowserGlobalsOnServer`.
+- From `scripts/oxlint-plugin-patterns.ts`: `importIdentity`, `isEffectCall`, `expressionForVariable`, `variableBinding`, and `watchEffectActors`' per-binding `Program:exit` check.
+- Keep the visitors behavioral: the two real-Oxlint fixture files under `packages/core/test/` show both rejected syntax and intentional allows.
+- Do not copy workspace path normalization as a package resolver. It recognizes this template's paths; package exports, conditions, and custom aliases need their own resolver contract.
+
+## Audit evidence
+
+The two fixture suites pass 52 tests. A two-actor/one-watch probe against base `8da815d` produced no watch-rule diagnostic; the current fixture requires the unwatched second actor to be reported. Repo-wide Oxlint over `scripts packages apps` is also part of the validation gate.

@@ -1,8 +1,27 @@
+// @effect-diagnostics nodeBuiltinImport:off -- This Oxlint plugin runs as Node tooling and reads repository files directly.
 import { existsSync } from "node:fs";
+import { isBuiltin } from "node:module";
 import path from "node:path";
 
 import { definePlugin, defineRule } from "@oxlint/plugins";
-import type { Definition, ESTree, Scope } from "@oxlint/plugins";
+import type {
+  Context,
+  Definition,
+  ESTree,
+  Scope,
+  Variable,
+} from "@oxlint/plugins";
+
+type RuleContext = Context;
+
+type NodeOfType<Type extends ESTree.Node["type"]> = Extract<
+  ESTree.Node,
+  { type: Type }
+>;
+
+type PropertyNode = NodeOfType<"Property">;
+
+type StaticKeyValue = NodeOfType<"Literal">["value"] | null;
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -18,6 +37,16 @@ const clientFactories = new Set([
   "createRpcClient",
   "makeHttpClient",
   "makeRpcClient",
+]);
+
+const surfaceConstructorNames = new Set([
+  "HttpApi",
+  "HttpApiEndpoint",
+  "HttpApiGroup",
+  "Rpc",
+  "RpcGroup",
+  "Tool",
+  "Toolkit",
 ]);
 
 const browserContractModules = new Set([
@@ -54,14 +83,35 @@ const isBrowserZone = (filename: string) =>
   isFeature(filename) ||
   /^apps\/[^/]+\/src\/(?:dev\/)?client\/.+/u.test(filename);
 
-const isStringModule = (node: ESTree.Expression): string | null => {
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers and booleans, so module sources need a string boundary check.
-  if (node.type === "Literal" && typeof node.value === "string") {
-    return node.value;
+const unwrapExpression = (node: ESTree.Expression): ESTree.Expression => {
+  if (
+    node.type === "ParenthesizedExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSNonNullExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "TSInstantiationExpression" ||
+    node.type === "TSTypeAssertion"
+  ) {
+    return unwrapExpression(node.expression);
   }
 
-  if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
-    const value = node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw;
+  return node;
+};
+
+const isStringModule = (node: ESTree.Expression): string | null => {
+  const expression = unwrapExpression(node);
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers and booleans, so module sources need a string boundary check.
+  if (expression.type === "Literal" && typeof expression.value === "string") {
+    return expression.value;
+  }
+
+  if (
+    expression.type === "TemplateLiteral" &&
+    expression.expressions.length === 0
+  ) {
+    const value =
+      expression.quasis[0]?.value.cooked ?? expression.quasis[0]?.value.raw;
 
     return value ?? null;
   }
@@ -117,7 +167,7 @@ const normalizeWorkspacePath = (
 };
 
 const importModule = (
-  context: Parameters<Parameters<typeof defineRule>[0]["create"]>[0],
+  context: RuleContext,
   filename: string,
   node: ESTree.Node,
   specifier: string
@@ -170,6 +220,7 @@ const browserServerModule = (filename: string, specifier: string) => {
   const target = normalizeWorkspacePath(filename, specifier);
 
   return (
+    isBuiltin(specifier) ||
     normalized.startsWith("node:") ||
     /^alchemy(?:\/|$)/u.test(normalized) ||
     normalized === "cloudflare:workers" ||
@@ -184,30 +235,66 @@ const browserServerModule = (filename: string, specifier: string) => {
   );
 };
 
-const memberName = (node: ESTree.Node): string | null => {
+const staticPropertyKeyName = (node: PropertyNode): string | undefined => {
+  if (!node.computed && node.key.type === "Identifier") {
+    return node.key.name;
+  }
+
+  let value: StaticKeyValue = null;
+
+  if (node.computed && node.key.type === "Literal") {
+    const { value: literalValue } = node.key;
+    value = literalValue;
+  }
+
   if (
-    node.type === "MemberExpression" &&
-    !node.computed &&
-    node.property.type === "Identifier"
+    node.computed &&
+    node.key.type === "TemplateLiteral" &&
+    node.key.expressions.length === 0
   ) {
+    const [firstQuasi] = node.key.quasis;
+    value = firstQuasi?.value.cooked ?? firstQuasi?.value.raw ?? null;
+  }
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers and booleans, so object keys need a string check.
+  return typeof value === "string" ? value : undefined;
+};
+
+const staticPropertyName = (node: ESTree.MemberExpression) => {
+  if (!node.computed && node.property.type === "Identifier") {
     return node.property.name;
   }
 
-  return null;
+  let value: StaticKeyValue = null;
+
+  if (node.computed && node.property.type === "Literal") {
+    const { value: literalValue } = node.property;
+    value = literalValue;
+  }
+
+  if (
+    node.computed &&
+    node.property.type === "TemplateLiteral" &&
+    node.property.expressions.length === 0
+  ) {
+    const [firstQuasi] = node.property.quasis;
+    value = firstQuasi?.value.cooked ?? firstQuasi?.value.raw ?? null;
+  }
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers, booleans, and regexes, so a computed key needs a string check.
+  return typeof value === "string" ? value : undefined;
 };
 
-const rootIdentifier = (node: ESTree.Node): string | null => {
+const rootIdentifierNode = (
+  node: ESTree.Expression
+): ESTree.Expression | null => {
   let current = node;
 
   while (current.type === "MemberExpression") {
     current = current.object;
   }
 
-  if (current.type === "Identifier") {
-    return current.name;
-  }
-
-  return null;
+  return current.type === "Identifier" ? current : null;
 };
 
 const importedName = (
@@ -224,6 +311,559 @@ const importedName = (
   return node.imported.value;
 };
 
+const variableOf = (name: string, scope: Scope | null): Variable | undefined =>
+  scope === null
+    ? undefined
+    : (scope.set.get(name) ?? variableOf(name, scope.upper));
+
+const isStableVariable = (variable: Variable) =>
+  variable.references.every(
+    (reference) => !reference.isWrite() || reference.init
+  );
+
+interface ImportIdentity {
+  readonly module: string;
+  readonly name: string | null;
+}
+
+const importIdentity = (
+  expression: ESTree.Expression,
+  scope: Scope | null,
+  context: RuleContext,
+  seen = new Set<Definition["node"]>()
+): ImportIdentity | null => {
+  const requireFunction = (
+    candidate: ESTree.Expression,
+    candidateScope: Scope | null,
+    visited = new Set<Definition["node"]>()
+  ): boolean => {
+    const requireBinding = (name: string, bindingScope: Scope | null) => {
+      const variable = variableOf(name, bindingScope);
+
+      if (variable === undefined) {
+        return name === "require";
+      }
+
+      const [definition] = variable.defs;
+
+      if (
+        definition?.type !== "Variable" ||
+        definition.node.type !== "VariableDeclarator" ||
+        definition.node.init === null ||
+        !isStableVariable(variable) ||
+        visited.has(definition.node)
+      ) {
+        return false;
+      }
+
+      visited.add(definition.node);
+
+      const declarationScope = context.sourceCode.getScope(definition.node);
+
+      if (definition.node.id.type === "ObjectPattern") {
+        const initializer = unwrapExpression(definition.node.init);
+
+        return (
+          initializer.type === "Identifier" &&
+          initializer.name === "module" &&
+          variableOf("module", declarationScope) === undefined &&
+          definition.node.id.properties.some(
+            (property) =>
+              property.type === "Property" &&
+              property.value.type === "Identifier" &&
+              property.value.name === name &&
+              staticPropertyKeyName(property) === "require"
+          )
+        );
+      }
+
+      if (definition.node.id.type !== "Identifier") {
+        return false;
+      }
+
+      return requireFunction(definition.node.init, declarationScope, visited);
+    };
+
+    const target = unwrapExpression(candidate);
+
+    if (target.type === "Identifier") {
+      return requireBinding(target.name, candidateScope);
+    }
+
+    if (target.type === "MemberExpression") {
+      return (
+        staticPropertyName(target) === "require" &&
+        target.object.type === "Identifier" &&
+        target.object.name === "module" &&
+        variableOf("module", candidateScope) === undefined
+      );
+    }
+
+    if (target.type === "CallExpression") {
+      const identity = importIdentity(
+        target.callee,
+        candidateScope,
+        context,
+        visited
+      );
+
+      return (
+        identity?.name === "createRequire" &&
+        (identity.module === "module" || identity.module === "node:module")
+      );
+    }
+
+    return false;
+  };
+
+  const loadedModuleIdentity = (
+    candidate: ESTree.Expression,
+    candidateScope: Scope | null
+  ): ImportIdentity | null => {
+    const target = unwrapExpression(candidate);
+
+    if (target.type === "AwaitExpression") {
+      return loadedModuleIdentity(target.argument, candidateScope);
+    }
+
+    if (target.type === "ImportExpression") {
+      const module = isStringModule(target.source);
+
+      return module === null ? null : { module, name: null };
+    }
+
+    if (target.type !== "CallExpression") {
+      return null;
+    }
+
+    const [argument] = target.arguments;
+
+    if (
+      argument === undefined ||
+      argument.type === "SpreadElement" ||
+      !requireFunction(target.callee, candidateScope)
+    ) {
+      return null;
+    }
+
+    const module = isStringModule(argument);
+
+    return module === null ? null : { module, name: null };
+  };
+
+  const importBindingIdentity = (
+    definition: Definition
+  ): ImportIdentity | null => {
+    const { parent } = definition.node;
+
+    if (
+      definition.type !== "ImportBinding" ||
+      parent?.type !== "ImportDeclaration"
+    ) {
+      return null;
+    }
+
+    const module = isStringModule(parent.source);
+
+    if (module === null) {
+      return null;
+    }
+
+    return {
+      module,
+      name:
+        definition.node.type === "ImportSpecifier"
+          ? importedName(definition.node)
+          : null,
+    };
+  };
+
+  const importIdentityForPattern = (
+    name: string,
+    pattern: ESTree.ObjectPattern,
+    initializer: ESTree.Expression,
+    patternScope: Scope | null
+  ): ImportIdentity | null => {
+    const property = pattern.properties.find(
+      (item) =>
+        item.type === "Property" &&
+        item.value.type === "Identifier" &&
+        item.value.name === name
+    );
+
+    if (property?.type !== "Property") {
+      return null;
+    }
+
+    const imported = staticPropertyKeyName(property);
+    const namespace = importIdentity(initializer, patternScope, context, seen);
+
+    if (
+      namespace === null ||
+      (namespace.name !== null &&
+        !surfaceConstructorNames.has(namespace.name)) ||
+      imported === undefined
+    ) {
+      return null;
+    }
+
+    const module =
+      namespace.name === null
+        ? namespace.module
+        : `${namespace.module}/${namespace.name}`;
+
+    return { module, name: imported };
+  };
+
+  const importIdentityForVariable = (
+    name: string,
+    variable: Variable
+  ): ImportIdentity | null => {
+    const [definition] = variable.defs;
+
+    if (definition === undefined || seen.has(definition.node)) {
+      return null;
+    }
+
+    seen.add(definition.node);
+
+    const imported = importBindingIdentity(definition);
+
+    if (imported !== null) {
+      return imported;
+    }
+
+    if (
+      definition.type !== "Variable" ||
+      definition.node.type !== "VariableDeclarator" ||
+      !isStableVariable(variable) ||
+      definition.node.init === null
+    ) {
+      return null;
+    }
+
+    const initializer = definition.node.init;
+    const declarationScope = context.sourceCode.getScope(definition.node);
+
+    if (definition.node.id.type === "ObjectPattern") {
+      return importIdentityForPattern(
+        name,
+        definition.node.id,
+        initializer,
+        declarationScope
+      );
+    }
+
+    return importIdentity(initializer, declarationScope, context, seen);
+  };
+
+  const loadedModule = loadedModuleIdentity(expression, scope);
+
+  if (loadedModule !== null) {
+    return loadedModule;
+  }
+
+  const value = unwrapExpression(expression);
+
+  if (value.type === "Identifier") {
+    const variable = variableOf(value.name, scope);
+
+    return variable === undefined
+      ? null
+      : importIdentityForVariable(value.name, variable);
+  }
+
+  if (value.type === "MemberExpression") {
+    const object = importIdentity(value.object, scope, context, seen);
+    const name = staticPropertyName(value);
+
+    return object !== null &&
+      (object.name === null || surfaceConstructorNames.has(object.name)) &&
+      name !== undefined
+      ? {
+          module:
+            object.name === null
+              ? object.module
+              : `${object.module}/${object.name}`,
+          name,
+        }
+      : null;
+  }
+
+  return null;
+};
+
+type TransportKind = "client" | "factory";
+
+const transportKindForName = (name: string): TransportKind | null => {
+  if (clientNames.has(name)) {
+    return "client";
+  }
+
+  if (clientFactories.has(name)) {
+    return "factory";
+  }
+
+  return null;
+};
+
+const isTransportNamespace = (module: string) =>
+  /(?:^|\/)(?:atomrpc|fetchhttpclient|http|httpapi|httpclient|rpc|rpcclient)$/iu.test(
+    module
+  );
+
+const transportKindForExpression = (
+  expression: ESTree.Expression,
+  scope: Scope | null,
+  context: RuleContext
+): TransportKind | null => {
+  const identity = importIdentity(expression, scope, context);
+
+  if (identity === null) {
+    return null;
+  }
+
+  if (identity.name !== null) {
+    return transportKindForName(identity.name);
+  }
+
+  return isTransportNamespace(identity.module) ? "client" : null;
+};
+
+const isTypeOnlyDefinition = (definition: Definition) => {
+  if (
+    definition.node.type === "TSInterfaceDeclaration" ||
+    definition.node.type === "TSTypeAliasDeclaration"
+  ) {
+    return true;
+  }
+
+  if (definition.type === "ImportBinding") {
+    const { parent } = definition.node;
+
+    if (
+      parent?.type === "ImportDeclaration" &&
+      (parent.importKind === "type" ||
+        (definition.node.type === "ImportSpecifier" &&
+          definition.node.importKind === "type"))
+    ) {
+      return true;
+    }
+  }
+
+  return (
+    definition.node.type === "VariableDeclarator" &&
+    definition.node.parent.type === "VariableDeclaration" &&
+    definition.node.parent.declare === true
+  );
+};
+
+const isDeclaredLocally = (name: string, scope: Scope | null): boolean =>
+  scope !== null &&
+  ((scope.set
+    .get(name)
+    ?.defs.some((definition) => !isTypeOnlyDefinition(definition)) ??
+    false) ||
+    isDeclaredLocally(name, scope.upper));
+
+const isReference = (node: ESTree.Node, scope: Scope | null): boolean =>
+  scope !== null &&
+  (scope.references.some((reference) => reference.identifier === node) ||
+    scope.through.some((reference) => reference.identifier === node) ||
+    isReference(node, scope.upper));
+
+const isTypePosition = (node: ESTree.Node): boolean => {
+  let current = node;
+
+  while (true) {
+    const { parent } = current;
+
+    if (parent === null) {
+      return false;
+    }
+
+    if (
+      parent.type === "TSTypeAnnotation" ||
+      parent.type === "TSTypeReference" ||
+      parent.type === "TSQualifiedName" ||
+      parent.type === "TSTypeQuery" ||
+      parent.type === "TSImportType" ||
+      parent.type === "TSInterfaceDeclaration" ||
+      parent.type === "TSTypeAliasDeclaration"
+    ) {
+      return true;
+    }
+
+    current = parent;
+  }
+};
+
+const globalObjects = new Set(["global", "globalThis", "self", "window"]);
+
+const resolvesGlobalObject = (
+  expression: ESTree.Expression,
+  scope: Scope | null,
+  context: RuleContext,
+  seen = new Set<Definition["node"]>()
+): boolean => {
+  const value = unwrapExpression(expression);
+
+  if (value.type !== "Identifier") {
+    return false;
+  }
+
+  const variable = variableOf(value.name, scope);
+  const definition = variable?.defs[0];
+
+  if (definition === undefined) {
+    return globalObjects.has(value.name);
+  }
+
+  if (seen.has(definition.node)) {
+    return false;
+  }
+
+  seen.add(definition.node);
+
+  return (
+    definition.type === "Variable" &&
+    definition.node.type === "VariableDeclarator" &&
+    definition.node.id.type === "Identifier" &&
+    definition.node.init !== null &&
+    variable !== undefined &&
+    isStableVariable(variable) &&
+    resolvesGlobalObject(
+      definition.node.init,
+      context.sourceCode.getScope(definition.node),
+      context,
+      seen
+    )
+  );
+};
+
+const isRequireFunction = (
+  expression: ESTree.Expression,
+  scope: Scope,
+  context: RuleContext,
+  seen = new Set<Definition["node"]>()
+): boolean => {
+  const isRequireBinding = (name: string, bindingScope: Scope): boolean => {
+    const variable = variableOf(name, bindingScope);
+
+    if (name === "require" && variable === undefined) {
+      return true;
+    }
+
+    const [definition] = variable?.defs ?? [];
+
+    if (
+      variable === undefined ||
+      definition === undefined ||
+      definition.type !== "Variable" ||
+      definition.node.type !== "VariableDeclarator" ||
+      definition.node.init === null ||
+      !isStableVariable(variable) ||
+      seen.has(definition.node)
+    ) {
+      return false;
+    }
+
+    seen.add(definition.node);
+
+    const declarationScope = context.sourceCode.getScope(definition.node);
+
+    if (definition.node.id.type === "ObjectPattern") {
+      const initializer = unwrapExpression(definition.node.init);
+
+      return (
+        initializer.type === "Identifier" &&
+        initializer.name === "module" &&
+        variableOf("module", declarationScope) === undefined &&
+        definition.node.id.properties.some(
+          (property) =>
+            property.type === "Property" &&
+            property.value.type === "Identifier" &&
+            property.value.name === name &&
+            staticPropertyKeyName(property) === "require"
+        )
+      );
+    }
+
+    if (definition.node.id.type !== "Identifier") {
+      return false;
+    }
+
+    return isRequireFunction(
+      definition.node.init,
+      declarationScope,
+      context,
+      seen
+    );
+  };
+
+  const value = unwrapExpression(expression);
+
+  if (value.type === "CallExpression") {
+    const identity = importIdentity(value.callee, scope, context);
+
+    return (
+      identity?.name === "createRequire" &&
+      (identity.module === "module" || identity.module === "node:module")
+    );
+  }
+
+  if (value.type === "Identifier") {
+    return isRequireBinding(value.name, scope);
+  }
+
+  return (
+    value.type === "MemberExpression" &&
+    staticPropertyName(value) === "require" &&
+    value.object.type === "Identifier" &&
+    value.object.name === "module" &&
+    !isDeclaredLocally(value.object.name, scope)
+  );
+};
+
+const moduleSourceVisitors = (
+  context: RuleContext,
+  report: (node: ESTree.Node, source: ESTree.Expression) => void
+) => ({
+  CallExpression(node: ESTree.CallExpression) {
+    const [argument] = node.arguments;
+
+    if (
+      argument !== undefined &&
+      argument.type !== "SpreadElement" &&
+      isRequireFunction(node.callee, context.sourceCode.getScope(node), context)
+    ) {
+      report(node, argument);
+    }
+  },
+  ExportAllDeclaration(node: ESTree.ExportAllDeclaration) {
+    report(node, node.source);
+  },
+  ExportNamedDeclaration(node: ESTree.ExportNamedDeclaration) {
+    if (node.source !== null) {
+      report(node, node.source);
+    }
+  },
+  ImportDeclaration(node: ESTree.ImportDeclaration) {
+    report(node, node.source);
+  },
+  ImportExpression(node: ESTree.ImportExpression) {
+    report(node, node.source);
+  },
+  TSImportEqualsDeclaration(node: ESTree.TSImportEqualsDeclaration) {
+    if (node.moduleReference.type === "TSExternalModuleReference") {
+      report(node, node.moduleReference.expression);
+    }
+  },
+  TSImportType(node: ESTree.TSImportType) {
+    report(node, node.source);
+  },
+});
+
 const noCrossLayerImports = defineRule({
   create(context) {
     const filename = workspacePath(context.filename);
@@ -236,37 +876,7 @@ const noCrossLayerImports = defineRule({
       }
     };
 
-    return {
-      CallExpression(node) {
-        if (
-          node.callee.type === "Identifier" &&
-          node.callee.name === "require"
-        ) {
-          const [argument] = node.arguments;
-
-          if (argument !== undefined && argument.type !== "SpreadElement") {
-            report(node, argument);
-          }
-        }
-      },
-      ExportAllDeclaration(node) {
-        report(node, node.source);
-      },
-      ExportNamedDeclaration(node) {
-        if (node.source !== null) {
-          report(node, node.source);
-        }
-      },
-      ImportDeclaration(node) {
-        report(node, node.source);
-      },
-      ImportExpression(node) {
-        report(node, node.source);
-      },
-      TSImportType(node) {
-        report(node, node.source);
-      },
-    };
+    return moduleSourceVisitors(context, report);
   },
   meta: {
     docs: {
@@ -306,37 +916,7 @@ const noBrowserServerImports = defineRule({
       }
     };
 
-    return {
-      CallExpression(node) {
-        if (
-          node.callee.type === "Identifier" &&
-          node.callee.name === "require"
-        ) {
-          const [argument] = node.arguments;
-
-          if (argument !== undefined && argument.type !== "SpreadElement") {
-            report(node, argument);
-          }
-        }
-      },
-      ExportAllDeclaration(node) {
-        report(node, node.source);
-      },
-      ExportNamedDeclaration(node) {
-        if (node.source !== null) {
-          report(node, node.source);
-        }
-      },
-      ImportDeclaration(node) {
-        report(node, node.source);
-      },
-      ImportExpression(node) {
-        report(node, node.source);
-      },
-      TSImportType(node) {
-        report(node, node.source);
-      },
-    };
+    return moduleSourceVisitors(context, report);
   },
   meta: {
     docs: {
@@ -361,68 +941,142 @@ const noFeatureTransport = defineRule({
       return {};
     }
 
-    const directClients = new Set(clientNames);
-
     const report = (node: ESTree.Node) => {
       context.report({ messageId: "featureTransport", node });
     };
 
+    const isGlobalFetch = (node: ESTree.Node, scope: Scope | null) =>
+      node.type === "Identifier" &&
+      node.name === "fetch" &&
+      !isDeclaredLocally("fetch", scope);
+
     return {
       CallExpression(node) {
+        const scope = context.sourceCode.getScope(node);
+        const callee = unwrapExpression(node.callee);
+        const root = rootIdentifierNode(callee);
+        const [moduleArgument] = node.arguments;
+
+        const rootScope =
+          root === null ? null : context.sourceCode.getScope(root);
+
         if (
-          node.callee.type === "Identifier" &&
-          (node.callee.name === "fetch" ||
-            clientFactories.has(node.callee.name))
+          isGlobalFetch(callee, scope) ||
+          isGlobalFetch(root ?? node, rootScope) ||
+          transportKindForExpression(callee, scope, context) !== null ||
+          (root !== null &&
+            transportKindForExpression(root, rootScope, context) !== null) ||
+          (moduleArgument !== undefined &&
+            moduleArgument.type !== "SpreadElement" &&
+            isTransportNamespace(isStringModule(moduleArgument) ?? "") &&
+            isRequireFunction(node.callee, scope, context))
         ) {
           report(node);
+        }
+      },
+      Identifier(node) {
+        const scope = context.sourceCode.getScope(node);
+        const { parent } = node;
 
+        if (
+          node.name !== "fetch" ||
+          !isReference(node, scope) ||
+          isDeclaredLocally("fetch", scope) ||
+          (parent.type === "MemberExpression" &&
+            (parent.object === node ||
+              (parent.property === node && !parent.computed))) ||
+          (parent.type === "CallExpression" && parent.callee === node)
+        ) {
           return;
         }
 
-        const root = rootIdentifier(node.callee);
-
-        if (root !== null && directClients.has(root)) {
-          report(node);
-        }
+        report(node);
       },
       ImportDeclaration(node) {
         for (const specifier of node.specifiers) {
           const name = importedName(specifier);
 
           if (name !== null && (clientNames.has(name) || name === "fetch")) {
-            if (clientNames.has(name)) {
-              directClients.add(specifier.local.name);
-            }
-
             report(specifier);
           }
 
           if (
             specifier.type === "ImportNamespaceSpecifier" &&
-            /(?:^|\/)(?:atomrpc|fetchhttpclient|http|httpclient|rpc)$/iu.test(
-              node.source.value
-            )
+            isTransportNamespace(node.source.value)
           ) {
-            directClients.add(specifier.local.name);
             report(specifier);
           }
         }
       },
+      ImportExpression(node) {
+        const source = isStringModule(node.source);
+
+        if (source !== null && isTransportNamespace(source)) {
+          report(node);
+        }
+      },
       MemberExpression(node) {
+        const property = staticPropertyName(node);
+        const scope = context.sourceCode.getScope(node);
+
         if (
-          memberName(node) === "fetch" &&
+          property === "fetch" &&
+          resolvesGlobalObject(node.object, scope, context)
+        ) {
+          report(node);
+
+          return;
+        }
+
+        if (
           node.object.type === "Identifier" &&
-          new Set(["globalThis", "self", "window"]).has(node.object.name)
+          node.object.name === "fetch" &&
+          !isDeclaredLocally("fetch", scope) &&
+          !(
+            node.parent.type === "CallExpression" && node.parent.callee === node
+          )
         ) {
           report(node);
         }
       },
       NewExpression(node) {
+        const scope = context.sourceCode.getScope(node);
+        const root = rootIdentifierNode(node.callee);
+
         if (
-          node.callee.type === "Identifier" &&
-          directClients.has(node.callee.name)
+          (node.callee.type === "Identifier" &&
+            node.callee.name === "HttpClient") ||
+          transportKindForExpression(node.callee, scope, context) !== null ||
+          (root !== null &&
+            transportKindForExpression(
+              root,
+              context.sourceCode.getScope(root),
+              context
+            ) !== null)
         ) {
           report(node);
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.id.type !== "ObjectPattern" ||
+          node.init === null ||
+          !resolvesGlobalObject(
+            node.init,
+            context.sourceCode.getScope(node),
+            context
+          )
+        ) {
+          return;
+        }
+
+        for (const property of node.id.properties) {
+          if (
+            property.type === "Property" &&
+            staticPropertyKeyName(property) === "fetch"
+          ) {
+            report(property.key);
+          }
         }
       },
     };
@@ -463,34 +1117,71 @@ const surfaceConstructors = new Map<string, ReadonlySet<string>>([
   ["Toolkit", new Set(["make"])],
 ]);
 
-const declarationOf = (
-  name: string,
-  scope: Scope | null
-): Definition | undefined =>
-  scope === null
-    ? undefined
-    : (scope.set.get(name)?.defs[0] ?? declarationOf(name, scope.upper));
-
 const surfaceConstructorName = (
-  object: ESTree.Expression,
-  scope: Scope
-): string | undefined => {
+  expression: ESTree.Expression,
+  scope: Scope,
+  context: RuleContext
+): string | null => {
+  const object = unwrapExpression(expression);
+
   if (object.type === "MemberExpression") {
-    return !object.computed && object.property.type === "Identifier"
-      ? object.property.name
-      : undefined;
+    const name = staticPropertyName(object);
+
+    return name !== undefined && surfaceConstructors.has(name) ? name : null;
   }
 
   if (object.type !== "Identifier") {
-    return undefined;
+    return null;
   }
 
-  const declaration = declarationOf(object.name, scope);
+  const identity = importIdentity(object, scope, context);
 
-  return declaration?.type === "ImportBinding" &&
-    declaration.node.type === "ImportSpecifier"
-    ? (importedName(declaration.node) ?? object.name)
-    : object.name;
+  if (identity === null) {
+    return null;
+  }
+
+  if (identity.name !== null && surfaceConstructors.has(identity.name)) {
+    return identity.name;
+  }
+
+  const moduleName = identity.module.split("/").at(-1);
+
+  return moduleName !== undefined && surfaceConstructors.has(moduleName)
+    ? moduleName
+    : null;
+};
+
+const surfaceCallName = (
+  expression: ESTree.Expression,
+  scope: Scope,
+  context: RuleContext
+): string | null => {
+  const callee = unwrapExpression(expression);
+
+  if (callee.type === "MemberExpression") {
+    const method = staticPropertyName(callee);
+    const constructor = surfaceConstructorName(callee.object, scope, context);
+
+    return method !== undefined &&
+      constructor !== null &&
+      surfaceConstructors.get(constructor)?.has(method) === true
+      ? `${constructor}.${method}`
+      : null;
+  }
+
+  if (callee.type !== "Identifier") {
+    return null;
+  }
+
+  const identity = importIdentity(callee, scope, context);
+  const moduleName = identity?.module.split("/").at(-1);
+
+  return identity?.name !== null &&
+    identity?.name !== undefined &&
+    moduleName !== undefined &&
+    surfaceConstructors.get(moduleName)?.has(identity.name) === true
+    ? `${moduleName}.${identity.name}`
+    : null;
 };
 
 const noHandRolledSurface = defineRule({
@@ -501,27 +1192,24 @@ const noHandRolledSurface = defineRule({
 
     return {
       CallExpression(node) {
-        const { callee } = node;
+        let callee = unwrapExpression(node.callee);
 
         if (
-          callee.type !== "MemberExpression" ||
-          callee.property.type !== "Identifier"
+          callee.type === "MemberExpression" &&
+          ["apply", "call"].includes(staticPropertyName(callee) ?? "")
         ) {
-          return;
+          callee = unwrapExpression(callee.object);
         }
 
-        const constructor = surfaceConstructorName(
-          callee.object,
-          context.sourceCode.getScope(node)
+        const call = surfaceCallName(
+          callee,
+          context.sourceCode.getScope(node),
+          context
         );
 
-        if (
-          constructor !== undefined &&
-          surfaceConstructors.get(constructor)?.has(callee.property.name) ===
-            true
-        ) {
+        if (call !== null) {
           context.report({
-            data: { call: `${constructor}.${callee.property.name}` },
+            data: { call },
             messageId: "handRolled",
             node,
           });
@@ -554,50 +1242,57 @@ const isServerSource = (filename: string) =>
   /^(?:apps|packages)\/[^/]+\/src\/.+/u.test(filename) &&
   !isBrowserZone(filename);
 
-const isDeclaredLocally = (name: string, scope: Scope | null): boolean =>
-  scope !== null &&
-  ((scope.set.get(name)?.defs.length ?? 0) > 0 ||
-    isDeclaredLocally(name, scope.upper));
-
-const globalObjects = new Set(["globalThis", "self"]);
-
-const staticPropertyName = (node: ESTree.MemberExpression) => {
-  if (!node.computed && node.property.type === "Identifier") {
-    return node.property.name;
-  }
-
-  const value =
-    node.computed && node.property.type === "Literal"
-      ? node.property.value
-      : null;
-
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers, booleans, and regexes, so a computed key needs a string check.
-  return typeof value === "string" ? value : undefined;
-};
-
 const noBrowserGlobalsOnServer = defineRule({
   create(context) {
     if (!isServerSource(workspacePath(context.filename))) {
       return {};
     }
 
+    const report = (node: ESTree.Node, name: string) => {
+      context.report({
+        data: { name },
+        messageId: "browserGlobal",
+        node,
+      });
+    };
+
     return {
-      MemberExpression(node) {
-        if (node.object.type !== "Identifier") {
+      Identifier(node) {
+        if (
+          !browserGlobals.has(node.name) ||
+          isTypePosition(node) ||
+          !isReference(node, context.sourceCode.getScope(node)) ||
+          isDeclaredLocally(node.name, context.sourceCode.getScope(node))
+        ) {
           return;
         }
 
+        const { parent } = node;
+
+        if (
+          (parent.type === "MemberExpression" &&
+            (parent.object === node ||
+              (parent.property === node && !parent.computed))) ||
+          (parent.type === "Property" &&
+            parent.key === node &&
+            !parent.computed &&
+            !parent.shorthand) ||
+          (parent.type === "UnaryExpression" && parent.operator === "typeof")
+        ) {
+          return;
+        }
+
+        report(node, node.name);
+      },
+      MemberExpression(node) {
         const scope = context.sourceCode.getScope(node);
 
         if (
+          node.object.type === "Identifier" &&
           browserGlobals.has(node.object.name) &&
           !isDeclaredLocally(node.object.name, scope)
         ) {
-          context.report({
-            data: { name: node.object.name },
-            messageId: "browserGlobal",
-            node: node.object,
-          });
+          report(node.object, node.object.name);
 
           return;
         }
@@ -605,16 +1300,36 @@ const noBrowserGlobalsOnServer = defineRule({
         const property = staticPropertyName(node);
 
         if (
-          globalObjects.has(node.object.name) &&
-          !isDeclaredLocally(node.object.name, scope) &&
           property !== undefined &&
-          browserGlobals.has(property)
+          browserGlobals.has(property) &&
+          resolvesGlobalObject(node.object, scope, context)
         ) {
-          context.report({
-            data: { name: property },
-            messageId: "browserGlobal",
-            node: node.property,
-          });
+          report(node.property, property);
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.id.type !== "ObjectPattern" ||
+          node.init === null ||
+          !resolvesGlobalObject(
+            node.init,
+            context.sourceCode.getScope(node),
+            context
+          )
+        ) {
+          return;
+        }
+
+        for (const property of node.id.properties) {
+          if (property.type !== "Property") {
+            continue;
+          }
+
+          const name = staticPropertyKeyName(property);
+
+          if (name !== undefined && browserGlobals.has(name)) {
+            report(property.key, name);
+          }
         }
       },
     };
@@ -634,16 +1349,18 @@ const noBrowserGlobalsOnServer = defineRule({
 
 const isDevtoolsModule = (target: string) =>
   isWithin(target, "packages/devtools") ||
-  /^packages\/auth\/(?:src\/)?devtools(?:\.[jt]s)?$/u.test(target);
+  /^packages\/auth\/(?:(?:src|dist)\/)?devtools(?:\/|\.|$)/u.test(target);
 
 const devFolderOf = (target: string) =>
   /^(?<folder>apps\/[^/]+\/src\/dev)(?:\/|$)/u.exec(target)?.groups?.folder;
 
+const isTestSource = (filename: string) =>
+  /^(?:apps|packages)\/[^/]+\/test(?:\/|$)/u.test(filename);
+
 const mayUseDevtools = (filename: string) =>
   isWithin(filename, "packages/devtools") ||
-  isWithin(filename, "packages/auth") ||
   isWithin(filename, "apps/cli") ||
-  /(?:^|\/)test\//u.test(filename) ||
+  isTestSource(filename) ||
   devFolderOf(filename) !== undefined;
 
 const noDevtoolsInProduction = defineRule({
@@ -669,28 +1386,13 @@ const noDevtoolsInProduction = defineRule({
       if (
         folder !== undefined &&
         !isWithin(filename, folder) &&
-        !/(?:^|\/)test\//u.test(filename)
+        !isTestSource(filename)
       ) {
         context.report({ data: { folder }, messageId: "devFolder", node });
       }
     };
 
-    return {
-      ExportAllDeclaration(node) {
-        check(node, node.source);
-      },
-      ExportNamedDeclaration(node) {
-        if (node.source !== null) {
-          check(node, node.source);
-        }
-      },
-      ImportDeclaration(node) {
-        check(node, node.source);
-      },
-      ImportExpression(node) {
-        check(node, node.source);
-      },
-    };
+    return moduleSourceVisitors(context, check);
   },
   meta: {
     docs: {
