@@ -6,12 +6,23 @@ import { McpServer } from "effect/unstable/ai";
 import { Approval } from "../src/index.js";
 import { layerSubprocess } from "../src/sandbox-subprocess.js";
 import { toCodeMode } from "../src/to-code-mode.js";
-import { Greeter, approved, echo, greet } from "./fixtures.js";
+import {
+  Greeter,
+  approved,
+  checkedInput,
+  echo,
+  greet,
+  noArgs,
+} from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";
 
 const projection = toCodeMode([echo, greet]);
 
 const approvalProjection = toCodeMode([approved]);
+
+const checkedInputProjection = toCodeMode([checkedInput]);
+
+const noArgsProjection = toCodeMode([noArgs]);
 
 const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   Layer.provideMerge(projection.layer),
@@ -41,6 +52,30 @@ const allowedApprovalApp = McpServer.toolkit(approvalProjection.toolkit).pipe(
 );
 
 describe("toCodeMode", () => {
+  it("keeps empty and checked input schemas in the code-mode catalog", () => {
+    const checkedInputSchema =
+      checkedInputProjection.catalog.capabilities[0]?.input;
+
+    const noArgsSchema = noArgsProjection.catalog.capabilities[0]?.input;
+
+    expect(checkedInputSchema).toMatchObject({
+      properties: {
+        mode: { enum: ["fast", "slow"] },
+        values: { maxItems: 3, minItems: 1 },
+      },
+      type: "object",
+    });
+
+    expect(checkedInputProjection.declarations).toContain(
+      'readonly checkedInput: (input: { readonly mode: "fast" | "slow"; readonly values: ReadonlyArray<string> }) => Promise<string>;'
+    );
+
+    expect(noArgsSchema).toEqual({ properties: {}, type: "object" });
+    expect(noArgsProjection.declarations).toContain(
+      "readonly noArgs: (input: {}) => Promise<string>;"
+    );
+  });
+
   it.effect(
     "exposes exactly search and execute, with the types in execute",
     () =>

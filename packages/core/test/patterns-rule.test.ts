@@ -21,7 +21,6 @@ const plugin = path.join(repoRoot, "scripts/oxlint-plugin-patterns.ts");
 const rules = [
   "rat-stack-patterns/acquire-release-constructs-in-acquire-body",
   "rat-stack-patterns/contract-binding-matches-name",
-  "rat-stack-patterns/no-empty-contract-input",
   "rat-stack-patterns/no-module-level-mutable-state",
   "rat-stack-patterns/watch-effect-actors",
 ];
@@ -185,30 +184,6 @@ describe("rat-stack pattern rules", () => {
     );
 
     expect(watched.status).toBe(0);
-    expect(test.status).toBe(0);
-  });
-
-  it("flags a contract whose input has no fields", () => {
-    const result = lintFixture(
-      "packages/core/src",
-      'import { defineContract } from "@rat-stack/capability/contract";\nimport { Schema } from "effect";\n\nexport const pingContract = defineContract("ping", { input: Schema.Struct({}) });\n'
-    );
-
-    expectRule(result, "MCP rejects because a tool input must have");
-  });
-
-  it("accepts an input with one optional field, and empty inputs in tests", () => {
-    const optional = lintFixture(
-      "packages/core/src",
-      'import { defineContract } from "@rat-stack/capability/contract";\nimport { Schema } from "effect";\n\nexport const pingContract = defineContract("ping", { input: Schema.Struct({ note: Schema.optional(Schema.String) }) });\n'
-    );
-
-    const test = lintFixture(
-      "packages/core/test",
-      'import { defineContract } from "@rat-stack/capability/contract";\nimport { Schema } from "effect";\n\nexport const pingContract = defineContract("ping", { input: Schema.Struct({}) });\n'
-    );
-
-    expect(optional.status).toBe(0);
     expect(test.status).toBe(0);
   });
 });

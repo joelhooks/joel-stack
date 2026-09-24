@@ -4,6 +4,7 @@ import { Tool } from "effect/unstable/ai";
 
 import { failureSchemaOf } from "./contract.js";
 import type { Annotations, AnyCapability } from "./contract.js";
+import { inputJsonSchemaOf } from "./input-json-schema.js";
 
 export interface CatalogEntry {
   readonly name: string;
@@ -25,7 +26,7 @@ export const toCatalog = (capabilities: readonly AnyCapability[]): Catalog => ({
     annotations: contract.annotations,
     description: contract.description,
     failure: Tool.getJsonSchemaFromSchema(failureSchemaOf(contract)),
-    input: Tool.getJsonSchemaFromSchema(contract.input),
+    input: inputJsonSchemaOf(contract.input),
     name: contract.name,
     needsApproval: contract.needsApproval,
     output: Tool.getJsonSchemaFromSchema(contract.output),
