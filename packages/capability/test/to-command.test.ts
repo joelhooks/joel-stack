@@ -35,6 +35,17 @@ const reservedYes = implement(reservedYesContract, ({ yes }) =>
   Effect.succeed(yes)
 );
 
+const optionalKeyContract = defineContract("optionalKey", {
+  description: "A capability with an optionalKey field",
+  failure: Schema.Never,
+  input: Schema.Struct({ note: Schema.optionalKey(Schema.String) }),
+  output: Schema.String,
+});
+
+const optionalKey = implement(optionalKeyContract, ({ note }) =>
+  Effect.succeed(note ?? "none")
+);
+
 const TestLayer = Layer.mergeAll(
   TestConsole.layer,
   CliOutput.layer(CliOutput.defaultFormatter({ colors: false })),
@@ -71,6 +82,9 @@ describe("toCommand", () => {
       Effect.gen(function* optionalFields() {
         yield* run(toCommand(echo), ["--text", "hi"]);
         expect(JSON.parse(yield* lastLine)).toEqual({ text: "hi" });
+
+        yield* run(toCommand(optionalKey), []);
+        expect(JSON.parse(yield* lastLine)).toBe("none");
       })
     );
 
