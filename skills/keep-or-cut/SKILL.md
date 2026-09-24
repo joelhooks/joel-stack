@@ -96,7 +96,7 @@ Delete:
 
 In `apps/web`, swap `devtoolsRoutes` for `contentRoutes` in `src/dev/backend.ts`, point the `development` condition of `#devtools-overlay` in `apps/web/package.json` at `./src/features/shared/no-devtools.tsx`, and delete `src/dev/devtools`, `src/dev/client`, and `src/dev/features`. `vite dev` keeps serving search and read; `test/dev-content-routes.test.ts` covers that path.
 
-`aroundHandlers`, `invokerFor`, and `watchActor` stay in `packages/capability`. Code mode uses `invokerFor`, and `watchActor` falls back to a no-op, so machines keep calling it.
+`CallWatch`, `aroundHandlers`, `invokerFor`, and `watchActor` stay in `packages/capability`. Devtools provides `CallWatch` at the composition boundary to observe calls without wrapping capability lists; its default is a no-op. `aroundHandlers` remains the explicit wrapper for policy over one list, while `invokerFor` is code mode's dispatch path and `watchActor` lets machines report to devtools without depending on it.
 
 ## Clean up after each cut
 

@@ -19,6 +19,11 @@
       "import": "./dist/actor-watch.js",
       "default": "./dist/actor-watch.js"
     },
+    "./call-watch": {
+      "types": "./src/call-watch.ts",
+      "import": "./dist/call-watch.js",
+      "default": "./dist/call-watch.js"
+    },
     "./approval": {
       "types": "./src/approval.ts",
       "import": "./dist/approval.js",
