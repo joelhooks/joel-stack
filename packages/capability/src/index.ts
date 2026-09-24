@@ -65,6 +65,8 @@ export {
   toExecuteCapability,
   type CodeModeOptions,
   type CodeModeProjection,
+  type DeclarationPlacement,
+  type ExecuteOptions,
 } from "./to-code-mode.js";
 
 export { toCommand, type ToCommandOptions } from "./to-command.js";

@@ -15,5 +15,7 @@ export {
   toCodeMode,
   toExecuteCapability,
   type CodeModeOptions,
+  type DeclarationPlacement,
+  type ExecuteOptions,
   type CodeModeProjection,
 } from "./to-code-mode.js";

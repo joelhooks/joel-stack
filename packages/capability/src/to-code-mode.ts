@@ -50,18 +50,36 @@ const search = Tool.make("search", {
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Idempotent, true);
 
-const executeDescription = (declarations: string): string =>
-  [
-    "Run a JavaScript program against the capabilities. The program is the body of an async function with `tools` in scope; `return` a JSON value to get it back, and `console.log` is captured into `logs`. Each `tools.<name>(input)` call is validated against that capability's input schema, runs on the host, and resolves with its output or rejects with its declared failure.",
-    "",
-    "The `tools` object:",
-    "",
-    "```ts",
-    declarations.trimEnd(),
-    "```",
-  ].join("\n");
+const executeIntro =
+  "Run a JavaScript program against the capabilities. The program is the body of an async function with `tools` in scope; `return` a JSON value to get it back, and `console.log` is captured into `logs`. Each `tools.<name>(input)` call is validated against that capability's input schema, runs on the host, and resolves with its output or rejects with its declared failure.";
 
-export interface CodeModeOptions {
+const executeDescription = (
+  declarations: string,
+  placement: DeclarationPlacement
+): string =>
+  placement === "search"
+    ? [
+        executeIntro,
+        "",
+        "Call `search` first to get the TypeScript signature of each capability on the `tools` object.",
+      ].join("\n")
+    : [
+        executeIntro,
+        "",
+        "The `tools` object:",
+        "",
+        "```ts",
+        declarations.trimEnd(),
+        "```",
+      ].join("\n");
+
+export type DeclarationPlacement = "inline" | "search";
+
+export interface ExecuteOptions {
+  readonly declarations?: DeclarationPlacement | undefined;
+}
+
+export interface CodeModeOptions extends ExecuteOptions {
   readonly searchLimit?: number | undefined;
 }
 
@@ -167,7 +185,8 @@ export const invokerFor = <const Caps extends readonly AnyCapability[]>(
 export const toExecuteCapability = <
   const Caps extends readonly [AnyCapability, ...AnyCapability[]],
 >(
-  capabilities: Caps
+  capabilities: Caps,
+  options?: ExecuteOptions
 ) => {
   const catalog = toCatalog(capabilities);
   const declarations = toTypeScript(catalog);
@@ -189,7 +208,10 @@ export const toExecuteCapability = <
         (item) => item.contract.annotations.readOnly
       ),
     },
-    description: executeDescription(declarations),
+    description: executeDescription(
+      declarations,
+      options?.declarations ?? "inline"
+    ),
     failure: SandboxError,
     input: ExecuteInput,
     needsApproval,
@@ -223,7 +245,7 @@ export const toCodeMode = <
   capabilities: Caps,
   options?: CodeModeOptions
 ): CodeModeProjection<Caps> => {
-  const executeProjection = toExecuteCapability(capabilities);
+  const executeProjection = toExecuteCapability(capabilities, options);
   const { catalog, declarations } = executeProjection;
   const searchLimit = options?.searchLimit ?? 5;
 

@@ -94,6 +94,18 @@ describe("toCodeMode", () => {
       })
   );
 
+  it("leaves the declarations out of execute when search serves them", () => {
+    const { declarations, toolkit } = toCodeMode([echo, greet], {
+      declarations: "search",
+    });
+
+    const { description } = toolkit.tools.execute;
+
+    expect(description).not.toContain("declare const tools");
+    expect(description).toContain("Call `search` first");
+    expect(declarations).toContain("readonly greet:");
+  });
+
   it.effect("search returns ranked signatures", () =>
     Effect.gen(function* searches() {
       const client = yield* makeMcpClient(appLayer);
