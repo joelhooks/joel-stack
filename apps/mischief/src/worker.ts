@@ -1,3 +1,4 @@
+import { Stage } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -9,6 +10,7 @@ import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 
 import { mischiefRoutes } from "./app.js";
+import type { MischiefRouteOptions } from "./app.js";
 import LegacyMcp from "./legacy-mcp/durable-object.js";
 import { LEGACY_SESSION_HEADER } from "./legacy-mcp/session.js";
 import { rateLimitsFrom, rateLimitDeclarations } from "./rate-limits.js";
@@ -24,25 +26,22 @@ const cloudflareStaticCache = {
     caches.default.put(request, response),
 };
 
-export default class Mischief extends Cloudflare.Worker<Mischief>()(
-  "Mischief",
-  {
-    compatibility: { date: "2026-05-28" },
-    dev: { port: 1337 },
-    domain: { name: "ratstack.sh", redirects: ["www.ratstack.sh"] },
-    main: import.meta.url,
-  },
-  Effect.gen(function* makeMischief() {
-    yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
-    yield* Cloudflare.RateLimit("API_PER_IP", rateLimitDeclarations.API_PER_IP);
-    yield* Cloudflare.RateLimit(
-      "EXECUTE_GLOBAL",
-      rateLimitDeclarations.EXECUTE_GLOBAL
-    );
-    yield* Cloudflare.RateLimit(
-      "EXECUTE_PER_IP",
-      rateLimitDeclarations.EXECUTE_PER_IP
-    );
+export const makeMischief = (
+  legacyMcp: NonNullable<MischiefRouteOptions["legacyMcp"]>
+) =>
+  Effect.gen(function* makeMischiefInit() {
+    if (globalThis.__ALCHEMY_RUNTIME__ !== true) {
+      const stageRateLimits = rateLimitDeclarations(yield* Stage);
+      yield* Cloudflare.RateLimit("API_PER_IP", stageRateLimits.API_PER_IP);
+      yield* Cloudflare.RateLimit(
+        "EXECUTE_GLOBAL",
+        stageRateLimits.EXECUTE_GLOBAL
+      );
+      yield* Cloudflare.RateLimit(
+        "EXECUTE_PER_IP",
+        stageRateLimits.EXECUTE_PER_IP
+      );
+    }
 
     const webBotAuthEnabled = yield* Config.Boolean(
       "WEB_BOT_AUTH_ENABLED"
@@ -68,23 +67,8 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
       EXECUTE_PER_IP: bindings.EXECUTE_PER_IP,
     });
 
-    const legacyMcp = yield* LegacyMcp;
-
     const workerRoutes = mischiefRoutes({
-      legacyMcp: {
-        forward: (session, request) => {
-          const headers = new Headers(request.headers);
-          headers.set(LEGACY_SESSION_HEADER, session);
-
-          return legacyMcp
-            .getByName(session)
-            .fetch(HttpServerRequest.fromWeb(new Request(request, { headers })))
-            .pipe(
-              Effect.map((response) => HttpServerResponse.toWeb(response)),
-              Effect.orDie
-            );
-        },
-      },
+      legacyMcp,
       rateLimits,
       staticCache: cloudflareStaticCache,
       webBotAuth: {
@@ -99,5 +83,38 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
     return {
       fetch: yield* HttpRouter.toHttpEffect(workerRoutes).pipe(Effect.orDie),
     };
-  }).pipe(Effect.provide(Cloudflare.Workers.RateLimitBinding))
+  });
+
+const makeMischiefWorker = Effect.gen(function* makeMischiefWorker() {
+  if (globalThis.__ALCHEMY_RUNTIME__ !== true) {
+    yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
+  }
+
+  const legacyMcp = yield* LegacyMcp;
+
+  return yield* makeMischief({
+    forward: (session, request) => {
+      const headers = new Headers(request.headers);
+      headers.set(LEGACY_SESSION_HEADER, session);
+
+      return legacyMcp
+        .getByName(session)
+        .fetch(HttpServerRequest.fromWeb(new Request(request, { headers })))
+        .pipe(
+          Effect.map((response) => HttpServerResponse.toWeb(response)),
+          Effect.orDie
+        );
+    },
+  });
+}).pipe(Effect.provide(Cloudflare.Workers.RateLimitBinding));
+
+export default class Mischief extends Cloudflare.Worker<Mischief>()(
+  "Mischief",
+  {
+    compatibility: { date: "2026-05-28" },
+    dev: { port: 1337 },
+    domain: { name: "ratstack.sh", redirects: ["www.ratstack.sh"] },
+    main: import.meta.url,
+  },
+  makeMischiefWorker
 ) {}
