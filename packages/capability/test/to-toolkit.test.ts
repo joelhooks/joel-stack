@@ -79,7 +79,7 @@ describe("toToolkit", () => {
       const tool = tools.find((item) => item.name === "noArgs");
 
       expect(tool?.inputSchema).toEqual({
-        properties: {},
+        additionalProperties: false,
         type: "object",
       });
 
