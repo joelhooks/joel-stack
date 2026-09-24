@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { definePlugin, defineRule } from "@oxlint/plugins";
-import type { ESTree, Scope } from "@oxlint/plugins";
+import type { Definition, ESTree, Scope } from "@oxlint/plugins";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -463,6 +463,36 @@ const surfaceConstructors = new Map<string, ReadonlySet<string>>([
   ["Toolkit", new Set(["make"])],
 ]);
 
+const declarationOf = (
+  name: string,
+  scope: Scope | null
+): Definition | undefined =>
+  scope === null
+    ? undefined
+    : (scope.set.get(name)?.defs[0] ?? declarationOf(name, scope.upper));
+
+const surfaceConstructorName = (
+  object: ESTree.Expression,
+  scope: Scope
+): string | undefined => {
+  if (object.type === "MemberExpression") {
+    return !object.computed && object.property.type === "Identifier"
+      ? object.property.name
+      : undefined;
+  }
+
+  if (object.type !== "Identifier") {
+    return undefined;
+  }
+
+  const declaration = declarationOf(object.name, scope);
+
+  return declaration?.type === "ImportBinding" &&
+    declaration.node.type === "ImportSpecifier"
+    ? (importedName(declaration.node) ?? object.name)
+    : object.name;
+};
+
 const noHandRolledSurface = defineRule({
   create(context) {
     if (isCapabilityPackage(workspacePath(context.filename))) {
@@ -475,17 +505,23 @@ const noHandRolledSurface = defineRule({
 
         if (
           callee.type !== "MemberExpression" ||
-          callee.object.type !== "Identifier" ||
           callee.property.type !== "Identifier"
         ) {
           return;
         }
 
-        const methods = surfaceConstructors.get(callee.object.name);
+        const constructor = surfaceConstructorName(
+          callee.object,
+          context.sourceCode.getScope(node)
+        );
 
-        if (methods?.has(callee.property.name) === true) {
+        if (
+          constructor !== undefined &&
+          surfaceConstructors.get(constructor)?.has(callee.property.name) ===
+            true
+        ) {
           context.report({
-            data: { call: `${callee.object.name}.${callee.property.name}` },
+            data: { call: `${constructor}.${callee.property.name}` },
             messageId: "handRolled",
             node,
           });
