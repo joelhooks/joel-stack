@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- This Oxlint plugin runs as Node tooling and reads repository files directly.
 import path from "node:path";
 
 import { definePlugin, defineRule } from "@oxlint/plugins";
@@ -79,7 +80,9 @@ const staticPropertyName = (node: ESTree.MemberExpression): string | null => {
   return null;
 };
 
-const staticPropertyKeyName = (node: ESTree.ObjectProperty): string | null => {
+const staticPropertyKeyName = (
+  node: ESTree.ObjectProperty | ESTree.BindingProperty
+): string | null => {
   if (!node.computed && node.key.type === "Identifier") {
     return node.key.name;
   }
@@ -276,14 +279,16 @@ const importIdentity = (
   const importBindingIdentity = (
     definition: Definition
   ): ImportIdentity | null => {
+    const { parent } = definition.node;
+
     if (
       definition.type !== "ImportBinding" ||
-      definition.node.parent.type !== "ImportDeclaration"
+      parent?.type !== "ImportDeclaration"
     ) {
       return null;
     }
 
-    const module = stringValue(definition.node.parent.source);
+    const module = stringValue(parent.source);
 
     if (module === null) {
       return null;
@@ -541,7 +546,11 @@ const returnsCapturedHandle = (node: ESTree.Node, context: RuleContext) => {
   }
 
   const [argument] = expression.arguments;
-  const thunk = argument === undefined ? null : unwrapExpression(argument);
+
+  const thunk =
+    argument === undefined || argument.type === "SpreadElement"
+      ? null
+      : unwrapExpression(argument);
 
   if (
     thunk === null ||
@@ -868,14 +877,12 @@ const expressionForVariable = (
   context: RuleContext
 ): ESTree.VariableDeclarator | null => {
   let current: ESTree.Node = node;
+  let ancestor: ESTree.Node | null = current.parent;
 
-  const ancestors: ESTree.Node[] = context.sourceCode
-    .getAncestors(node)
-    .toReversed();
-
-  for (const ancestor of ancestors) {
+  while (ancestor !== null) {
     if (isTransparentWrapper(ancestor, current)) {
       current = ancestor;
+      ancestor = current.parent;
       continue;
     }
 
@@ -931,7 +938,11 @@ const variableBinding = (
       ? null
       : unwrapExpression(definition.node.init);
 
-  if (initializer?.type === "Identifier" && isStableVariable(variable)) {
+  if (
+    initializer?.type === "Identifier" &&
+    variable !== undefined &&
+    isStableVariable(variable)
+  ) {
     return variableBinding(initializer, context, seen) ?? definition.node;
   }
 

@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- This Oxlint plugin runs as Node tooling and reads repository files directly.
 import { existsSync } from "node:fs";
 import { isBuiltin } from "node:module";
 import path from "node:path";
@@ -17,8 +18,6 @@ type NodeOfType<Type extends ESTree.Node["type"]> = Extract<
   ESTree.Node,
   { type: Type }
 >;
-
-type IdentifierNode = NodeOfType<"Identifier">;
 
 type PropertyNode = NodeOfType<"Property">;
 
@@ -286,7 +285,9 @@ const staticPropertyName = (node: ESTree.MemberExpression) => {
   return typeof value === "string" ? value : undefined;
 };
 
-const rootIdentifierNode = (node: ESTree.Node): IdentifierNode | null => {
+const rootIdentifierNode = (
+  node: ESTree.Expression
+): ESTree.Expression | null => {
   let current = node;
 
   while (current.type === "MemberExpression") {
@@ -453,14 +454,16 @@ const importIdentity = (
   const importBindingIdentity = (
     definition: Definition
   ): ImportIdentity | null => {
+    const { parent } = definition.node;
+
     if (
       definition.type !== "ImportBinding" ||
-      definition.node.parent.type !== "ImportDeclaration"
+      parent?.type !== "ImportDeclaration"
     ) {
       return null;
     }
 
-    const module = isStringModule(definition.node.parent.source);
+    const module = isStringModule(parent.source);
 
     if (module === null) {
       return null;
@@ -635,14 +638,17 @@ const isTypeOnlyDefinition = (definition: Definition) => {
     return true;
   }
 
-  if (
-    definition.type === "ImportBinding" &&
-    definition.node.parent.type === "ImportDeclaration" &&
-    (definition.node.parent.importKind === "type" ||
-      (definition.node.type === "ImportSpecifier" &&
-        definition.node.importKind === "type"))
-  ) {
-    return true;
+  if (definition.type === "ImportBinding") {
+    const { parent } = definition.node;
+
+    if (
+      parent?.type === "ImportDeclaration" &&
+      (parent.importKind === "type" ||
+        (definition.node.type === "ImportSpecifier" &&
+          definition.node.importKind === "type"))
+    ) {
+      return true;
+    }
   }
 
   return (
@@ -724,6 +730,7 @@ const resolvesGlobalObject = (
     definition.node.type === "VariableDeclarator" &&
     definition.node.id.type === "Identifier" &&
     definition.node.init !== null &&
+    variable !== undefined &&
     isStableVariable(variable) &&
     resolvesGlobalObject(
       definition.node.init,
@@ -1120,7 +1127,7 @@ const surfaceConstructorName = (
   if (object.type === "MemberExpression") {
     const name = staticPropertyName(object);
 
-    return name !== null && surfaceConstructors.has(name) ? name : null;
+    return name !== undefined && surfaceConstructors.has(name) ? name : null;
   }
 
   if (object.type !== "Identifier") {
@@ -1155,7 +1162,7 @@ const surfaceCallName = (
     const method = staticPropertyName(callee);
     const constructor = surfaceConstructorName(callee.object, scope, context);
 
-    return method !== null &&
+    return method !== undefined &&
       constructor !== null &&
       surfaceConstructors.get(constructor)?.has(method) === true
       ? `${constructor}.${method}`

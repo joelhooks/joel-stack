@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- This Node CLI reads manifests and a local roster directly from disk.
 import { existsSync, globSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
@@ -34,7 +35,7 @@ const decodeMatches = Schema.decodeUnknownSync(
   Schema.fromJsonString(
     Schema.Array(
       Schema.Struct({
-        repoStars: Schema.optional(Schema.Number),
+        repoStars: Schema.optional(Schema.Finite),
         repository: Schema.String,
       })
     )
@@ -48,7 +49,9 @@ const { values } = parseArgs({
   },
 });
 
-const minShared = Math.trunc(Number(values.min));
+const minShared = Math.trunc(
+  Schema.decodeSync(Schema.Finite)(Number(values.min))
+);
 
 const keyOf = (line: Line): string => `${line.name}@${line.prefix}`;
 
@@ -110,12 +113,14 @@ const matchesIn = (event: string) => {
     : [];
 };
 
+// @effect-diagnostics-next-line asyncFunction:off -- This one-shot Node CLI batches Sourcegraph requests with native Promise I/O.
 const search = async (line: Line) => {
   const query = new URLSearchParams({
     display: "1000",
     q: queryFor(line),
   }).toString();
 
+  // @effect-diagnostics-next-line globalFetch:off -- This Node CLI fetches a public Sourcegraph endpoint outside an Effect runtime.
   const response = await fetch(`${SOURCEGRAPH}?${query}`, {
     headers: {
       Accept: "text/event-stream",
@@ -138,9 +143,12 @@ const lines = ourLines();
 
 const peers = new Map<string, Peer>();
 
-const results = await Promise.all(
-  lines.map(async (line) => ({ line, matches: await search(line) }))
-);
+const matchedSets = await Promise.all(lines.map(search));
+
+const results = lines.map((line, index) => ({
+  line,
+  matches: matchedSets[index] ?? [],
+}));
 
 for (const { line, matches } of results) {
   for (const match of matches) {
@@ -175,13 +183,13 @@ const rows = ranked.map((peer) => {
   return `| ${marker} | [${peer.repo}](https://github.com/${peer.repo}) | ${peer.stars} | ${shared} |`;
 });
 
-console.log(
-  [
+process.stdout.write(
+  `${[
     `Lines: ${lines.map(keyOf).join(", ")}`,
     `Peers sharing at least ${minShared}: ${ranked.length}`,
     "",
     "| New | Repo | Stars | Shared |",
     "| --- | --- | --- | --- |",
     ...rows,
-  ].join("\n")
+  ].join("\n")}\n`
 );
