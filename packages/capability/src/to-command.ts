@@ -224,7 +224,12 @@ export const toCommand = <C extends AnyCapability>(
     config,
     Effect.fn(`Capability.${contract.name}`)(function* runCommand(parsed) {
       const { [APPROVAL_FLAG]: yes, [JSON_FLAG]: json, ...fields } = parsed;
-      const input = yield* decodeInput(fields);
+
+      const provided = Object.fromEntries(
+        Object.entries(fields).filter(([, value]) => value !== undefined)
+      );
+
+      const input = yield* decodeInput(provided);
 
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Decoded through `contract.input`, whose Type `C` makes precise.
       const output = yield* run(input).pipe(
