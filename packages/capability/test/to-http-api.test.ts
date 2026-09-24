@@ -4,7 +4,14 @@ import { Etag, HttpPlatform } from "effect/unstable/http";
 import { HttpApiTest } from "effect/unstable/httpapi";
 
 import { Approval, ApprovalDenied, toHttpApi } from "../src/index.js";
-import { Greeter, approved, echo, greet } from "./fixtures.js";
+import {
+  Greeter,
+  approved,
+  checkedInput,
+  echo,
+  greet,
+  noArgs,
+} from "./fixtures.js";
 
 const TestServices = Layer.mergeAll(
   Path.layer,
@@ -13,6 +20,12 @@ const TestServices = Layer.mergeAll(
 ).pipe(Layer.provideMerge(FileSystem.layerNoop({})));
 
 const projection = toHttpApi("TestApi", [echo, greet]);
+
+const noArgsProjection = toHttpApi("NoArgsApi", [noArgs], {
+  prefix: "/v1",
+});
+
+const checkedInputProjection = toHttpApi("CheckedInputApi", [checkedInput]);
 
 const HandlersLayer = projection.layer.pipe(Layer.provide(Greeter.layer));
 
@@ -44,6 +57,18 @@ describe("toHttpApi", () => {
 
         expect(greeting).toEqual({ greeting: "hello rat" });
         expect(echoed).toEqual({ text: "abab" });
+      })
+    );
+
+    test.effect("posts an empty input contract", () =>
+      Effect.gen(function* postsEmptyInput() {
+        const client = yield* HttpApiTest.groups(noArgsProjection.api, [
+          "capabilities",
+        ]).pipe(Effect.provide(noArgsProjection.layer));
+
+        const result = yield* client.capabilities.noArgs({ payload: {} });
+
+        expect(result).toBe("ready");
       })
     );
 
@@ -80,6 +105,26 @@ describe("toHttpApi", () => {
     expect(document.paths["/greet"]?.post?.requestBody).toBeDefined();
     expect(JSON.stringify(document)).not.toContain("ApprovalDenied");
     expect(JSON.stringify(document)).not.toContain('"429"');
+  });
+
+  it("advertises empty input and checked constraints in OpenAPI", () => {
+    const emptyInput =
+      noArgsProjection.openApi().paths["/v1/noArgs"]?.post?.requestBody
+        ?.content["application/json"]?.schema;
+
+    const checkedInputSchema =
+      checkedInputProjection.openApi().paths["/checkedInput"]?.post?.requestBody
+        ?.content["application/json"]?.schema;
+
+    expect(emptyInput).toEqual({ properties: {}, type: "object" });
+
+    expect(checkedInputSchema).toMatchObject({
+      properties: {
+        mode: { enum: ["fast", "slow"] },
+        values: { maxItems: 3, minItems: 1 },
+      },
+      type: "object",
+    });
   });
 
   it("documents host errors on every endpoint without touching failures", () => {

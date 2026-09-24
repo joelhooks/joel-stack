@@ -14,6 +14,7 @@ import type {
   PlainSchema,
   RequirementsOf as CapabilityRequirementsOf,
 } from "./contract.js";
+import { inputJsonSchemaOf } from "./input-json-schema.js";
 
 const toolFor = <
   Name extends string,
@@ -56,19 +57,41 @@ export interface ToolkitProjection<Caps extends readonly AnyCapability[]> {
   >;
 }
 
-const toTool = ({ contract }: AnyCapability) =>
-  toolFor(
-    contract.name,
-    contract.description,
-    contract.input,
-    contract.output,
-    failureSchemaOf(contract),
-    contract.needsApproval
-  )
+const emptyInputTool = (contract: AnyCapability["contract"]): Tool.Any => {
+  const tool = Tool.dynamic(contract.name, {
+    description: contract.description,
+    failure: failureSchemaOf(contract),
+    needsApproval: contract.needsApproval,
+    parameters: contract.input,
+    success: contract.output,
+  });
+
+  Object.defineProperty(tool, "jsonSchema", {
+    value: inputJsonSchemaOf(contract.input),
+  });
+
+  return tool;
+};
+
+const toTool = ({ contract }: AnyCapability) => {
+  const tool =
+    Object.keys(contract.input.fields).length === 0
+      ? emptyInputTool(contract)
+      : toolFor(
+          contract.name,
+          contract.description,
+          contract.input,
+          contract.output,
+          failureSchemaOf(contract),
+          contract.needsApproval
+        );
+
+  return tool
     .annotate(Tool.Readonly, contract.annotations.readOnly)
     .annotate(Tool.Destructive, contract.annotations.destructive)
     .annotate(Tool.Idempotent, contract.annotations.idempotent)
     .annotate(Tool.OpenWorld, contract.annotations.openWorld);
+};
 
 export const toToolkit = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps

@@ -3,7 +3,14 @@ import { Effect, Layer } from "effect";
 import { McpServer } from "effect/unstable/ai";
 
 import { Approval, toToolkit } from "../src/index.js";
-import { Greeter, approved, echo, greet } from "./fixtures.js";
+import {
+  Greeter,
+  approved,
+  checkedInput,
+  echo,
+  greet,
+  noArgs,
+} from "./fixtures.js";
 import { makeMcpClient, serverLayer } from "./mcp-harness.js";
 
 const projection = toToolkit([echo, greet]);
@@ -11,6 +18,22 @@ const projection = toToolkit([echo, greet]);
 const appLayer = McpServer.toolkit(projection.toolkit).pipe(
   Layer.provideMerge(projection.layer),
   Layer.provide(Greeter.layer),
+  Layer.provide(serverLayer)
+);
+
+const noArgsProjection = toToolkit([noArgs]);
+
+const noArgsAppLayer = McpServer.toolkit(noArgsProjection.toolkit).pipe(
+  Layer.provideMerge(noArgsProjection.layer),
+  Layer.provide(serverLayer)
+);
+
+const checkedInputProjection = toToolkit([checkedInput]);
+
+const checkedInputAppLayer = McpServer.toolkit(
+  checkedInputProjection.toolkit
+).pipe(
+  Layer.provideMerge(checkedInputProjection.layer),
   Layer.provide(serverLayer)
 );
 
@@ -47,6 +70,61 @@ describe("toToolkit", () => {
         required: ["text"],
       });
     })
+  );
+
+  it.effect("registers and calls a contract with no input fields", () =>
+    Effect.gen(function* registersAndCallsNoArgs() {
+      const client = yield* makeMcpClient(noArgsAppLayer);
+      const { tools } = yield* client["tools/list"]({});
+      const tool = tools.find((item) => item.name === "noArgs");
+
+      expect(tool?.inputSchema).toEqual({
+        properties: {},
+        type: "object",
+      });
+
+      const result = yield* client["tools/call"]({
+        arguments: {},
+        name: "noArgs",
+      });
+
+      expect(result.isError).toBeFalsy();
+      const [content] = result.content;
+      expect(content?.type === "text" ? content.text : "").toContain("ready");
+    })
+  );
+
+  it.effect(
+    "advertises Effect-checked constraints and rejects invalid input",
+    () =>
+      Effect.gen(function* validatesCheckedInput() {
+        const client = yield* makeMcpClient(checkedInputAppLayer);
+        const { tools } = yield* client["tools/list"]({});
+        const tool = tools.find((item) => item.name === "checkedInput");
+
+        expect(tool?.inputSchema).toMatchObject({
+          properties: {
+            mode: { enum: ["fast", "slow"] },
+            values: { maxItems: 3, minItems: 1 },
+          },
+          type: "object",
+        });
+
+        const invalidInputs = [
+          { mode: "turbo", values: ["one"] },
+          { mode: "fast", values: [] },
+          { mode: "slow", values: ["one", "two", "three", "four"] },
+        ];
+
+        for (const input of invalidInputs) {
+          const result = yield* client["tools/call"]({
+            arguments: input,
+            name: "checkedInput",
+          }).pipe(Effect.exit);
+
+          expect(result._tag).toBe("Failure");
+        }
+      })
   );
 
   it.effect("calls a capability through its requirements", () =>

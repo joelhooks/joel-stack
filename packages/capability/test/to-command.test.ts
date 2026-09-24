@@ -10,7 +10,7 @@ import {
   implement,
   toCommand,
 } from "../src/index.js";
-import { Greeter, approved, echo, greet, mixed } from "./fixtures.js";
+import { Greeter, approved, echo, greet, mixed, noArgs } from "./fixtures.js";
 
 const reservedJsonContract = defineContract("reservedJson", {
   description: "A capability with a json field",
@@ -52,6 +52,14 @@ const lastLine = TestConsole.logLines.pipe(
 
 describe("toCommand", () => {
   it.layer(TestLayer)("flags from the input struct", (test) => {
+    test.effect("runs a contract with no input fields", () =>
+      Effect.gen(function* runsNoArgs() {
+        yield* run(toCommand(noArgs), []);
+
+        expect(JSON.parse(yield* lastLine)).toBe("ready");
+      })
+    );
+
     test.effect("maps fields to flags and prints encoded JSON", () =>
       Effect.gen(function* mapsFields() {
         yield* run(toCommand(echo), ["--text", "hi", "--times", "2"]);
