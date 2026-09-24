@@ -11,13 +11,7 @@ import { Effect, FileSystem, Layer, Path, Schema } from "effect";
 import { HttpClient, HttpRouter, HttpServer } from "effect/unstable/http";
 import { HttpApiClient } from "effect/unstable/httpapi";
 
-import {
-  SERVE_HOST,
-  devtoolsRoutes,
-  http,
-  routes,
-  serverLayer,
-} from "../src/surfaces.js";
+import { devtoolsRoutes, http, routes, serverLayer } from "../src/surfaces.js";
 
 const decodeOpenApi = Schema.decodeUnknownSync(
   Schema.Struct({ paths: Schema.Record(Schema.String, Schema.Unknown) })
@@ -39,7 +33,6 @@ describe("serve routes", () => {
       expect(HttpServer.formatAddress(server.address)).toMatch(
         /^http:\/\/127\.0\.0\.1:\d+$/u
       );
-      expect(SERVE_HOST).toBe("127.0.0.1");
     }).pipe(Effect.provide(serverLayer(0)))
   );
 
