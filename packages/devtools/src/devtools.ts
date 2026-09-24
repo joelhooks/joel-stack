@@ -1,5 +1,4 @@
 import {
-  aroundHandlers,
   failureSchemaOf,
   implement,
   invokerFor,
@@ -8,6 +7,8 @@ import {
 import type { AnyCapability, AnyContract, Around } from "@rat-stack/capability";
 import { ActorWatch } from "@rat-stack/capability/actor-watch";
 import type { ActorWatchService } from "@rat-stack/capability/actor-watch";
+import { CallWatch } from "@rat-stack/capability/call-watch";
+import type { CallWatchService } from "@rat-stack/capability/call-watch";
 import type { JsonSchema } from "effect";
 import { Cause, Clock, Effect, Exit, Layer, Option, Schema } from "effect";
 
@@ -116,20 +117,26 @@ const recorder =
       return yield* exit;
     });
 
-export const record = <
-  const Caps extends readonly AnyCapability[],
-  Identifier = never,
-  Value = never,
->(
-  capabilities: Caps,
+const callWatchFor = <Identifier, Value>(
+  log: CallLog["Service"],
+  watcher: ActorWatchService,
+  options: DevtoolsOptions<Identifier, Value>
+): CallWatchService => ({
+  around: recorder(log, watcher, options.runAs),
+});
+
+export const record = <Identifier = never, Value = never>(
   options: DevtoolsOptions<Identifier, Value> = {}
 ) =>
-  Effect.gen(function* recordCapabilities() {
-    const log = yield* CallLog;
-    const watcher = yield* actorWatcher;
+  Layer.effect(
+    CallWatch,
+    Effect.gen(function* makeCallWatch() {
+      const log = yield* CallLog;
+      const watcher = yield* actorWatcher;
 
-    return aroundHandlers(capabilities, recorder(log, watcher, options.runAs));
-  });
+      return callWatchFor(log, watcher, options);
+    })
+  );
 
 const summaryOf = ({ contract }: AnyCapability) => ({
   annotations: contract.annotations,
@@ -224,7 +231,8 @@ const toolsFor = <
   log: CallLog["Service"],
   actors: ActorLog["Service"],
   atoms: AtomLog["Service"],
-  runAs: RunAs<Identifier, Value> | undefined
+  runAs: RunAs<Identifier, Value> | undefined,
+  callWatch: CallWatchService
 ) => {
   const byName = new Map(
     capabilities.map((capability) => [capability.contract.name, capability])
@@ -263,7 +271,10 @@ const toolsFor = <
         );
       }
 
-      const invoke = yield* invoker.value;
+      const invoke = yield* invoker.value.pipe(
+        Effect.provideService(CallWatch, callWatch)
+      );
+
       const outcome = yield* invoke(name, input);
 
       return yield* Schema.decodeUnknownEffect(InvokeResultSchema)(
@@ -585,23 +596,34 @@ export const devtools = <
     const atoms = yield* AtomLog;
     const watcher = yield* actorWatcher;
 
-    const recorded = aroundHandlers(
+    const callWatch = callWatchFor(log, watcher, options);
+
+    const tools = toolsFor(
       capabilities,
-      recorder(log, watcher, options.runAs)
+      log,
+      actors,
+      atoms,
+      options.runAs,
+      callWatch
     );
 
-    const tools = toolsFor(recorded, log, actors, atoms, options.runAs);
-
     return {
-      capabilities: [...recorded, ...tools] as const,
-      recorded,
+      capabilities: [...capabilities, ...tools] as const,
+      recorded: capabilities,
       tools,
     };
   });
 
-export const devtoolsLayer = (capacity?: number) =>
-  Layer.mergeAll(
-    CallLog.layer(capacity),
-    ActorLog.layer(capacity),
-    AtomLog.layer
+export const devtoolsLayer = <Identifier = never, Value = never>(
+  capacity?: number,
+  options: DevtoolsOptions<Identifier, Value> = {}
+) =>
+  record(options).pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(
+        CallLog.layer(capacity),
+        ActorLog.layer(capacity),
+        AtomLog.layer
+      )
+    )
   );

@@ -1,6 +1,8 @@
 import { Data, Effect } from "effect";
 
 import { Approval } from "./approval.js";
+import { CallWatch } from "./call-watch.js";
+import type { Around } from "./call-watch.js";
 import type {
   AnyCapability,
   AnyContract,
@@ -28,14 +30,20 @@ export const implement = <
   >
 ): Capability<ContractType, Requirements> => {
   const implementationHandler = (input: never) =>
-    contract.needsApproval
-      ? Effect.gen(function* approvedHandler() {
-          const approval = yield* Approval;
-          yield* approval.approve(contract.name, input);
+    Effect.gen(function* callWithWatch() {
+      const watch = yield* CallWatch;
 
-          return yield* handler(input);
-        })
-      : handler(input);
+      const run = contract.needsApproval
+        ? Effect.gen(function* approvedHandler() {
+            const approval = yield* Approval;
+            yield* approval.approve(contract.name, input);
+
+            return yield* handler(input);
+          })
+        : handler(input);
+
+      return yield* watch.around(contract, input, run);
+    });
 
   const capability = new CapabilityRecord({
     contract,
@@ -47,12 +55,7 @@ export const implement = <
   return capability as unknown as Capability<ContractType, Requirements>;
 };
 
-export type Around = <A, E, R>(
-  contract: AnyContract,
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The handler's decoded input, erased across a heterogeneous list; a wrapper re-encodes it through `contract.input`.
-  input: unknown,
-  run: Effect.Effect<A, E, R>
-) => Effect.Effect<A, E, R>;
+export type { Around } from "./call-watch.js";
 
 export const aroundHandlers = <const Caps extends readonly AnyCapability[]>(
   capabilities: Caps,
