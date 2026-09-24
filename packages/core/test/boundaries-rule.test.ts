@@ -297,8 +297,21 @@ describe("architecture boundary rules", () => {
       "export const title = () => document.title;\n"
     );
 
+    const throughGlobal = lintFixture(
+      "apps/web/src/server",
+      'export const here = () => globalThis.window.location.href;\nexport const title = () => self["document"].title;\n'
+    );
+
+    const serverGlobal = lintFixture(
+      "apps/web/src/server",
+      "export const send = (request: Request) => globalThis.fetch(request);\n"
+    );
+
     expectRule(route, "window exists only in a browser.");
     expectRule(core, "document exists only in a browser.");
+    expectRule(throughGlobal, "window exists only in a browser.");
+    expectRule(throughGlobal, "document exists only in a browser.");
+    expect(serverGlobal.status).toBe(0);
   });
 
   it("allows browser globals in client and feature modules", () => {

@@ -523,6 +523,22 @@ const isDeclaredLocally = (name: string, scope: Scope | null): boolean =>
   ((scope.set.get(name)?.defs.length ?? 0) > 0 ||
     isDeclaredLocally(name, scope.upper));
 
+const globalObjects = new Set(["globalThis", "self"]);
+
+const staticPropertyName = (node: ESTree.MemberExpression) => {
+  if (!node.computed && node.property.type === "Identifier") {
+    return node.property.name;
+  }
+
+  const value =
+    node.computed && node.property.type === "Literal"
+      ? node.property.value
+      : null;
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ESTree Literal also represents numbers, booleans, and regexes, so a computed key needs a string check.
+  return typeof value === "string" ? value : undefined;
+};
+
 const noBrowserGlobalsOnServer = defineRule({
   create(context) {
     if (!isServerSource(workspacePath(context.filename))) {
@@ -531,18 +547,37 @@ const noBrowserGlobalsOnServer = defineRule({
 
     return {
       MemberExpression(node) {
+        if (node.object.type !== "Identifier") {
+          return;
+        }
+
+        const scope = context.sourceCode.getScope(node);
+
         if (
-          node.object.type === "Identifier" &&
           browserGlobals.has(node.object.name) &&
-          !isDeclaredLocally(
-            node.object.name,
-            context.sourceCode.getScope(node)
-          )
+          !isDeclaredLocally(node.object.name, scope)
         ) {
           context.report({
             data: { name: node.object.name },
             messageId: "browserGlobal",
             node: node.object,
+          });
+
+          return;
+        }
+
+        const property = staticPropertyName(node);
+
+        if (
+          globalObjects.has(node.object.name) &&
+          !isDeclaredLocally(node.object.name, scope) &&
+          property !== undefined &&
+          browserGlobals.has(property)
+        ) {
+          context.report({
+            data: { name: property },
+            messageId: "browserGlobal",
+            node: node.property,
           });
         }
       },
