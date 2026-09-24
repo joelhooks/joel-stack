@@ -273,8 +273,20 @@ describe("architecture boundary rules", () => {
       'import { HttpApiEndpoint } from "effect/unstable/httpapi";\n\nexport const route = HttpApiEndpoint.post("route", "/route");\n'
     );
 
+    const aliased = lintFixture(
+      "apps/web/src/server",
+      'import { HttpApiEndpoint as Endpoint } from "effect/unstable/httpapi";\n\nexport const route = Endpoint.get("route", "/route");\n'
+    );
+
+    const namespaced = lintFixture(
+      "apps/web/src/server",
+      'import * as Rpcs from "effect/unstable/rpc";\n\nexport const athlete = Rpcs.RpcGroup.make();\n'
+    );
+
     expectRule(rpc, "Rpc.make hand-rolls a surface.");
     expectRule(endpoint, "HttpApiEndpoint.post hand-rolls a surface.");
+    expectRule(aliased, "HttpApiEndpoint.get hand-rolls a surface.");
+    expectRule(namespaced, "RpcGroup.make hand-rolls a surface.");
   });
 
   it("lets packages/capability build surfaces", () => {
