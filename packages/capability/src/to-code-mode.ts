@@ -61,7 +61,7 @@ const executeDescription = (
     ? [
         executeIntro,
         "",
-        "Call `search` first to get the TypeScript signature of each capability on the `tools` object.",
+        "Call `search` first to get the TypeScript signature of each capability on the `tools` object, or read the host's declarations resource if it serves one.",
       ].join("\n")
     : [
         executeIntro,
