@@ -7,3 +7,4 @@ These files are ours now. Change a rule when it stops matching how rat-stack wor
 ## Local changes
 
 - 2026-09-24, `rules/no-unknown-parameters.ts`: the first parameter of a promise rejection handler (the second argument to `.then`, or the argument to `.catch`) is exempt, whatever its name. It is the function form of a `catch` clause and receives `unknown` by nature. Without this, the rule (which exempted only `cause`) and Ultracite's `unicorn/catch-error-name` (which requires `error`) could not both pass. Tests: `packages/core/test/unknown-parameters-rule.test.ts`.
+- 2026-09-24, `shared/dictionary-types.ts`: the intersection branch returns its first unsafe member through a destructured binding, so it typechecks under `noUncheckedIndexedAccess`. Behavior unchanged. The whole `tools/oxlint` tree is now in the root `//#typecheck-scripts` gate. Found by drovr.
