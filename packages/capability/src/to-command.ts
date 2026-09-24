@@ -89,16 +89,16 @@ const jsonFlag = (name: string, field: PlainSchema) =>
     Flag.withMetavar("JSON")
   );
 
-const flagBuilders: Record<
-  FieldSpec["kind"],
-  (name: string, field: PlainSchema, spec: FieldSpec) => Flag.Flag<unknown>
-> = {
+const flagBuilders = {
   boolean: (name) => Flag.Boolean(name).pipe(Flag.withDefault(false)),
   json: (name, field) => jsonFlag(name, field),
   literals: (name, _field, spec) => Flag.Literals(name, spec.literals),
   number: (name) => Flag.Finite(name),
   string: (name) => Flag.String(name),
-};
+} satisfies Record<
+  FieldSpec["kind"],
+  (name: string, field: PlainSchema, spec: FieldSpec) => Flag.Flag<unknown>
+>;
 
 const flagFor = (name: string, field: PlainSchema): Flag.Flag<unknown> => {
   const spec = describe(field);
@@ -114,27 +114,44 @@ const flagFor = (name: string, field: PlainSchema): Flag.Flag<unknown> => {
     : described;
 };
 
-const argumentBuilders: Record<
-  FieldSpec["kind"],
-  (name: string, spec: FieldSpec) => Argument.Argument<unknown>
-> = {
-  boolean: (name) => Argument.String(name),
-  json: (name) => Argument.String(name),
-  literals: (name, spec) => Argument.Literals(name, spec.literals),
+const schemaArgument = (name: string, field: PlainSchema, metavar: string) =>
+  Argument.String(name).pipe(
+    // SAFETY: the string argument is decoded by its field schema, which has no CLI services.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `PlainSchema` has no requirements, so the CLI environment satisfies the codec.
+    Argument.withSchema(Schema.fromJsonString(field) as never),
+    Argument.withMetavar(metavar)
+  );
+
+const argumentBuilders = {
+  boolean: (name, field) => schemaArgument(name, field, "BOOLEAN"),
+  json: (name, field) => schemaArgument(name, field, "JSON"),
+  literals: (name, _field, spec) => Argument.Literals(name, spec.literals),
   number: (name) => Argument.Finite(name),
   string: (name) => Argument.String(name),
-};
+} satisfies Record<
+  FieldSpec["kind"],
+  (
+    name: string,
+    field: PlainSchema,
+    spec: FieldSpec
+  ) => Argument.Argument<unknown>
+>;
 
 const argumentFor = (
   name: string,
   field: PlainSchema
 ): Argument.Argument<unknown> => {
   const spec = describe(field);
-  const base = argumentBuilders[spec.kind](name, spec);
+  const base = argumentBuilders[spec.kind](name, field, spec);
 
-  return spec.description === undefined
-    ? base
-    : base.pipe(Argument.withDescription(spec.description));
+  const described =
+    spec.description === undefined
+      ? base
+      : base.pipe(Argument.withDescription(spec.description));
+
+  return spec.optional
+    ? described.pipe(Argument.optional, Argument.map(Option.getOrUndefined))
+    : described;
 };
 
 const JSON_FLAG = "json";
@@ -147,6 +164,22 @@ export const toCommand = <C extends AnyCapability>(
 ) => {
   const { contract } = capability;
   const positional = new Set(options?.positional);
+  const render = options?.render;
+
+  if (render !== undefined && Object.hasOwn(contract.input.fields, JSON_FLAG)) {
+    throw new Error(
+      "Input field `json` conflicts with the reserved `--json` flag"
+    );
+  }
+
+  if (
+    contract.needsApproval &&
+    Object.hasOwn(contract.input.fields, APPROVAL_FLAG)
+  ) {
+    throw new Error(
+      "Input field `yes` conflicts with the reserved `--yes` flag"
+    );
+  }
 
   const config: Record<
     string,
@@ -158,8 +191,6 @@ export const toCommand = <C extends AnyCapability>(
       ? argumentFor(name, field)
       : flagFor(name, field);
   }
-
-  const render = options?.render;
 
   if (render !== undefined) {
     config[JSON_FLAG] = Flag.Boolean(JSON_FLAG).pipe(
