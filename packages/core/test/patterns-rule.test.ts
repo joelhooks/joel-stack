@@ -66,6 +66,11 @@ const expectRule = (result: LintResult, message: string) => {
   expect(result.output).toContain(message);
 };
 
+const expectRuleSoft = (result: LintResult, message: string) => {
+  expect.soft(result.status).not.toBe(0);
+  expect.soft(result.output).toContain(message);
+};
+
 const eagerAcquire = "Build the resource inside acquire";
 
 const moduleState = "Module-level let and var are shared by every request";
@@ -93,8 +98,35 @@ describe("rat-stack pattern rules", () => {
       'import { Effect } from "effect";\n\nclass Pool { close() {} }\n\nconst shared = new Pool();\n\nexport const pool = Effect.acquireRelease(Effect.sync(() => shared), (opened) => Effect.sync(() => opened.close()));\n'
     );
 
+    const required = lintFixture(
+      "packages/database/src",
+      'const { Effect } = require("effect");\n\nclass Pool { close() {} }\n\nconst shared = new Pool();\nexport const pool = Effect.acquireRelease(Effect.succeed(shared), (opened) => Effect.sync(() => opened.close()));\n'
+    );
+
     expectRule(eager, eagerAcquire);
     expectRule(captured, eagerAcquire);
+    expectRule(required, eagerAcquire);
+  });
+
+  it("unwraps asserted acquires without flagging handles built inside the thunk", () => {
+    const asserted = lintFixture(
+      "packages/database/src",
+      'import { Effect } from "effect";\n\nclass Pool { close() {} }\n\nconst shared = new Pool();\nexport const pool = Effect.acquireRelease(Effect.sync(() => shared) as Effect.Effect<Pool>, (opened) => Effect.sync(() => opened.close()));\n'
+    );
+
+    const defaultedParameter = lintFixture(
+      "packages/database/src",
+      'import { Effect } from "effect";\n\nclass Pool { close() {} }\n\nexport const pool = Effect.acquireRelease(Effect.sync((handle = new Pool()) => handle), (opened) => Effect.sync(() => opened.close()));\n'
+    );
+
+    const localHandle = lintFixture(
+      "packages/database/src",
+      'import { Effect } from "effect";\n\nclass Pool { close() {} }\n\nexport const pool = Effect.acquireRelease(Effect.sync(() => { const handle = new Pool(); return handle; }), (opened) => Effect.sync(() => opened.close()));\n'
+    );
+
+    expectRuleSoft(asserted, eagerAcquire);
+    expect.soft(defaultedParameter.status).toBe(0);
+    expect.soft(localHandle.status).toBe(0);
   });
 
   it("allows an acquire that constructs the resource", () => {
@@ -119,6 +151,21 @@ describe("rat-stack pattern rules", () => {
 
     expectRule(counter, moduleState);
     expectRule(exported, moduleState);
+  });
+
+  it("catches nested module var and allows immutable using bindings", () => {
+    const nestedVar = lintFixture(
+      "packages/core/src",
+      "if (Math.random() > 0.5) { var _shared = new Map(); }\n"
+    );
+
+    const usingBinding = lintFixture(
+      "packages/core/src",
+      "export {};\nusing resource = { [Symbol.dispose]() {} };\nvoid resource;\n"
+    );
+
+    expectRuleSoft(nestedVar, moduleState);
+    expect.soft(usingBinding.status).toBe(0);
   });
 
   it("allows const at module level, let inside functions, and tests", () => {
@@ -154,6 +201,27 @@ describe("rat-stack pattern rules", () => {
     );
   });
 
+  it("tracks contract aliases, static templates, wrappers, and later assignments", () => {
+    const alias = lintFixture(
+      "packages/core/src",
+      'import { defineContract as makeContract } from "@rat-stack/capability/contract";\n\nexport const wrongName = makeContract(`search`, {}) as object;\n'
+    );
+
+    const assignment = lintFixture(
+      "packages/core/src",
+      'import { defineContract } from "@rat-stack/capability/contract";\n\nexport const create = () => { let wrongName; wrongName = defineContract("search", {}); };\n'
+    );
+
+    const computedIdentifier = lintFixture(
+      "packages/core/src",
+      'const defineContract = "other";\nconst source = { other: () => ({}) };\nexport const result = source[defineContract]("search", {});\n'
+    );
+
+    expectRuleSoft(alias, 'to match the contract name "search".');
+    expectRuleSoft(assignment, 'to match the contract name "search".');
+    expect.soft(computedIdentifier.status).toBe(0);
+  });
+
   it("accepts the name, the name plus Contract, and camelCase for snake_case names", () => {
     const result = lintFixture(
       "packages/core/src",
@@ -172,10 +240,35 @@ describe("rat-stack pattern rules", () => {
     expectRule(result, 'Call watchActor("<machine>", actor)');
   });
 
-  it("accepts an actor handed to watchActor, and tests that start actors", () => {
+  it("matches actor bindings instead of unrelated or computed watcher calls", () => {
+    const unrelated = lintFixture(
+      "packages/core/src",
+      'import { createEffectActor as makeActor } from "@xstate/effect";\n\nexport const actor = makeActor(machine);\nwatchActor("other", otherActor);\n'
+    );
+
+    const computed = lintFixture(
+      "packages/core/src",
+      'import { createEffectActor } from "@xstate/effect";\n\nexport const actor = createEffectActor(machine);\nwatcher[watchActor]("other", otherActor);\n'
+    );
+
+    expectRuleSoft(unrelated, 'Call watchActor("<machine>", actor)');
+    expectRuleSoft(computed, 'Call watchActor("<machine>", actor)');
+  });
+
+  it("tracks watched actors by binding and permits tests that start actors", () => {
     const watched = lintFixture(
       "packages/core/src",
       'import { watchActor } from "@rat-stack/capability/actor-watch";\nimport { createEffectActor } from "@xstate/effect";\nimport { Effect } from "effect";\n\nexport const start = (machine: never) =>\n  Effect.gen(function* startMachine() {\n    const actor = yield* createEffectActor(machine);\n\n    yield* watchActor("machine", actor);\n  });\n'
+    );
+
+    const partialWatch = lintFixture(
+      "packages/core/src",
+      'import { watchActor } from "@rat-stack/capability/actor-watch";\nimport { createEffectActor as makeActor } from "@xstate/effect";\n\nexport const start = (first: never, second: never) => {\n  const firstActor = makeActor(first);\n  const secondActor = makeActor(second);\n\n  watchActor("first", firstActor);\n  return secondActor;\n};\n'
+    );
+
+    const called = lintFixture(
+      "packages/core/src",
+      'import { watchActor } from "@rat-stack/capability/actor-watch";\nimport { createEffectActor } from "@xstate/effect";\n\nexport const start = (machine: never) => {\n  const actor = createEffectActor.call(undefined, machine);\n\n  watchActor.call(undefined, "machine", actor);\n};\n'
     );
 
     const test = lintFixture(
@@ -183,6 +276,8 @@ describe("rat-stack pattern rules", () => {
       'import { createEffectActor } from "@xstate/effect";\n\nexport const start = (machine: never) => createEffectActor(machine);\n'
     );
 
+    expectRule(partialWatch, 'Call watchActor("<machine>", actor)');
+    expect(called.status).toBe(0);
     expect(watched.status).toBe(0);
     expect(test.status).toBe(0);
   });
