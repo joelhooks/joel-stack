@@ -1,4 +1,3 @@
-import { Stage } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -35,15 +34,14 @@ export default class Mischief extends Cloudflare.Worker<Mischief>()(
   },
   Effect.gen(function* makeMischief() {
     yield* Cloudflare.WorkerLoader("CODE_SANDBOX");
-    const stageRateLimits = rateLimitDeclarations(yield* Stage);
-    yield* Cloudflare.RateLimit("API_PER_IP", stageRateLimits.API_PER_IP);
+    yield* Cloudflare.RateLimit("API_PER_IP", rateLimitDeclarations.API_PER_IP);
     yield* Cloudflare.RateLimit(
       "EXECUTE_GLOBAL",
-      stageRateLimits.EXECUTE_GLOBAL
+      rateLimitDeclarations.EXECUTE_GLOBAL
     );
     yield* Cloudflare.RateLimit(
       "EXECUTE_PER_IP",
-      stageRateLimits.EXECUTE_PER_IP
+      rateLimitDeclarations.EXECUTE_PER_IP
     );
 
     const webBotAuthEnabled = yield* Config.Boolean(
