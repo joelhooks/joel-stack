@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { definePlugin, defineRule } from "@oxlint/plugins";
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, Scope } from "@oxlint/plugins";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -518,6 +518,11 @@ const isServerSource = (filename: string) =>
   /^(?:apps|packages)\/[^/]+\/src\/.+/u.test(filename) &&
   !isBrowserZone(filename);
 
+const isDeclaredLocally = (name: string, scope: Scope | null): boolean =>
+  scope !== null &&
+  ((scope.set.get(name)?.defs.length ?? 0) > 0 ||
+    isDeclaredLocally(name, scope.upper));
+
 const noBrowserGlobalsOnServer = defineRule({
   create(context) {
     if (!isServerSource(workspacePath(context.filename))) {
@@ -528,7 +533,11 @@ const noBrowserGlobalsOnServer = defineRule({
       MemberExpression(node) {
         if (
           node.object.type === "Identifier" &&
-          browserGlobals.has(node.object.name)
+          browserGlobals.has(node.object.name) &&
+          !isDeclaredLocally(
+            node.object.name,
+            context.sourceCode.getScope(node)
+          )
         ) {
           context.report({
             data: { name: node.object.name },

@@ -316,6 +316,21 @@ describe("architecture boundary rules", () => {
     expect(guard.status).toBe(0);
   });
 
+  it("ignores local bindings that share a browser global's name", () => {
+    const parameter = lintFixture(
+      "packages/core/src",
+      "export const width = (window: { readonly size: number }) => window.size;\n"
+    );
+
+    const binding = lintFixture(
+      "apps/web/src/server",
+      'const document = { title: "rat" };\n\nexport const title = () => document.title;\n'
+    );
+
+    expect(parameter.status).toBe(0);
+    expect(binding.status).toBe(0);
+  });
+
   it("keeps devtools and test people out of production code", () => {
     const worker = lintFixture(
       "apps/web/src/server",
