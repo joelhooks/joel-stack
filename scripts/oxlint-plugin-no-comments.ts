@@ -12,7 +12,7 @@ interface Entry {
 }
 
 const directivePattern =
-  /^(?:oxlint-(?:disable|enable)(?:-next-line|-line)?\b|@effect-diagnostics\b|\/ <reference )/u;
+  /^(?:oxlint-(?:disable|enable)(?:-next-line|-line)?\b|@effect-diagnostics\b|@ts-(?:expect-error|ignore|nocheck)\b|\/ <reference )/u;
 
 const safetyPattern = /^SAFETY:\s*\S/u;
 
