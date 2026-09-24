@@ -43,7 +43,7 @@ The call log is ephemeral and per process, for debugging. `RunLog` is durable an
 
 The devtools tools are themselves contracts and capabilities in `packages/devtools`. That is the rat-stack move: one contract, every surface. The same `rat_list_calls` contract becomes an MCP tool through `toToolkit`, a CLI command through `toCommand`, and an RPC for the 🐀 overlay through `toRpcGroup`. Nothing in devtools bypasses the projection layer, and the boundary rules apply to it like any other cartridge.
 
-Recording is a wrapper over capabilities: `record(capabilities)` returns the same list with each handler wrapped to append an entry to `CallLog`. Every projection built from the wrapped list records, because every projection calls the handler.
+Recording uses an ambient observer: `@rat-stack/capability/call-watch` exports `CallWatch`, a `Context.Reference` whose default passes the handler through. `implement` reads it once per call and runs the approval-gated handler through its `around` function. Devtools provides the recording implementation from `record(options)` through `devtoolsLayer()`, so every projection records without receiving a wrapped capability list. `aroundHandlers` remains a separate explicit wrapper for policy over one list.
 
 ## MCP tool list
 
@@ -127,7 +127,7 @@ Decision (Joel, 2026-09-23): no Foldkit bin. Effect all the way down into the vi
 
 `packages/devtools`, server side, no browser:
 
-- `CallLog` service, a bounded in-memory ring buffer (500 entries by default), with `record(capabilities)`;
+- `CallLog` service, a bounded in-memory ring buffer (500 entries by default), with `record(options)` as the `CallWatch` layer constructor and `devtoolsLayer()` composing it with the logs;
 - the slice 1 contracts and capabilities from the tool table, with path and summary reads;
 - `--devtools` on `rat serve` (MCP over HTTP at `/__rat/mcp`, `127.0.0.1` only) and on `rat mcp` (stdio);
 - tests in memory: record, count, filter, `from_end`, `rat_call` with a bad payload, approval still denies, replay with a diff, and summarization.
@@ -143,7 +143,7 @@ Joel, 2026-09-23: build the devtools MCP and the lint rules. Order: the server-s
 Built on `worker/foldkit-explore`, base `8dffe1f`:
 
 - `packages/devtools`: `CallLog`, `record`, `devtools`, and the eight slice 1 contracts in a browser-safe `./contracts` subpath.
-- `packages/capability` gained `aroundHandlers`, which wraps every handler in a list without changing its type, and `invokerFor`, code mode's dispatch path, now exported so `rat_call` reuses it instead of copying it.
+- `packages/capability` gained `aroundHandlers`, an explicit wrapper over one capability list, and `invokerFor`, code mode's dispatch path, now exported so `rat_call` reuses it instead of copying it.
 - `rat serve --devtools` and `rat mcp --devtools [--code-mode]`.
 - Verified live: a REST call to `serve --devtools` shows up in `rat_list_calls` over MCP HTTP, and the listener is on `127.0.0.1` only.
 
@@ -227,6 +227,16 @@ Built on `a68fb4b` after `apps/web` landed.
 - **One bug found and fixed on the way.** The selected person was a plain `Atom.make` and reset to `null` when the Session tab unmounted. It is now `Atom.keepAlive`.
 - **Guardrail test.** `apps/web/test/production-bundle.test.ts` builds with source maps. It asserts no module from `src/dev/`, `packages/devtools`, or `packages/auth/src/devtools`, and no `rat_call`, `rat_test_person`, or test-password string. A `NODE_ENV=development` control build must contain all of them.
 - **Known noise.** Better Auth logs "User not found" once per dev-server start, before `rat_test_person` falls back to sign-up.
+
+## Call recording: ambient observer
+
+Decided with the layer-startups and drovr lanes on 2026-09-24:
+
+- `implement` reads `CallWatch` once for every capability call and passes the approval-gated handler through `around`, so approval denials are observable.
+- `record(options)` is the direct `CallWatch` layer constructor. `devtoolsLayer(capacity, options)` provides it with `CallLog` and `ActorLog` and includes the logs in its output.
+- `devtools(capabilities)` returns the original capability tuple as `recorded`; it does not wrap handlers or lists. The `CallWatch` layer is provided at the dev composition boundary, so MCP, code mode, and RPC observe the same calls.
+- `aroundHandlers` remains explicit per-list control. `writeGate` can serialize and audit approval-gated writes with it. `implement` reads `CallWatch` inside the wrapped handler, so the gate runs outside the recorder.
+- The production default is a no-op reference. Production projections pay one reference read per call and need no devtools dependency.
 
 ## Closed out, 2026-09-23
 

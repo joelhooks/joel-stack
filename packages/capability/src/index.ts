@@ -1,3 +1,5 @@
+export { CallWatch, type Around, type CallWatchService } from "./call-watch.js";
+
 export {
   ActorWatch,
   watchActor,
@@ -29,7 +31,7 @@ export {
   type RequirementsOf,
 } from "./contract.js";
 
-export { aroundHandlers, implement, type Around } from "./implement.js";
+export { aroundHandlers, implement } from "./implement.js";
 
 export { Approval, ApprovalDenied, type ApprovalService } from "./approval.js";
 

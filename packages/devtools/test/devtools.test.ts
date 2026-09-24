@@ -1,18 +1,24 @@
 import { describe, expect, it } from "@effect/vitest";
 import {
   Approval,
+  aroundHandlers,
   defineContract,
   implement,
+  toRpc,
   toToolkit,
 } from "@rat-stack/capability";
+import type { AnyContract } from "@rat-stack/capability";
 import { watchActor } from "@rat-stack/capability/actor-watch";
 import type {
   ActorEvent,
   WatchableActor,
 } from "@rat-stack/capability/actor-watch";
-import { Clock, Effect, Layer, Schema } from "effect";
+import { CallWatch } from "@rat-stack/capability/call-watch";
+import type { CallWatchService } from "@rat-stack/capability/call-watch";
+import { Clock, Effect, Layer, Schema, Stream } from "effect";
 import { TestClock } from "effect/testing";
 import { Tool } from "effect/unstable/ai";
+import { RpcTest } from "effect/unstable/rpc";
 
 import {
   ActorLog,
@@ -275,19 +281,30 @@ describe("devtools", () => {
     () =>
       Effect.gen(function* listsCalls() {
         yield* runTraffic;
+
         const { listCalls } = yield* tools;
 
         const echoes = yield* listCalls.handler({ capability: "echo" });
+
         const failed = yield* listCalls.handler({ outcome: "Failed" });
-        const latest = yield* listCalls.handler({ fromEnd: true, limit: 1 });
-        const later = yield* listCalls.handler({ sinceIndex: 2 });
+
+        const latest = yield* listCalls.handler({
+          capability: "echo",
+          fromEnd: true,
+          limit: 1,
+        });
+
+        const later = yield* listCalls.handler({
+          outcome: "Died",
+          sinceIndex: 2,
+        });
 
         expect(echoes.matched).toBe(2);
         expect(failed.entries).toMatchObject([
           { capability: "lookup", index: 1 },
         ]);
         expect(latest.entries).toMatchObject([{ index: 3 }]);
-        expect(later.entries).toMatchObject([{ index: 2 }, { index: 3 }]);
+        expect(later.entries).toMatchObject([{ index: 2 }]);
       }).pipe(Effect.provide(withLog()))
   );
 
@@ -326,7 +343,7 @@ describe("devtools", () => {
       });
 
       const unknown = yield* call.handler({ capability: "nope", input: {} });
-      const history = yield* listCalls.handler({});
+      const history = yield* listCalls.handler({ capability: "echo" });
 
       expect(good.result).toEqual({ ok: true, value: { text: "hi" } });
       expect(errorTagOf(bad.result)).toBe("InvalidInput");
@@ -335,12 +352,21 @@ describe("devtools", () => {
     }).pipe(Effect.provide(withLog()))
   );
 
-  it.effect("keeps approval-gated capabilities gated", () =>
+  it.effect("keeps approval-gated capabilities gated and records denial", () =>
     Effect.gen(function* keepsGates() {
       const { call } = yield* tools;
       const denied = yield* call.handler({ capability: "gated", input: {} });
+      const { entries } = yield* (yield* CallLog).snapshot;
+      const recorded = entries.find((entry) => entry.capability === "gated");
+
+      const outcome = recorded?.outcome;
 
       expect(errorTagOf(denied.result)).toBe("ApprovalDenied");
+      expect(
+        outcome !== undefined &&
+          OutcomeSchema.guards.Failed(outcome) &&
+          outcome.failureTag === "ApprovalDenied"
+      ).toBe(true);
     }).pipe(Effect.provide(Layer.mergeAll(devtoolsLayer(), Approval.denyAll)))
   );
 
@@ -454,6 +480,111 @@ describe("devtools", () => {
       }).pipe(Effect.provide(withLog()))
   );
 
+  it.effect("keeps the original capabilities without wrapping the list", () =>
+    Effect.gen(function* keepsOriginalCapabilities() {
+      const { capabilities, recorded } = yield* setup;
+
+      expect(recorded).toBe(app);
+      expect(capabilities.slice(0, app.length)).toEqual(app);
+    }).pipe(Effect.provide(withLog()))
+  );
+
+  it.effect("records calls through the RPC projection", () => {
+    const projection = toRpc([echo]);
+
+    return Effect.gen(function* recordsRpc() {
+      const client = yield* RpcTest.makeClient(projection.group);
+      yield* client.echo({ text: "rpc" });
+
+      const { entries } = yield* (yield* CallLog).snapshot;
+
+      expect(entries).toMatchObject([
+        { capability: "echo", input: { text: "rpc" } },
+      ]);
+    }).pipe(
+      Effect.provide(projection.layer.pipe(Layer.provideMerge(devtoolsLayer())))
+    );
+  });
+
+  it.effect("records calls through the toolkit projection", () => {
+    const projection = toToolkit([echo]);
+
+    return Effect.gen(function* recordsToolkit() {
+      const toolkit = yield* projection.toolkit;
+      const result = yield* toolkit.handle("echo", { text: "toolkit" });
+      yield* Stream.runDrain(result);
+
+      const { entries } = yield* (yield* CallLog).snapshot;
+
+      expect(entries).toMatchObject([
+        { capability: "echo", input: { text: "toolkit" } },
+      ]);
+    }).pipe(
+      Effect.provide(projection.layer.pipe(Layer.provideMerge(devtoolsLayer())))
+    );
+  });
+
+  it.effect("runs list policy outside the ambient recorder", () =>
+    Effect.gen(function* composesPolicyAndRecording() {
+      const markers: string[] = [];
+      const callWatch = yield* CallWatch;
+
+      const recording: CallWatchService = {
+        around: <A, E, R>(
+          contract: AnyContract,
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CallWatch preserves the erased input across heterogeneous capability lists.
+          input: unknown,
+          run: Effect.Effect<A, E, R>
+        ): Effect.Effect<A, E, R> =>
+          Effect.ensuring(
+            Effect.sync(() => {
+              markers.push("recording:start");
+            }).pipe(Effect.andThen(callWatch.around(contract, input, run))),
+            Effect.sync(() => {
+              markers.push("recording:end");
+            })
+          ),
+      };
+
+      const [gate] = aroundHandlers(
+        [gated],
+        <A, E, R>(
+          _contract: AnyContract,
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- aroundHandlers erases input across a heterogeneous capability list.
+          _input: unknown,
+          run: Effect.Effect<A, E, R>
+        ): Effect.Effect<A, E, R> =>
+          Effect.ensuring(
+            Effect.sync(() => {
+              markers.push("gate:start");
+            }).pipe(Effect.andThen(run)),
+            Effect.sync(() => {
+              markers.push("gate:end");
+            })
+          )
+      );
+
+      yield* Effect.exit(
+        gate.handler({}).pipe(Effect.provideService(CallWatch, recording))
+      );
+
+      const { entries } = yield* (yield* CallLog).snapshot;
+      const [entry] = entries;
+      const outcome = entry?.outcome;
+
+      expect(markers).toEqual([
+        "gate:start",
+        "recording:start",
+        "recording:end",
+        "gate:end",
+      ]);
+      expect(entry?.capability).toBe("gated");
+      expect(
+        outcome !== undefined && OutcomeSchema.guards.Failed(outcome)
+      ).toBe(true);
+    }).pipe(Effect.provide(Layer.mergeAll(devtoolsLayer(), Approval.denyAll)))
+  );
+
   it.effect(
     "records machine transitions from a recorded call, including ones emitted just before the scope closes",
     () =>
@@ -509,7 +640,7 @@ describe("devtools", () => {
       const { entries } = yield* (yield* ActorLog).snapshot;
 
       expect(entries).toEqual([]);
-    }).pipe(Effect.provide(withLog()))
+    }).pipe(Effect.provide(ActorLog.layer()))
   );
 
   it.effect(

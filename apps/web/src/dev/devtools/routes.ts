@@ -75,7 +75,7 @@ export const devtoolsRoutes = <const Caps extends readonly AnyCapability[]>(
     )
   ).pipe(
     Layer.provide(RpcSerialization.layerJson),
-    Layer.provide(devtoolsLayer()),
+    Layer.provide(devtoolsLayer(undefined, { runAs: runAsPerson })),
     Layer.provideMerge(testPersonLayer("dev")),
     Layer.provideMerge(devAuth),
     Layer.provideMerge(RuntimeContext.phantom)
