@@ -1339,9 +1339,7 @@ const program = Effect.gen(function* generateContent() {
 
   const loreMarkdownLinks = (routes: ReadonlySet<string>) =>
     [...routes]
-      .map(
-        (route) => `- [${titles.get(route) ?? route}](${originToken}${route})`
-      )
+      .map((route) => `- [${titles.get(route) ?? route}](${route})`)
       .join("\n");
 
   const appendLoreMarkdown = (text: string, routes: ReadonlySet<string>) => {
@@ -1915,10 +1913,7 @@ ${groupedSkills}
     "/lore"
   );
 
-  const loreIndexMarkdown = appendLoreMarkdown(
-    loreIndexSourceMarkdown,
-    loreIndexBody.linkedLoreRoutes
-  );
+  const loreIndexMarkdown = loreIndexSourceMarkdown;
 
   const llmsSourceMarkdown = [
     "# ratstack.sh",

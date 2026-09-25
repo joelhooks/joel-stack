@@ -24,8 +24,11 @@ import {
   faviconIcoBase64,
   homeDocumentHtml,
   lawSources,
+  loreIndexMarkdown,
   loreSources,
   ogImages,
+  originToken,
+  skillIndexMarkdown,
   skillSources,
 } from "../src/bundled-content.generated.js";
 import { llmsText, searchContent } from "../src/content.js";
@@ -503,6 +506,24 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       expect(llms).toContain("### Source");
       expect(llms).toContain("### Person");
       expect(llms).toContain("## Lore on this page");
+    })
+  );
+
+  test.effect("serves markdown without the origin placeholder", () =>
+    Effect.sync(() => {
+      const servedVerbatim = [
+        ...lawSources.map(({ routePath, text }) => ({ routePath, text })),
+        ...skillSources.map(({ routePath, text }) => ({ routePath, text })),
+        ...loreSources.map(({ routePath, text }) => ({ routePath, text })),
+        { routePath: "/skills", text: skillIndexMarkdown },
+        { routePath: "/lore", text: loreIndexMarkdown },
+      ];
+
+      expect(
+        servedVerbatim.flatMap(({ routePath, text }) =>
+          text.includes(originToken) ? [routePath] : []
+        )
+      ).toEqual([]);
     })
   );
 
