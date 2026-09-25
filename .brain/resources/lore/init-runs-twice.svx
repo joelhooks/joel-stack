@@ -1,0 +1,17 @@
+---
+title: "Worker init runs twice"
+description: "Alchemy Worker initialization runs in deploy and runtime contexts, so resource declarations need a boundary."
+sources:
+  - https://github.com/joelhooks/rat-stack/commit/95687ec906a6b4cde99a5b8e5df77115695833a8
+  - https://github.com/joelhooks/rat-stack/commit/9da5f9d
+  - https://github.com/joelhooks/rat-stack/commit/6e85432034400df8e49a9354a4cab1246d7cece0
+  - https://github.com/joelhooks/rat-stack/blob/main/apps/mischief/test/worker-runtime-init.test.ts
+---
+
+A Cloudflare Worker's initialization effect runs once while Alchemy declares deploy-time resources and again when the Worker starts in an isolate. Those contexts do not have the same services. On 2026-09-24, stage-specific rate-limit declarations used `yield* Stage` in the Worker initializer. The runtime did not have that deploy-time service, so production returned error 1101 for about three minutes.
+
+The first change, [commit 95687ec](https://github.com/joelhooks/rat-stack/commit/95687ec906a6b4cde99a5b8e5df77115695833a8), added stage-specific rate-limit namespaces but evaluated them during Worker initialization. [A revert](https://github.com/joelhooks/rat-stack/commit/9da5f9d) backed it out; [commit 6e85432](https://github.com/joelhooks/rat-stack/commit/6e85432034400df8e49a9354a4cab1246d7cece0) fixed it by declaring the resources only when `globalThis.__ALCHEMY_RUNTIME__ !== true`. The check now surrounds the rate-limit declarations and WorkerLoader declaration; the request-serving handler remains available at runtime.
+
+`apps/mischief/src/worker.ts` shows the boundary. `apps/mischief/test/worker-runtime-init.test.ts` sets the runtime flag, provides only runtime bindings, starts the worker, and verifies a request returns 404 rather than crashing. Put 95687ec's unguarded declarations back and the test fails with `Service not found: Stage`, the same failure production hit. Every earlier check exercised only the deploy side. [Merge commit ae312a1](https://github.com/joelhooks/rat-stack/commit/ae312a13e91c395a97404a565871d7a96de11388) carries the fix into the merged branch.
+
+See [cartridges](/lore/cartridges) for the rule that each resource belongs to its Layer and [the fence](/lore/the-fence) for the test gate that keeps this boundary visible.

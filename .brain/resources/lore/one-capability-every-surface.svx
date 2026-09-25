@@ -1,0 +1,16 @@
+---
+title: "One capability, every surface"
+description: "A schema-typed contract and one handler feed every interface rat-stack keeps."
+sources:
+  - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/capability/src/implement.ts
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/capability/src/to-rpc-group.ts
+---
+
+A capability starts with one contract and one server-side handler. `defineContract` owns the name, Effect schemas, annotations, and approval setting. `implement` binds that contract to its handler. The registry then feeds projections for the command line, HTTP, MCP, RPC, and code mode. Each surface derives its input and failure shape from the same schemas.
+
+The split replaced `defineCapability`, which bundled contract data and its handler in one definition. The RPC client needed the contract without importing server implementation. `toRpcGroup` now projects contracts alone; `toRpc` connects those same contracts to implemented capabilities. The browser docs client imports the shared contracts and RPC group, not handler files. [Commit 9a7bea5](https://github.com/joelhooks/rat-stack/commit/9a7bea5) records the split.
+
+To add one, define a contract, implement it beside the data or infrastructure it owns, register it in `capabilities`, then check each surface you keep. `packages/capability/test/` exercises projections; `apps/mischief/src/capabilities/index.ts` shows the hosted registry.
+
+See [lifecycles are machines](/lore/lifecycles-are-machines) for stateful handlers and [cartridges](/lore/cartridges) for the infrastructure boundary.

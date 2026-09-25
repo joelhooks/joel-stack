@@ -1,0 +1,16 @@
+---
+title: "Lifecycles are machines"
+description: "XState owns finite lifecycle states while declared Effect actors own side effects."
+sources:
+  - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/core/src/inspect-machine.ts
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/core/test/inspect-machine.test.ts
+---
+
+Use an XState machine when a domain operation has finite states, retries, cancellation, or a lifecycle that needs to be resumed or inspected. Model the states and transitions explicitly instead of accumulating booleans whose combinations have no meaning.
+
+In this repo, `setupEffect` declares actors, `fromEffect` defines an Effect-backed side effect with a schema for its input, and `createEffectActor` starts the machine inside Effect's scope. The machine chooses transitions and records its outcome. The invoked actor performs the file read. `join` waits for the final outcome, and `Effect.orDie` treats a machine-level failure as a programming error while the domain read failure remains an explicit machine state.
+
+`packages/core/src/inspect-machine.ts` is the working example. `watchActor` makes the run visible to devtools. The rule in `scripts/oxlint-plugin-xstate-effect.ts` catches inline Effects in machine actions and actors, so the declared-actor pattern is not only a convention.
+
+See [one capability, every surface](/lore/one-capability-every-surface) for how a capability can own a machine and [the fence](/lore/the-fence) for the rule that protects it.
