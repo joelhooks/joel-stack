@@ -334,6 +334,8 @@ const linkStackEntities: Plugin<[], HastNode> = () => {
 const compileName = (spec: SourceSpec) =>
   /\.(?:md|svx)$/u.test(spec.sourcePath) ? spec.sourcePath : spec.title;
 
+const tagline = "An Effect app so pure Kit Langton will blush.";
+
 const ogImagePath = (routePath: string) =>
   `/og${routePath === "/" ? "/home" : routePath}.png`;
 
@@ -1379,6 +1381,8 @@ const program = Effect.gen(function* generateContent() {
 
   const homeMarkdownSource = `# 🐀 Rat Stack
 
+_${tagline}_
+
 The reference for building an app and its cloud as one typed program. Effect owns the hard parts. Alchemy infers the infrastructure from the code. The fence raises the floor, so agents can build it and you can still trust it.
 
 Vendor it like a library. Keep the bins you need and pull the rest.
@@ -1614,7 +1618,7 @@ ${groupedSkills}
 
   const ogPages: readonly OgPage[] = [
     {
-      description: homeMetadata.description,
+      description: tagline,
       routePath: "/",
       title: "ratstack.sh",
     },
