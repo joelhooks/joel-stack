@@ -1,0 +1,17 @@
+---
+title: "Visakan Veerasamy"
+description: "Visakan Veerasamy writes about building a social graph of friendly, ambitious nerds."
+group: person
+terms:
+  - "Visakan Veerasamy"
+sources:
+  - https://visakanv.com/
+  - https://visakanv.com/friendly-ambitious-nerd/
+  - https://x.com/visakanv/status/1225025217237417987
+---
+
+# Visakan Veerasamy
+
+Visakan Veerasamy describes his aim as building a social graph of friendly, ambitious nerds. [His public site](https://visakanv.com/).
+
+His book *Friendly Ambitious Nerd* is a collection of his essays, blog posts, and Twitter threads. [Book page](https://visakanv.com/friendly-ambitious-nerd/) [Announcement](https://x.com/visakanv/status/1225025217237417987).

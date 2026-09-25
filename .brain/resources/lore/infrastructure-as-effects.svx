@@ -1,0 +1,18 @@
+---
+title: "Infrastructure as effects"
+description: "Sam Goodwin relates application operations to infrastructure requirements in one typed program."
+group: concept
+terms:
+  - "infrastructure as effects"
+sources:
+  - https://youtu.be/YEn4A7XxgF4?t=1831
+  - https://youtu.be/fPSxB7ZgSJw?t=4255
+---
+
+# Infrastructure as effects
+
+Sam describes runtime clients, business logic, infrastructure policies, and deployed resources as related parts of a cloud application. A client operation can imply a policy requirement that is supplied when the function is built. [Happy Path 116, 28:00](https://youtu.be/YEn4A7XxgF4?t=1680) [30:31](https://youtu.be/YEn4A7XxgF4?t=1831).
+
+He says this structure can keep provider implementations out of the runtime bundle. [Effect Office Hours 27, 70:55](https://youtu.be/fPSxB7ZgSJw?t=4255).
+
+See [Happy Path 116](/lore/happy-path-116-infrastructure-as-effects-sam-goodwin).

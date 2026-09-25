@@ -1,0 +1,19 @@
+---
+title: "Production-grade TypeScript"
+description: "Michael Arnaldi defines production-grade software through reliability, observability, testability, and maintainability."
+group: concept
+terms:
+  - "production-grade TypeScript"
+  - "production-grade software"
+sources:
+  - https://youtu.be/apklpPEgZgw?t=205
+  - https://youtu.be/BqUnsDnMnMo?t=1357
+---
+
+# Production-grade TypeScript
+
+Michael defines production-grade software as long-lived software that remains resilient, observable, testable, predictable, modular, and approachable. [CityJS, 03:25](https://youtu.be/apklpPEgZgw?t=205) [06:57](https://youtu.be/apklpPEgZgw?t=417).
+
+He demonstrates Effect context, Schema, spans, metrics, and retry policies in a Remix application. [Effect Meetup SF, 22:37](https://youtu.be/BqUnsDnMnMo?t=1357) [30:34](https://youtu.be/BqUnsDnMnMo?t=1834).
+
+See [Effect: Production-Grade TypeScript](/lore/cityjs-effect-production-grade-typescript-michael-arnaldi).

@@ -1,0 +1,19 @@
+---
+title: "Effect's design lineage"
+description: "Michael Arnaldi describes Effect's path from fintech needs through ZIO influence and TypeScript iterations."
+group: concept
+terms:
+  - "Effect design lineage"
+  - "Effect's origin story"
+sources:
+  - https://youtu.be/7sJc3Z4mh1w?t=603
+  - https://youtu.be/irmz5X3c7Do?t=2881
+---
+
+# Effect's design lineage
+
+Michael traces the first Effect implementation to a team's need for dependency injection, tests, resource safety, concurrency control, and retries in TypeScript. [Effect Days 2024, 08:40](https://youtu.be/7sJc3Z4mh1w?t=520).
+
+John De Goes describes Effect as adapting ZIO's goals to TypeScript through iterations rather than copying it directly. [Cause & Effect 10, 48:01](https://youtu.be/irmz5X3c7Do?t=2881) [49:49](https://youtu.be/irmz5X3c7Do?t=2989).
+
+See [Effect Days 2024](/lore/effect-days-2024-origin-story-michael-arnaldi) and [Cause & Effect 10](/lore/cause-and-effect-10-software-engineering-age-of-ai-de-goes).

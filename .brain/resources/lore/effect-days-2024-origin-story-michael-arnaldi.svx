@@ -1,0 +1,16 @@
+---
+title: "Effect Days 2024: The origin story"
+description: "Michael Arnaldi traces Effect to a TypeScript team's needs for tests, dependencies, and resource safety."
+group: source
+speaker: "Michael Arnaldi"
+date: 2024-06-24
+url: https://youtu.be/7sJc3Z4mh1w
+sources:
+  - https://youtu.be/7sJc3Z4mh1w
+---
+
+# Effect Days 2024: The origin story
+
+Michael traces Effect to a fintech system that needed reliable tests, manageable dependencies, controlled concurrency, resource safety, and retries. [02:29](https://youtu.be/7sJc3Z4mh1w?t=149) [08:40](https://youtu.be/7sJc3Z4mh1w?t=520)
+
+He says dependency injection was the missing testing seam, then describes moving through ZIO ports, a TypeScript fork, a rewrite for approachability, and a merger with fp-ts. [03:49](https://youtu.be/7sJc3Z4mh1w?t=229) [15:02](https://youtu.be/7sJc3Z4mh1w?t=902) [21:04](https://youtu.be/7sJc3Z4mh1w?t=1264)

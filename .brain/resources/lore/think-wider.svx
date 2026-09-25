@@ -1,0 +1,19 @@
+---
+title: "Think wider"
+description: "Theo Browne asks developers to cover more product breadth instead of adding depth in one narrow area."
+group: concept
+terms:
+  - "think wider"
+  - "product breadth"
+sources:
+  - https://youtu.be/xUnRQ9vLXxo?t=787
+  - https://youtu.be/xUnRQ9vLXxo?t=877
+---
+
+# Think wider
+
+Theo refines "bigger" into "wider" and distinguishes the range a product covers from the feature count in one area. [13:07](https://youtu.be/xUnRQ9vLXxo?t=787) [13:23](https://youtu.be/xUnRQ9vLXxo?t=803).
+
+He says an extensible architecture can let users build vertical features the product author did not predict. [14:37](https://youtu.be/xUnRQ9vLXxo?t=877).
+
+See [AI Engineer World's Fair 2026](/lore/aiewf-2026-everything-we-knew-about-software-has-changed-theo-browne) and [Theo Browne](/lore/theo-browne).

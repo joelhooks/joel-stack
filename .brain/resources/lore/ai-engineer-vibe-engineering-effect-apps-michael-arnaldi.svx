@@ -1,0 +1,16 @@
+---
+title: "Vibe engineering Effect apps"
+description: "Michael Arnaldi shows how source, tests, and diagnostics can guide agents working with Effect."
+group: source
+speaker: "Michael Arnaldi"
+date: 2026-05-07
+url: https://youtu.be/Wmp2Tku2PrI
+sources:
+  - https://youtu.be/Wmp2Tku2PrI
+---
+
+# Vibe engineering Effect apps
+
+Michael argues that an agent should learn a fast-moving library from its source repository rather than trust stale model knowledge or a giant prompt. [08:51](https://youtu.be/Wmp2Tku2PrI?t=531) [12:59](https://youtu.be/Wmp2Tku2PrI?t=779)
+
+He describes repository feedback from diagnostics, tests, lint rules, saved patterns, and short-lived contexts. Later, he recommends choosing patterns for the project and model rather than copying a universal pack. [30:30](https://youtu.be/Wmp2Tku2PrI?t=1830) [38:15](https://youtu.be/Wmp2Tku2PrI?t=2295) [58:08](https://youtu.be/Wmp2Tku2PrI?t=3488)

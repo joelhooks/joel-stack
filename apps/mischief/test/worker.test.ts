@@ -591,7 +591,7 @@ it.effect(
         expect(skillHtml).not.toMatch(
           /<code>[^<]*<a href="https:\/\/effect\.website"/u
         );
-        expect(agentsHtml).toContain("Linked from: ");
+        expect(agentsHtml).toContain("<p>Linked from:</p>");
         expect(agentsHtml).toContain(
           '<a href="https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md">Source on GitHub</a>'
         );
@@ -744,7 +744,7 @@ it.effect("publishes lore to human and agent surfaces", () =>
       expect(pageHtml).toContain(`<title>${page.title} | rat-stack</title>`);
       expect(pageHtml).toContain(`Sources: <a href="${source}">`);
       expect(pageHtml).toContain(
-        'Linked from: <a href="/lore/an-mcp-your-users-want">An MCP your users want</a>'
+        '<li><strong>Lore</strong>: <a href="/lore/an-mcp-your-users-want">An MCP your users want</a>'
       );
       expect(llms).toContain("## Lore");
       expect(llms).toContain(`[${page.title}](${page.routePath})`);

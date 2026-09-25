@@ -1,0 +1,19 @@
+---
+title: "Effect basics"
+description: "Effect keeps success values, expected failures, and required services in one computation model."
+group: concept
+terms:
+  - "Effect basics"
+  - "Effect computation"
+sources:
+  - https://youtu.be/gc5P36t6kD0?t=2955
+  - https://youtu.be/und9h4xiIz4?t=752
+---
+
+# Effect basics
+
+Michael describes an Effect through its output, predictable errors, and requirements. [Happy Path 81, 49:15](https://youtu.be/gc5P36t6kD0?t=2955).
+
+He also describes a lazy Effect as a computation that can be transformed before it runs. [Why JavaScript Is Broken, 12:32](https://youtu.be/und9h4xiIz4?t=752).
+
+See [context and requirements](/lore/context-and-requirements) and [the error model](/lore/error-model).

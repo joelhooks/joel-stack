@@ -1,0 +1,15 @@
+---
+title: "Ambient cloud"
+description: "Sam Goodwin describes a cloud experience where credentials and accounts become available through one interface."
+group: concept
+terms:
+  - "ambient cloud"
+sources:
+  - https://youtu.be/MtKHzAH6uXM?t=2580
+---
+
+# Ambient cloud
+
+At 43:00 in his conversation about Alchemy, Sam describes an ambient cloud: accounts and credentials held behind one login and a cloud wallet. [Watch the moment](https://youtu.be/MtKHzAH6uXM?t=2580).
+
+This note preserves Sam's framing from that conversation. See [Sam Goodwin on Alchemy](/lore/devtools-fm-sam-goodwin-alchemy).

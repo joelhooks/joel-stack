@@ -1,0 +1,19 @@
+---
+title: "Context and requirements"
+description: "Effect requirements make a computation's needed services visible in its type."
+group: concept
+terms:
+  - "context and requirements"
+  - "Effect requirements"
+sources:
+  - https://youtu.be/YEn4A7XxgF4?t=714
+  - https://youtu.be/gc5P36t6kD0?t=2955
+---
+
+# Context and requirements
+
+Sam describes the requirements channel as a way to model an infrastructure permission as a static effect. He connects that idea to Alchemy inferring which IAM policy a program needs. [Happy Path 116, 11:54](https://youtu.be/YEn4A7XxgF4?t=714).
+
+Michael describes an Effect by its output, predictable failures, and requirements. [Happy Path 81, 49:15](https://youtu.be/gc5P36t6kD0?t=2955).
+
+See [Effect basics](/lore/effect-basics) and [infrastructure as effects](/lore/infrastructure-as-effects).

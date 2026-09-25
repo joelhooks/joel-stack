@@ -1,0 +1,16 @@
+---
+title: "CascadiaJS 2026: It's time to rethink everything"
+description: "Theo Browne compares how cloud infrastructure and coding agents changed the cost of experimentation."
+group: source
+speaker: "Theo Browne"
+date: 2026-06-17
+url: https://youtu.be/TV6f2weVgCI
+sources:
+  - https://youtu.be/TV6f2weVgCI
+---
+
+# CascadiaJS 2026: It's time to rethink everything
+
+Theo compares the cloud's effect on infrastructure with agents' effect on software production. He asks developers to revisit assumptions about Git, files, packages, and narrow products as their costs change. [01:50](https://youtu.be/TV6f2weVgCI?t=110) [04:03](https://youtu.be/TV6f2weVgCI?t=243) [06:11](https://youtu.be/TV6f2weVgCI?t=371)
+
+He presents Lakebed as an example of one developer rebuilding a broad deployment stack, while noting its current quality is deliberately limited. [20:48](https://youtu.be/TV6f2weVgCI?t=1248) [22:41](https://youtu.be/TV6f2weVgCI?t=1361)

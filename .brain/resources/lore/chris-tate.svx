@@ -1,0 +1,16 @@
+---
+title: "Chris Tate"
+description: "Chris Tate shares public experiments in generative UI and fast model judgments."
+group: person
+terms:
+  - "Chris Tate"
+sources:
+  - https://x.com/ctatedev/status/2101022101750571357
+  - https://x.com/ctatedev/status/2100461595788722518
+---
+
+# Chris Tate
+
+Chris Tate calls generative UI instant and says its components, actions, and design system render in milliseconds. [Read the post](https://x.com/ctatedev/status/2101022101750571357); [watch the 18-second demo from the start](https://video.twimg.com/amplify_video/2101022081810911232/vid/avc1/1080x1080/B52suCKnBqA9pt2e.mp4#t=0).
+
+He also describes Jev as a fast judgment between perception and action. [Read the post](https://x.com/ctatedev/status/2100461595788722518).

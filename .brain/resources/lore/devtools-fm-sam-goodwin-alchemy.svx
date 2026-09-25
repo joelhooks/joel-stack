@@ -1,0 +1,16 @@
+---
+title: "Sam Goodwin on Alchemy"
+description: "Sam Goodwin explains Alchemy's Effect model, plans, bindings, and cloud-library idea."
+group: source
+speaker: "Sam Goodwin"
+date: 2026-05-11
+url: https://youtu.be/MtKHzAH6uXM
+sources:
+  - https://youtu.be/MtKHzAH6uXM
+---
+
+# Sam Goodwin on Alchemy
+
+Sam describes Effect as a computation with typed errors and requirements, built from layers. He compares Alchemy's earlier await-based model with a plan model and explains how bindings connect runtime needs to infrastructure. [05:02](https://youtu.be/MtKHzAH6uXM?t=302) [15:25](https://youtu.be/MtKHzAH6uXM?t=925) [26:00](https://youtu.be/MtKHzAH6uXM?t=1560) [29:35](https://youtu.be/MtKHzAH6uXM?t=1775)
+
+Sam calls the cloud a library at 29:50. [Watch the moment](https://youtu.be/MtKHzAH6uXM?t=1790).

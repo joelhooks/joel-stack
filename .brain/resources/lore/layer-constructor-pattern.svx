@@ -1,0 +1,16 @@
+---
+title: "A Layer as constructor"
+description: "Sam Goodwin compares an Effect Layer that builds a service to a constructor."
+group: concept
+terms:
+  - "Layer constructor"
+  - "layer as constructor"
+sources:
+  - https://youtu.be/MtKHzAH6uXM?t=1125
+---
+
+# A Layer as constructor
+
+Sam compares the constructor pattern to a Layer and uses a React component as an analogy. In the same discussion, he connects the pattern to infrastructure policies. [Watch from 18:45](https://youtu.be/MtKHzAH6uXM?t=1125).
+
+See [Sam Goodwin on Alchemy](/lore/devtools-fm-sam-goodwin-alchemy) and [cartridges](/lore/cartridges).

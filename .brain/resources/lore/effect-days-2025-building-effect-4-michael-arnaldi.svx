@@ -1,0 +1,16 @@
+---
+title: "Effect Days 2025: Building Effect 4"
+description: "Michael Arnaldi presents Effect 4 as a redesign shaped by production feedback."
+group: source
+speaker: "Michael Arnaldi"
+date: 2025-04-08
+url: https://youtu.be/nyvB6nRe5x0
+sources:
+  - https://youtu.be/nyvB6nRe5x0
+---
+
+# Effect Days 2025: Building Effect 4
+
+Michael describes Effect 4 as a review of choices made in Effect 3, driven by production feedback. The work aims to remove duplicate concepts, reduce bundle size, and improve core data types. [04:21](https://youtu.be/nyvB6nRe5x0?t=261) [05:09](https://youtu.be/nyvB6nRe5x0?t=309) [06:17](https://youtu.be/nyvB6nRe5x0?t=377)
+
+He connects faster fibers with batching and transactional operations becoming ordinary Effect facilities rather than separate execution models. [22:56](https://youtu.be/nyvB6nRe5x0?t=1376) [28:03](https://youtu.be/nyvB6nRe5x0?t=1683)

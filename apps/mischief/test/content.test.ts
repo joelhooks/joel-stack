@@ -1,9 +1,10 @@
 import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
-import { Effect, FileSystem, Path, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import {
+  assertLoreTerms,
   assertSkillGroups,
   ContentBuildError,
   debtLedgerMarkdown,
@@ -12,6 +13,7 @@ import {
   encodeIco,
   internalRouteForLink,
   isDebtSourcePath,
+  linkLoreTerms,
   loreLinkTargets,
   parseDebtLintOutput,
   parseLorePage,
@@ -26,6 +28,7 @@ import {
   ogImages,
   skillSources,
 } from "../src/bundled-content.generated.js";
+import { llmsText, searchContent } from "../src/content.js";
 
 const fakePng = (size: number) => new Uint8Array(size).fill(size);
 
@@ -168,7 +171,7 @@ it.effect("rejects malformed lore frontmatter and filename slugs", () =>
   Effect.sync(() => {
     const invalidFrontmatterPath = ".brain/resources/lore/one-idea.svx";
     const invalidSlugPath = ".brain/resources/lore/Bad_slug.svx";
-    const validFields = `---\ntitle: "One idea"\ndescription: "A short sentence."\nsources: []\n---\n`;
+    const validFields = `---\ntitle: "One idea"\ndescription: "A short sentence."\ngroup: idea\nterms:\n  - "one idea"\nsources: []\n---\n`;
 
     expect(() =>
       parseLorePage(
@@ -187,6 +190,20 @@ it.effect("rejects malformed lore frontmatter and filename slugs", () =>
     expect(parseLorePage(invalidFrontmatterPath, validFields).sources).toEqual(
       []
     );
+    expect(() =>
+      parseLorePage(
+        invalidFrontmatterPath,
+        validFields.replace("group: idea\n", "")
+      )
+    ).toThrow(
+      new RegExp(`frontmatter failed for ${invalidFrontmatterPath}`, "u")
+    );
+    expect(() =>
+      parseLorePage(
+        invalidFrontmatterPath,
+        validFields.replace("group: idea", "group: mystery")
+      )
+    ).toThrow(ContentBuildError);
     expect(() =>
       parseLorePage(
         invalidFrontmatterPath,
@@ -219,6 +236,119 @@ it.effect("rejects links to missing lore pages with their source path", () =>
         new Set(["/lore/one-idea"])
       )
     ).toThrow(new RegExp(`lore link failed for ${sourcePath}`, "u"));
+  })
+);
+
+it.effect(
+  "weaves the first lore term and skips headings, code, and links",
+  () =>
+    Effect.sync(() => {
+      const tree = {
+        children: [
+          {
+            children: [{ type: "text", value: "Cartridge" }],
+            tagName: "h2",
+            type: "element",
+          },
+          {
+            children: [
+              { type: "text", value: "Cartridge first, cartridge again." },
+            ],
+            tagName: "p",
+            type: "element",
+          },
+          {
+            children: [
+              {
+                children: [{ type: "text", value: "cartridge" }],
+                tagName: "code",
+                type: "element",
+              },
+            ],
+            tagName: "pre",
+            type: "element",
+          },
+          {
+            children: [
+              {
+                children: [{ type: "text", value: "cartridge" }],
+                properties: { href: "/already-linked" },
+                tagName: "a",
+                type: "element",
+              },
+              { type: "text", value: " cartridge at the end." },
+            ],
+            tagName: "p",
+            type: "element",
+          },
+        ],
+        type: "root",
+      };
+
+      const linkedRoutes = new Set<string>();
+
+      linkLoreTerms(
+        [{ routePath: "/lore/cartridges", term: "cartridge" }],
+        "/another-page",
+        linkedRoutes
+      )()(tree);
+
+      const rendered = JSON.stringify(tree);
+
+      expect(rendered.split('"href":"/lore/cartridges"')).toHaveLength(2);
+      expect(rendered).toContain('"value":"Cartridge"');
+      expect(rendered).toContain('"value":" first, cartridge again."');
+      expect(linkedRoutes).toEqual(new Set(["/lore/cartridges"]));
+    })
+);
+
+it.effect("caps woven lore terms at twelve links per page", () =>
+  Effect.sync(() => {
+    const targets = Array.from({ length: 13 }, (_, index) => ({
+      routePath: `/lore/signal-${index + 1}`,
+      term: `signal ${index + 1}`,
+    }));
+
+    const tree = {
+      children: targets.map(({ term }) => ({
+        children: [{ type: "text", value: term }],
+        tagName: "p",
+        type: "element",
+      })),
+      type: "root",
+    };
+
+    const linkedRoutes = new Set<string>();
+
+    linkLoreTerms(targets, "/another-page", linkedRoutes)()(tree);
+
+    expect(linkedRoutes.size).toBe(12);
+  })
+);
+
+it.effect("rejects a lore term claimed by two pages", () =>
+  Effect.sync(() => {
+    let thrown: ContentBuildError | undefined;
+
+    try {
+      assertLoreTerms([
+        { sourcePath: ".brain/resources/lore/one.svx", terms: ["shared term"] },
+        { sourcePath: ".brain/resources/lore/two.svx", terms: ["Shared term"] },
+      ]);
+    } catch (error) {
+      if (Schema.is(ContentBuildError)(error)) {
+        thrown = error;
+      }
+    }
+
+    expect(thrown).toBeInstanceOf(ContentBuildError);
+    expect(thrown?.cause).toMatchObject({
+      message: 'term "Shared term" is claimed by multiple pages',
+    });
+    expect(thrown?.sourcePath).toBe(
+      ".brain/resources/lore/two.svx (previous claimant: .brain/resources/lore/one.svx)"
+    );
+    expect(thrown?.stage).toBe("lore terms");
   })
 );
 
@@ -356,6 +486,35 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       expect(html).toContain("Human caption.");
       expect(html).toContain('<figure role="img" aria-label="A small map">');
       expect(html).toContain("<figcaption>A small map</figcaption>");
+    })
+  );
+
+  test.effect("groups lore in agent output and searches declared terms", () =>
+    Effect.sync(() => {
+      const cartridge = loreSources.find((lore) => lore.slug === "cartridges");
+      const [match] = searchContent("cartridge test");
+      const llms = llmsText("https://ratstack.sh");
+
+      expect(cartridge?.group).toBe("idea");
+      expect(cartridge?.terms).toContain("cartridge test");
+      expect(match?.routePath).toBe("/lore/cartridges");
+      expect(llms).toContain("### Idea");
+      expect(llms).toContain("### Concept");
+      expect(llms).toContain("### Source");
+      expect(llms).toContain("### Person");
+      expect(llms).toContain("## Lore on this page");
+    })
+  );
+
+  test.effect("shows non-lore sources in lore backlinks", () =>
+    Effect.sync(() => {
+      const fence = loreSources.find((lore) => lore.slug === "the-fence");
+
+      expect(fence?.documentHtml).toContain("<strong>Source file</strong>");
+      expect(fence?.documentHtml).toContain(
+        '<a href="/VISION.md">VISION.md</a>'
+      );
+      expect(homeDocumentHtml).toContain('href="/lore/');
     })
   );
 

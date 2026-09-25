@@ -1,0 +1,15 @@
+---
+title: "Anti-money"
+description: "Sam Goodwin frames Alchemy as reducing SaaS products to libraries and shifting value elsewhere."
+group: concept
+terms:
+  - "anti-money"
+sources:
+  - https://youtu.be/MtKHzAH6uXM?t=2355
+---
+
+# Anti-money
+
+Sam describes Alchemy as "anti-money": reduce SaaS products to libraries, then ask what remains valuable to manage. He names secrets and observability in that discussion. [Watch from 39:15](https://youtu.be/MtKHzAH6uXM?t=2355).
+
+This is Sam's framing in [his Alchemy conversation](/lore/devtools-fm-sam-goodwin-alchemy), not a claim that every SaaS business follows the same model.

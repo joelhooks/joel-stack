@@ -1,6 +1,10 @@
 ---
 title: "No comments"
 description: "Code comments are banned because names, types, tests, and boundaries should carry the meaning."
+group: idea
+terms:
+  - "no comments"
+  - "comments are banned"
 sources:
   - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
   - https://github.com/joelhooks/rat-stack/blob/main/scripts/oxlint-plugin-no-comments.ts
