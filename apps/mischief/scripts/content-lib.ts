@@ -184,6 +184,278 @@ export const loreLinkTargets = (
   return [...targets];
 };
 
+export interface DebtEntry {
+  readonly directive: string;
+  readonly file: string;
+  readonly kind: string;
+  readonly line: number;
+  readonly reason: string | undefined;
+}
+
+const DebtKind = Schema.Literals([
+  "effect-diagnostics",
+  "oxlint",
+  "typescript",
+]);
+
+const DebtDiagnosticPayload = Schema.Struct({
+  directive: Schema.String,
+  kind: DebtKind,
+  reason: Schema.optional(Schema.String),
+});
+
+const DebtLintSpan = Schema.Struct({
+  column: Schema.Finite,
+  length: Schema.Finite,
+  line: Schema.Finite,
+  offset: Schema.Finite,
+});
+
+const DebtLintDiagnostic = Schema.Struct({
+  code: Schema.String,
+  filename: Schema.String,
+  labels: Schema.Array(Schema.Struct({ span: DebtLintSpan })),
+  message: Schema.String,
+  severity: Schema.Literals(["error", "warning"]),
+});
+
+const DebtLintOutput = Schema.Struct({
+  diagnostics: Schema.Array(DebtLintDiagnostic),
+  number_of_files: Schema.Finite,
+  number_of_rules: Schema.Finite,
+  start_time: Schema.Finite,
+  threads_count: Schema.Finite,
+});
+
+export interface DebtLintResult {
+  readonly entries: readonly DebtEntry[];
+  readonly fileCount: number;
+  readonly ruleCount: number;
+}
+
+export const assertSkillGroups = (
+  skillNames: readonly string[],
+  groups: readonly { readonly names: readonly string[] }[]
+): void => {
+  const groupedNames = new Set(groups.flatMap((group) => group.names));
+
+  const ungrouped = skillNames
+    .toSorted()
+    .find((name) => !groupedNames.has(name));
+
+  if (ungrouped !== undefined) {
+    throw buildError(
+      "skill grouping",
+      `skills/${ungrouped}/SKILL.md`,
+      new Error(`Skill ${ungrouped} does not belong to a home-page group`)
+    );
+  }
+};
+
+export const isDebtSourcePath = (file: string) => {
+  const segments = file.split("/");
+
+  const excludedSegments = new Set([
+    ".agent_sources",
+    ".turbo",
+    "build",
+    "coverage",
+    "dist",
+    "generated",
+    "node_modules",
+    "vendor",
+  ]);
+
+  if (
+    segments.some((segment) => excludedSegments.has(segment)) ||
+    file.startsWith("tools/oxlint/anti-slop/") ||
+    /(?:\.generated|\.gen)\.[^.]+$/u.test(file)
+  ) {
+    return false;
+  }
+
+  const allowedRoot = /^(?:apps|packages|scripts|tools)\//u.test(file);
+  const rootConfig = /^[^/]+\.config\.ts$/u.test(file);
+  const sourceFile = /\.[cm]?[jt]sx?$/u.test(file);
+
+  return sourceFile && (allowedRoot || rootConfig);
+};
+
+export const parseDebtLintOutput = (raw: string): DebtLintResult => {
+  try {
+    const output = Schema.decodeSync(Schema.fromJsonString(DebtLintOutput))(
+      raw
+    );
+
+    const entries = output.diagnostics.map((diagnostic) => {
+      if (diagnostic.code !== "rat-stack-debt(debt-ledger)") {
+        throw new Error(`Unexpected lint rule: ${diagnostic.code}`);
+      }
+
+      const [label] = diagnostic.labels;
+
+      if (label === undefined) {
+        throw new Error(`Missing source location: ${diagnostic.filename}`);
+      }
+
+      const payload = Schema.decodeSync(
+        Schema.fromJsonString(DebtDiagnosticPayload)
+      )(diagnostic.message);
+
+      return {
+        directive: payload.directive,
+        file: diagnostic.filename,
+        kind: payload.kind,
+        line: label.span.line,
+        reason: payload.reason,
+      };
+    });
+
+    return {
+      entries: entries.toSorted(
+        (left, right) =>
+          left.file.localeCompare(right.file) ||
+          left.line - right.line ||
+          left.directive.localeCompare(right.directive)
+      ),
+      fileCount: output.number_of_files,
+      ruleCount: output.number_of_rules,
+    };
+  } catch (error) {
+    throw buildError("debt lint output", "oxlint JSON", error);
+  }
+};
+
+const tableCell = (value: string) =>
+  value.replaceAll("|", "\\|").replaceAll(/\s+/gu, " ").trim();
+
+export const debtLedgerMarkdown = (entries: readonly DebtEntry[]) => {
+  const counts = new Map<string, number>();
+
+  for (const entry of entries) {
+    counts.set(entry.kind, (counts.get(entry.kind) ?? 0) + 1);
+  }
+
+  const countRows = [...counts]
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([kind, count]) => `| ${kind} | ${count} |`);
+
+  const rows = entries.map((entry) => {
+    const link = `https://github.com/joelhooks/rat-stack/blob/main/${entry.file}#L${entry.line}`;
+    const reason = entry.reason ?? "no reason given";
+
+    return `| [${entry.file}:${entry.line}](${link}) | ${tableCell(entry.directive)} | ${tableCell(reason)} |`;
+  });
+
+  return [
+    "# Debt ledger",
+    "",
+    '> "Debt only shrinks."',
+    "",
+    `Total: **${entries.length}** directives.`,
+    "",
+    "## Count by directive kind",
+    "",
+    "| Kind | Count |",
+    "| --- | ---: |",
+    ...countRows,
+    "",
+    "The vendored `tools/oxlint/anti-slop/` plugin is excluded. It is Dillon Mulroy's code, not our debt.",
+    "",
+    "## Every directive",
+    "",
+    "| File | Directive | Reason |",
+    "| --- | --- | --- |",
+    ...rows,
+    "",
+  ].join("\n");
+};
+
+const linkHrefs = (source: string) => {
+  const body = source
+    .replaceAll(/```[\s\S]*?```/gu, "")
+    .replaceAll(/~~~[\s\S]*?~~~/gu, "")
+    .replaceAll(/`[^`\n]+`/gu, "");
+
+  const links = new Set<string>();
+
+  const markdownLink =
+    /\]\(\s*(?:<(?<angle>[^>]+)>|(?<plain>[^)\s]+))(?:\s+[^)]*)?\)/gu;
+
+  const referenceLink =
+    /^\s*\[[^\]]+\]:\s*(?:<(?<angle>[^>]+)>|(?<plain>\S+))/gmu;
+
+  const htmlAttribute =
+    /\b(?:href|src)\s*=\s*(?:"(?<double>[^"]*)"|'(?<single>[^']*)')/giu;
+
+  const autoLink = /<(?<url>(?:https?:)?\/\/[^>\s]+)>/giu;
+
+  for (const match of body.matchAll(markdownLink)) {
+    const href = match.groups?.angle ?? match.groups?.plain;
+
+    if (href !== undefined) {
+      links.add(href);
+    }
+  }
+
+  for (const pattern of [referenceLink, htmlAttribute, autoLink]) {
+    for (const match of body.matchAll(pattern)) {
+      const href =
+        match.groups?.angle ??
+        match.groups?.plain ??
+        match.groups?.double ??
+        match.groups?.single ??
+        match.groups?.url;
+
+      if (href !== undefined) {
+        links.add(href);
+      }
+    }
+  }
+
+  return [...links];
+};
+
+export const internalRouteForLink = (
+  href: string,
+  pageRoute: string,
+  origin = "https://ratstack.sh"
+): string | undefined => {
+  try {
+    const base = new URL(pageRoute, origin);
+    const target = new URL(href, base);
+
+    if (target.origin !== base.origin) {
+      return undefined;
+    }
+
+    return target.pathname.length > 1
+      ? target.pathname.replace(/\/$/u, "")
+      : target.pathname;
+  } catch {
+    return undefined;
+  }
+};
+
+export const validateInternalLinks = (options: {
+  readonly knownRoutes: ReadonlySet<string>;
+  readonly pageRoute: string;
+  readonly sourcePath: string;
+  readonly text: string;
+}): void => {
+  for (const href of linkHrefs(options.text)) {
+    const route = internalRouteForLink(href, options.pageRoute);
+
+    if (route !== undefined && !options.knownRoutes.has(route)) {
+      throw buildError(
+        `internal link ${href}`,
+        options.sourcePath,
+        new Error(`resolves to unserved route ${route}`)
+      );
+    }
+  }
+};
+
 const audienceTag =
   /<(?:AgentOnly|HumanOnly|Diagram)(?:\s[^>]*)?>|<\/(?:AgentOnly|HumanOnly|Diagram)>/u;
 

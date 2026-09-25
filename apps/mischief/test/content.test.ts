@@ -1,14 +1,21 @@
 import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
-import { Effect, FileSystem, Path } from "effect";
+import { Effect, FileSystem, Path, Stream } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import {
+  assertSkillGroups,
   ContentBuildError,
+  debtLedgerMarkdown,
   deriveAgentMarkdown,
   deriveHtmlMarkdown,
   encodeIco,
+  internalRouteForLink,
+  isDebtSourcePath,
   loreLinkTargets,
+  parseDebtLintOutput,
   parseLorePage,
+  validateInternalLinks,
 } from "../scripts/content-lib.ts";
 import {
   appleTouchIconPngBase64,
@@ -23,6 +30,139 @@ import {
 const fakePng = (size: number) => new Uint8Array(size).fill(size);
 
 const root = (path: Path.Path) => path.resolve(import.meta.dirname, "../../..");
+
+it.effect("decodes Oxlint JSON and formats the debt ledger", () =>
+  Effect.sync(() => {
+    const output = JSON.stringify({
+      diagnostics: [
+        {
+          code: "rat-stack-debt(debt-ledger)",
+          filename: "root.config.ts",
+          labels: [{ span: { column: 0, length: 10, line: 1, offset: 0 } }],
+          message: JSON.stringify({
+            directive: "@ts-nocheck",
+            kind: "typescript",
+            reason: "root config directive",
+          }),
+          severity: "error",
+        },
+        {
+          code: "rat-stack-debt(debt-ledger)",
+          filename: "apps/sample.ts",
+          labels: [{ span: { column: 0, length: 10, line: 3, offset: 50 } }],
+          message: JSON.stringify({
+            directive: [
+              "@effect-diagnostics",
+              "-next-line asyncFunction:off",
+            ].join(""),
+            kind: "effect-diagnostics",
+            reason: "typed boundary",
+          }),
+          severity: "error",
+        },
+        {
+          code: "rat-stack-debt(debt-ledger)",
+          filename: "apps/sample.ts",
+          labels: [{ span: { column: 0, length: 10, line: 4, offset: 80 } }],
+          message: JSON.stringify({
+            directive: "@ts-expect-error",
+            kind: "typescript",
+          }),
+          severity: "error",
+        },
+        {
+          code: "rat-stack-debt(debt-ledger)",
+          filename: "apps/sample.ts",
+          labels: [{ span: { column: 0, length: 10, line: 2, offset: 20 } }],
+          message: JSON.stringify({
+            directive: "oxlint-disable-next-line no-console",
+            kind: "oxlint",
+            reason: "fixture reason",
+          }),
+          severity: "error",
+        },
+      ],
+      number_of_files: 4,
+      number_of_rules: 1,
+      start_time: 0.08,
+      threads_count: 16,
+    });
+
+    const result = parseDebtLintOutput(output);
+    const markdown = debtLedgerMarkdown(result.entries);
+
+    expect(result).toMatchObject({ fileCount: 4, ruleCount: 1 });
+    expect(result.entries).toHaveLength(4);
+    expect(result.entries[0]).toMatchObject({
+      directive: "oxlint-disable-next-line no-console",
+      file: "apps/sample.ts",
+      line: 2,
+      reason: "fixture reason",
+    });
+    expect(result.entries[2]?.reason).toBeUndefined();
+    expect(markdown).toContain('> "Debt only shrinks."');
+    expect(markdown).toContain("Total: **4** directives.");
+    expect(markdown).toContain("apps/sample.ts:2");
+    expect(markdown).toContain("no reason given");
+    expect(markdown).toContain("Dillon Mulroy's code");
+    expect(markdown).toBe(debtLedgerMarkdown(result.entries));
+    expect(isDebtSourcePath("root.config.ts")).toBe(true);
+    expect(isDebtSourcePath("tools/oxlint/anti-slop/vendor.ts")).toBe(false);
+    expect(isDebtSourcePath("apps/generated.generated.ts")).toBe(false);
+    expect(() => parseDebtLintOutput("not JSON")).toThrow(ContentBuildError);
+  })
+);
+
+it.effect("requires every discovered skill to have a group", () =>
+  Effect.sync(() => {
+    expect(() => {
+      assertSkillGroups(
+        ["learn-rat-stack", "unassigned-skill"],
+        [{ names: ["learn-rat-stack"] }]
+      );
+    }).toThrow(ContentBuildError);
+    expect(() => {
+      assertSkillGroups(
+        ["learn-rat-stack", "unassigned-skill"],
+        [{ names: ["learn-rat-stack"] }]
+      );
+    }).toThrow("skills/unassigned-skill/SKILL.md");
+  })
+);
+
+it.effect("rejects unserved relative and absolute internal links", () =>
+  Effect.sync(() => {
+    const knownRoutes = new Set(["/", "/resources/peers.svx"]);
+
+    expect(
+      internalRouteForLink("../projects/hidden.svx", "/resources/peers.svx")
+    ).toBe("/projects/hidden.svx");
+    expect(() => {
+      validateInternalLinks({
+        knownRoutes,
+        pageRoute: "/resources/peers.svx",
+        sourcePath: ".brain/resources/peers.svx",
+        text: "[broken](/resources/missing.svx)",
+      });
+    }).toThrow(/internal link \/resources\/missing\.svx failed for/u);
+    expect(() => {
+      validateInternalLinks({
+        knownRoutes,
+        pageRoute: "/resources/peers.svx",
+        sourcePath: ".brain/resources/peers.svx",
+        text: "[relative](./missing.svx)",
+      });
+    }).toThrow(/\.\/missing\.svx/u);
+    expect(() => {
+      validateInternalLinks({
+        knownRoutes,
+        pageRoute: "/resources/peers.svx",
+        sourcePath: ".brain/resources/peers.svx",
+        text: "[external](https://example.com/page)",
+      });
+    }).not.toThrow();
+  })
+);
 
 it.effect("rejects malformed lore frontmatter and filename slugs", () =>
   Effect.sync(() => {
@@ -95,6 +235,94 @@ const tagFreeSources = [
 ];
 
 it.layer(NodeServices.layer)("generated content", (test) => {
+  test.effect("the Oxlint ledger rule reads directives from comments", () =>
+    Effect.gen(function* readsOnlyCommentDirectives() {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const repository = root(path);
+      const directory = yield* fileSystem.makeTempDirectoryScoped();
+      const fixturePath = path.join(directory, "debt-ledger-fixture.ts");
+      const effectDiagnostics = ["@effect", "-diagnostics"].join("");
+
+      const fixture = [
+        `const mention = "oxlint-disable ${effectDiagnostics} @ts-ignore";`,
+        "// oxlint-disable-next-line test/rule -- lint reason",
+        "const lintDirective = true;",
+        `// ${effectDiagnostics}-next-line testRule:off -- Effect reason`,
+        "const effectDirective = true;",
+        "// @ts-expect-error -- TypeScript reason",
+        "const typed: string = 1;",
+        "// oxlint-enable test/rule -- not debt",
+      ].join("\n");
+
+      yield* fileSystem.writeFileString(fixturePath, fixture);
+
+      const handle = yield* spawner.spawn(
+        ChildProcess.make(
+          "pnpm",
+          [
+            "exec",
+            "oxlint",
+            "--config",
+            path.join(repository, "scripts/oxlint-debt-ledger.config.ts"),
+            "-A",
+            "all",
+            "-D",
+            "rat-stack-debt/debt-ledger",
+            "--format",
+            "json",
+            "--no-ignore",
+            fixturePath,
+          ],
+          { cwd: repository }
+        )
+      );
+
+      const [json, stderr] = yield* Effect.all(
+        [
+          Stream.mkString(Stream.decodeText(handle.stdout)),
+          Stream.mkString(Stream.decodeText(handle.stderr)),
+        ],
+        { concurrency: "unbounded" }
+      );
+
+      const exitCode = yield* handle.exitCode;
+      const result = parseDebtLintOutput(json);
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toBe("");
+      expect(result).toMatchObject({ fileCount: 1, ruleCount: 1 });
+      expect(
+        result.entries.map(({ directive, kind, line, reason }) => ({
+          directive,
+          kind,
+          line,
+          reason,
+        }))
+      ).toEqual([
+        {
+          directive: "oxlint-disable-next-line test/rule",
+          kind: "oxlint",
+          line: 2,
+          reason: "lint reason",
+        },
+        {
+          directive: `${effectDiagnostics}-next-line testRule:off`,
+          kind: "effect-diagnostics",
+          line: 4,
+          reason: "Effect reason",
+        },
+        {
+          directive: "@ts-expect-error",
+          kind: "typescript",
+          line: 6,
+          reason: "TypeScript reason",
+        },
+      ]);
+    })
+  );
+
   test.effect("keeps tag-free source documents byte-identical for agents", () =>
     Effect.gen(function* tagFreeSourcesRoundTrip() {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -208,6 +436,7 @@ it.layer(NodeServices.layer)("generated content", (test) => {
         "/",
         "/skills",
         "/lore",
+        "/--no-verify",
         ...lawSources.map((source) => source.routePath),
         ...loreSources.map((lore) => lore.routePath),
         ...skillSources.map((skill) => skill.routePath),

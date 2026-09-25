@@ -85,7 +85,7 @@ pnpm vendor:agent-sources
 ./scripts/vendor-agent-sources.sh --refresh
 ```
 
-Inventory: [`.agent_sources/README.md`](./.agent_sources/README.md).
+Inventory: `.agent_sources/README.md` is generated in the local source mirror and is not part of this repository.
 
 | Need | Path |
 | --- | --- |
