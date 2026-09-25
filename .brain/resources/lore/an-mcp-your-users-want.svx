@@ -10,10 +10,10 @@ sources:
 
 [Rhys Sullivan's practical guide](https://x.com/RhysSullivan/status/2103280866084708510) starts with the jobs people already do in a product. It asks MCP authors to expose dashboard actions, keep code mode as a client-side harness choice, provide documentation search, and consider deep links, toolsets, and OAuth. The table paraphrases his advice and checks it against rat-stack today. Gaps are facts to record, not work authorized by this page.
 
-| Rhys's point | rat-stack today | Read |
+| Rhys's point | rat-stack today | Verdict |
 | --- | --- | --- |
 | Do what the dashboard can do. | One contract, every surface keeps behavior aligned by construction. The public site exposes `search` and `read`; the CLI projects registered capabilities too. | Agree |
-| Keep code mode out of the default MCP tool list. | CLI `mcp` uses plain tools; `--code-mode` opts into code mode. The hosted site's MCP includes `execute` because demonstrating the sandbox is the site's job. | Differs |
+| Keep code mode out of the default MCP tool list. | CLI `mcp` uses plain tools; `--code-mode` opts into code mode. The hosted site's MCP includes `execute` because demonstrating the sandbox is the site's job. | Agree in the template; the hosted site differs |
 | Ship search for docs and skills. | The site's `search` and `read` capabilities cover public content. Lore pages join that corpus. | Agree |
 | Add a deep link into the product. | No product-action deep-link tool appears in the hosted capability registry. | Gap |
 | Offer toolsets and permissions tied to the auth token. | Contracts can require approval, and `Approval` gates execution. The hosted MCP has no user-token toolsets; `auth.md` says it accepts no credentials. | Gap |
