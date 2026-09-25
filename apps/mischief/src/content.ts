@@ -13,6 +13,8 @@ export {
   faviconIcoBase64,
   homeDocumentHtml,
   loreIndexDocumentHtml,
+  noVerifyDocumentHtml,
+  noVerifyMarkdown,
   ogImages,
   ratSvg,
   skillIndexDocumentHtml,

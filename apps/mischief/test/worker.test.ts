@@ -17,6 +17,7 @@ import {
   loreResources,
   linkHeader,
   llmsText,
+  ogImagePath,
   markdownDocument,
   mcpVersionText,
   publicPaths,
@@ -80,6 +81,7 @@ const expectedSecurityHeaders = {
   "referrer-policy": "strict-origin-when-cross-origin",
   "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
+  "x-fence": "electrified",
   "x-frame-options": "DENY",
 } as const;
 
@@ -807,6 +809,108 @@ it.effect("publishes lore to human and agent surfaces", () =>
   )
 );
 
+it.effect("serves the debt ledger across page and agent surfaces", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testDebtLedgerPage() {
+      const debt = lawResources.find(
+        (resource) => resource.routePath === "/debt.md"
+      );
+
+      if (debt === undefined) {
+        throw new Error("Missing debt ledger resource");
+      }
+
+      const markdownResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/debt.md"))
+      );
+
+      const markdown = yield* Effect.promise(
+        markdownResponse.text.bind(markdownResponse)
+      );
+
+      const htmlResponse = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/debt.md", {
+            headers: { accept: "text/html" },
+          })
+        )
+      );
+
+      const page = yield* Effect.promise(htmlResponse.text.bind(htmlResponse));
+
+      const fullText = yield* responseText(
+        handler,
+        new Request("http://localhost/llms-full.txt")
+      );
+
+      const imageResponse = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request(`http://localhost${ogImagePath(debt.routePath)}`)
+        )
+      );
+
+      const searchResponse = yield* postMcp(
+        handler,
+        "search-debt-ledger",
+        "tools/call",
+        {
+          arguments: { limit: 10, query: "Debt only shrinks" },
+          name: "search",
+        },
+        "search"
+      );
+
+      const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
+        (yield* Schema.decodeUnknownEffect(ToolCallResponse)(
+          yield* readJson(searchResponse)
+        )).result.structuredContent
+      );
+
+      const match = searchResult.matches.find((entry) => entry.id === debt.id);
+
+      const readResponse = yield* postMcp(
+        handler,
+        "read-debt-ledger",
+        "tools/call",
+        { arguments: { id: debt.id }, name: "read" },
+        "read"
+      );
+
+      const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
+        (yield* Schema.decodeUnknownEffect(ToolCallResponse)(
+          yield* readJson(readResponse)
+        )).result.structuredContent
+      );
+
+      expect(markdownResponse.status).toBe(200);
+      expect(markdownResponse.headers.get("content-type")).toContain(
+        "text/markdown"
+      );
+      expect(markdown).toContain('> "Debt only shrinks."');
+      expect(markdown).toContain("Total: **");
+      expect(markdown).toContain("no reason given");
+      expect(markdown).toContain("tools/oxlint/anti-slop/");
+      expect(htmlResponse.headers.get("content-type")).toContain("text/html");
+      expect(page).toContain("<table>");
+      expect(fullText).toContain(`# ${debt.routePath}`);
+      expect(llmsText("https://ratstack.sh")).toContain(
+        `[debt.md](${debt.routePath})`
+      );
+      expect(publicPaths).toContain(debt.routePath);
+      expect(imageResponse.status).toBe(200);
+      expect(imageResponse.headers.get("content-type")).toBe("image/png");
+      expect(match).toMatchObject({ id: debt.id, kind: "law" });
+      expect(readResult).toMatchObject({
+        id: debt.id,
+        kind: "law",
+        text: debt.text,
+      });
+    })
+  )
+);
+
 it.effect("sets security headers on every response", () =>
   withHandler((handler) =>
     Effect.gen(function* testSecurityHeaders() {
@@ -898,6 +1002,122 @@ it.effect("sets security headers on every response", () =>
       expect(headMissing.status).toBe(404);
     })
   )
+);
+
+it.effect("serves no-verify trap aliases as 403 Markdown and HTML", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testNoVerifyTrap() {
+      const markdownResponse = yield* Effect.promise(
+        handler.bind(undefined, new Request("http://localhost/no-verify"))
+      );
+
+      const markdown = yield* Effect.promise(
+        markdownResponse.text.bind(markdownResponse)
+      );
+
+      const htmlResponse = yield* Effect.promise(
+        handler.bind(
+          undefined,
+          new Request("http://localhost/--no-verify", {
+            headers: { accept: "text/html" },
+          })
+        )
+      );
+
+      const page = yield* Effect.promise(htmlResponse.text.bind(htmlResponse));
+
+      expect(markdownResponse.status).toBe(403);
+      expect(markdownResponse.headers.get("content-type")).toContain(
+        "text/markdown"
+      );
+      expect(markdown).toContain("The rat looks disappointed.");
+      expect(markdown).toContain("/lore/the-fence");
+      expect(markdown).toContain(
+        "https://github.com/joelhooks/rat-stack/blob/main/scripts/vcs-command-policy.js"
+      );
+      expect(htmlResponse.status).toBe(403);
+      expect(htmlResponse.headers.get("content-type")).toContain("text/html");
+      expect(page).toContain('<a href="/lore/the-fence">the fence</a>');
+      expect(page).toContain("scripts/vcs-command-policy.js");
+      expect(page).not.toContain("<script");
+      expectSecurityHeaders(markdownResponse, false);
+      expectSecurityHeaders(htmlResponse, true);
+    })
+  )
+);
+
+it.effect(
+  "searches from unknown content paths but preserves machine 404s",
+  () =>
+    withHandler((handler) =>
+      Effect.gen(function* testSearchableNotFound() {
+        const markdownResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/add-a-lifecycle-machine.md")
+          )
+        );
+
+        const markdown = yield* Effect.promise(
+          markdownResponse.text.bind(markdownResponse)
+        );
+
+        const htmlResponse = yield* Effect.promise(
+          handler.bind(
+            undefined,
+            new Request("http://localhost/add-a-lifecycle-machine.md", {
+              headers: { accept: "text/html" },
+            })
+          )
+        );
+
+        const page = yield* Effect.promise(
+          htmlResponse.text.bind(htmlResponse)
+        );
+
+        const machineResponses: Response[] = [];
+
+        for (const path of [
+          "/api/no-such-capability",
+          "/mcp/no-such-method",
+          "/openapi.json/no-such-document",
+          "/.well-known/no-such-card",
+        ]) {
+          machineResponses.push(
+            yield* Effect.promise(
+              handler.bind(undefined, new Request(`http://localhost${path}`))
+            )
+          );
+        }
+
+        expect(markdownResponse.status).toBe(404);
+        expect(markdownResponse.headers.get("content-type")).toContain(
+          "text/markdown"
+        );
+        expect(markdown.startsWith("That bin got pulled out.")).toBe(true);
+        expect(markdown).toContain("/skills/add-a-lifecycle-machine");
+        expect(markdown).toContain("[Home](/)");
+        expect(markdown).toContain("[Agent guide](/llms.txt)");
+        expect(htmlResponse.status).toBe(404);
+        expect(htmlResponse.headers.get("content-type")).toContain("text/html");
+        expect(page).toContain("That bin got pulled out.");
+        expect(page).toContain('href="/skills/add-a-lifecycle-machine"');
+        expect(page).toContain('href="/llms.txt"');
+        expect(page).not.toContain("<script");
+
+        for (const response of machineResponses) {
+          expect(response.status).toBe(404);
+          expect(response.headers.get("content-type")).toContain("text/plain");
+          expectSecurityHeaders(response, false);
+          expect(yield* Effect.promise(response.text.bind(response))).toBe(
+            "Not found.\n"
+          );
+        }
+
+        expectSecurityHeaders(markdownResponse, false);
+        expectSecurityHeaders(htmlResponse, true);
+      })
+    )
 );
 
 it.effect(
@@ -1054,7 +1274,9 @@ it.effect(
           );
           expectSecurityHeaders(revalidated, false);
           expect(mcp.headers.get("x-ratstack-cache")).toBeNull();
+          expect(mcp.headers.get("x-fence")).toBe("electrified");
           expect(favicon.headers.get("x-ratstack-cache")).toBe("MISS");
+          expect(favicon.headers.get("x-fence")).toBe("electrified");
           expect(favicon.headers.get("cache-control")).toContain(
             "s-maxage=31536000"
           );

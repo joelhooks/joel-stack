@@ -12,7 +12,7 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import * as HttpApiSchema from "effect/unstable/httpapi/HttpApiSchema";
 
 import { a2aError, decodeA2aRequest, handleA2aRequest } from "./a2a.js";
-import { capabilities } from "./capabilities/index.js";
+import { capabilities, search } from "./capabilities/index.js";
 import {
   a2aAgentCard,
   agentSkillPath,
@@ -33,6 +33,8 @@ import {
   markdownDocument,
   mcpServerCard,
   mcpVersionText,
+  noVerifyDocumentHtml,
+  noVerifyMarkdown,
   ogImagePath,
   ogImages,
   publicPaths,
@@ -64,6 +66,22 @@ const json = (body: Schema.Json, contentType = "application/json") =>
     contentType,
     headers: { "access-control-allow-origin": "*" },
   });
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+const escapeMarkdown = (value: string) =>
+  value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")
+    .replaceAll("(", "\\(")
+    .replaceAll(")", "\\)");
 
 const originOf = (request: HttpServerRequest.HttpServerRequest) =>
   new URL(request.url, "https://ratstack.sh").origin;
@@ -112,6 +130,73 @@ const acceptsHtml = (request: HttpServerRequest.HttpServerRequest) => {
 
   return userAgent.startsWith("Mozilla/");
 };
+
+const pathQuery = (pathname: string) => {
+  const segments = pathname.split("/").filter((segment) => segment !== "");
+  const last = segments.pop() ?? "";
+  const extensionless = last.replace(/\.[^.]+$/u, "");
+
+  return [...segments, extensionless]
+    .flatMap((segment) => segment.split(/[._-]+/u))
+    .filter((segment) => segment !== "")
+    .join(" ");
+};
+
+const searchNotFound = (request: HttpServerRequest.HttpServerRequest) => {
+  const { pathname } = new URL(request.url, "https://ratstack.sh");
+  const query = pathQuery(pathname);
+
+  return search.handler({ limit: 3, query }).pipe(
+    Effect.map(({ matches }) => {
+      if (acceptsHtml(request)) {
+        const list = matches
+          .map(
+            (match) =>
+              `<li><a href="${escapeHtml(match.routePath)}">${escapeHtml(match.title)}</a><p>${escapeHtml(match.description)}</p></li>`
+          )
+          .join("");
+
+        const empty = matches.length === 0 ? "<p>No close match.</p>" : "";
+        const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>That bin got pulled out | rat-stack</title></head><body><main><h1>That bin got pulled out.</h1>${empty}<ol>${list}</ol><p><a href="/">Home</a> · <a href="/llms.txt">Agent guide</a></p></main></body></html>`;
+
+        return HttpServerResponse.text(body, {
+          contentType: "text/html; charset=utf-8",
+          status: 404,
+        });
+      }
+
+      const list = matches.map(
+        (match) =>
+          `- [${escapeMarkdown(match.title)}](${match.routePath}) — ${escapeMarkdown(match.description)}`
+      );
+
+      const body = [
+        "That bin got pulled out.",
+        "",
+        ...(list.length === 0 ? ["No close match."] : list),
+        "",
+        "[Home](/) · [Agent guide](/llms.txt)",
+        "",
+      ].join("\n");
+
+      return HttpServerResponse.text(body, {
+        contentType: "text/markdown; charset=utf-8",
+        status: 404,
+      });
+    })
+  );
+};
+
+const machinePath = (pathname: string) =>
+  pathname === "/api" ||
+  pathname.startsWith("/api/") ||
+  pathname === "/mcp" ||
+  pathname.startsWith("/mcp/") ||
+  pathname === "/openapi.json" ||
+  pathname.startsWith("/openapi.json/") ||
+  pathname === "/a2a" ||
+  pathname.startsWith("/a2a/") ||
+  pathname.startsWith("/.well-known/");
 
 export interface StaticResponseCache {
   readonly match: (request: Request) => Promise<Response | undefined>;
@@ -325,6 +410,19 @@ export const mcpLayer = (
 
 const mcp = mcpLayer(modernMcpProtocols);
 
+const noVerifyResponse = (request: HttpServerRequest.HttpServerRequest) =>
+  HttpServerResponse.text(
+    acceptsHtml(request)
+      ? renderStaticDocument(originOf(request), noVerifyDocumentHtml)
+      : noVerifyMarkdown,
+    {
+      contentType: acceptsHtml(request)
+        ? "text/html; charset=utf-8"
+        : "text/markdown; charset=utf-8",
+      status: 403,
+    }
+  );
+
 const contentRoutes = Layer.mergeAll(
   HttpRouter.add("GET", "/", (request) => {
     const origin = originOf(request);
@@ -460,17 +558,33 @@ const contentRoutes = Layer.mergeAll(
     ),
     HttpRouter.add("GET", agentSkillPath(skill.name), markdown(skill.text)),
   ]),
-  ...(
-    ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY"] as const
-  ).map((method) =>
-    HttpRouter.add(
-      method,
-      "/*",
-      HttpServerResponse.text("Not found.\n", {
-        contentType: "text/plain; charset=utf-8",
-        status: 404,
-      })
+  ...(["/--no-verify", "/no-verify"] as const).map((path) =>
+    HttpRouter.add("GET", path, (request) =>
+      Effect.succeed(noVerifyResponse(request))
     )
+  ),
+  HttpRouter.add("GET", "/*", (request) => {
+    const { pathname } = new URL(request.url, "https://ratstack.sh");
+
+    return machinePath(pathname)
+      ? Effect.succeed(
+          HttpServerResponse.text("Not found.\n", {
+            contentType: "text/plain; charset=utf-8",
+            status: 404,
+          })
+        )
+      : searchNotFound(request);
+  }),
+  ...(["POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY"] as const).map(
+    (method) =>
+      HttpRouter.add(
+        method,
+        "/*",
+        HttpServerResponse.text("Not found.\n", {
+          contentType: "text/plain; charset=utf-8",
+          status: 404,
+        })
+      )
   )
 );
 
@@ -737,6 +851,7 @@ const securityHeaders = {
   "referrer-policy": "strict-origin-when-cross-origin",
   "strict-transport-security": "max-age=31536000; includeSubDomains",
   "x-content-type-options": "nosniff",
+  "x-fence": "electrified",
   "x-frame-options": "DENY",
 };
 
