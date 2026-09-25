@@ -1,0 +1,16 @@
+---
+title: "AI Engineer World's Fair 2026: Software has changed"
+description: "Theo Browne argues that stronger models call for wider software work and extensible products."
+group: source
+speaker: "Theo Browne"
+date: 2026-07-08
+url: https://youtu.be/xUnRQ9vLXxo
+sources:
+  - https://youtu.be/xUnRQ9vLXxo
+---
+
+# AI Engineer World's Fair 2026: Software has changed
+
+Theo says developers can miss new model capabilities when they keep prompting for the same narrow tasks. [02:35](https://youtu.be/xUnRQ9vLXxo?t=155) [02:58](https://youtu.be/xUnRQ9vLXxo?t=178)
+
+He separates breadth from depth: products can cover more ground while leaving users room to build missing vertical features. [13:07](https://youtu.be/xUnRQ9vLXxo?t=787) [13:23](https://youtu.be/xUnRQ9vLXxo?t=803) [14:37](https://youtu.be/xUnRQ9vLXxo?t=877)

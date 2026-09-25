@@ -1,0 +1,16 @@
+---
+title: "Why TypeScript is a good fit for Scala developers"
+description: "John De Goes and Michael Arnaldi discuss carrying functional programming ideas into TypeScript."
+group: source
+speaker: "John De Goes and Michael Arnaldi"
+date: 2026-08-01
+url: https://youtu.be/59QbEjsaBvA
+sources:
+  - https://youtu.be/59QbEjsaBvA
+---
+
+# Why TypeScript is a good fit for Scala developers
+
+John and Michael argue that Scala developers can bring their experience to TypeScript without giving up typed functional effects. They discuss TypeScript's ecosystem and pragmatic type system, and Effect's typed errors, dependencies, concurrency, and telemetry. [00:07](https://youtu.be/59QbEjsaBvA?t=7) [10:38](https://youtu.be/59QbEjsaBvA?t=638) [47:51](https://youtu.be/59QbEjsaBvA?t=2871)
+
+They caution against reproducing Scala conventions instead of learning the host language. [06:50](https://youtu.be/59QbEjsaBvA?t=410) [59:41](https://youtu.be/59QbEjsaBvA?t=3581)

@@ -1,6 +1,10 @@
 ---
 title: "An MCP your users want"
 description: "Rhys Sullivan's practical guide gives rat-stack a checklist for useful MCP tools."
+group: idea
+terms:
+  - "MCP your users want"
+  - "useful MCP tools"
 sources:
   - https://x.com/RhysSullivan/status/2103280866084708510
   - https://github.com/joelhooks/rat-stack/blob/main/apps/mischief/src/capabilities/index.ts

@@ -1,0 +1,16 @@
+---
+title: "Effect Meetup SF 2023: Why Effect?"
+description: "Michael Arnaldi introduces Effect as a shared runtime for production TypeScript concerns."
+group: source
+speaker: "Michael Arnaldi"
+date: 2023-12-11
+url: https://youtu.be/BqUnsDnMnMo
+sources:
+  - https://youtu.be/BqUnsDnMnMo
+---
+
+# Effect Meetup SF 2023: Why Effect?
+
+Michael presents Effect as a missing standard library for TypeScript, bringing typed errors and requirements, structured concurrency, observability, resource safety, and composition into one runtime. [01:44](https://youtu.be/BqUnsDnMnMo?t=104) [02:31](https://youtu.be/BqUnsDnMnMo?t=151)
+
+A Remix demo contrasts manual telemetry and nested error handling with Effect context, Schema, spans, metrics, and retry policies. [22:37](https://youtu.be/BqUnsDnMnMo?t=1357) [30:34](https://youtu.be/BqUnsDnMnMo?t=1834)

@@ -1,0 +1,16 @@
+---
+title: "Lauren Tan: Dune, trust, and agent skills"
+description: "Lauren Tan describes verification, a trust ladder, and an agent-oriented application framework."
+group: source
+speaker: "Lauren Tan"
+date: 2026-09-21
+url: https://x.com/poteto/status/2102050467505430555
+sources:
+  - https://x.com/poteto/status/2102050467505430555
+---
+
+# Lauren Tan: Dune, trust, and agent skills
+
+Lauren describes verification as a path from reproducible runs and evidence to stronger methods. She separates correctness from quality: verification checks whether a feature works, while skills can encode senior engineering workflows. [06:45](https://video.twimg.com/amplify_video/2101938030122868736/vid/avc1/3442x2160/BQlPlAZCEVPDemv1.mp4#t=405) [12:45](https://video.twimg.com/amplify_video/2101938030122868736/vid/avc1/3442x2160/BQlPlAZCEVPDemv1.mp4#t=765)
+
+Her trust ladder puts codebase changes, static analysis, rules, skills, and style guides in order from more durable to less enforceable. She also describes Dune as a framework designed so the shortcut is the right path. [15:00](https://video.twimg.com/amplify_video/2101938030122868736/vid/avc1/3442x2160/BQlPlAZCEVPDemv1.mp4#t=900) [19:01](https://video.twimg.com/amplify_video/2101938030122868736/vid/avc1/3442x2160/BQlPlAZCEVPDemv1.mp4#t=1141)

@@ -2,6 +2,7 @@ import {
   homeMarkdownTemplate,
   lawSources,
   loreIndexMarkdown,
+  llmsLoreLinks,
   loreSources,
   originToken,
   skillIndexMarkdown,
@@ -25,6 +26,8 @@ export const ogImagePath = (routePath: string): `/${string}` =>
   `/og${routePath === "/" ? "/home" : routePath}.png`;
 
 export type ContentKind = "law" | "skill" | "lore";
+
+export type LoreGroup = "idea" | "concept" | "source" | "person";
 
 export interface ContentResource {
   readonly description: string;
@@ -52,7 +55,12 @@ export const lawResources: readonly ContentResource[] = lawSources.map(
   })
 );
 
-export const loreResources: readonly ContentResource[] = loreSources.map(
+export interface LoreResource extends ContentResource {
+  readonly group: LoreGroup;
+  readonly terms: readonly string[];
+}
+
+export const loreResources: readonly LoreResource[] = loreSources.map(
   (source) => ({
     ...source,
     id: `ratstack://lore/${source.slug}`,
@@ -164,11 +172,27 @@ ${entryList(lawResources)}
 
 ## Lore
 
-${entryList(loreResources)}
+${(["idea", "concept", "source", "person"] as const)
+  .flatMap((group) => {
+    const pages = loreResources.filter((resource) => resource.group === group);
+
+    return pages.length === 0
+      ? []
+      : [
+          `### ${group[0]?.toUpperCase()}${group.slice(1)}`,
+          "",
+          entryList(pages),
+        ];
+  })
+  .join("\n\n")}
 
 ## Skills
 
 ${entryList(skills)}
+
+## Lore on this page
+
+${llmsLoreLinks.replaceAll(originToken, origin)}
 `;
 
 export const llmsFullText = (origin: string) =>
@@ -391,6 +415,13 @@ const occurrences = (value: string, term: string) => {
   return count;
 };
 
+const loreTermsById = new Map(
+  loreResources.map((resource) => [
+    resource.id,
+    resource.terms.join(" ").toLowerCase(),
+  ])
+);
+
 const excerptAround = (text: string, query: string) => {
   const normalized = text.toLowerCase();
   const index = normalized.indexOf(query.toLowerCase());
@@ -421,6 +452,7 @@ export const searchContent = (
       const title = resource.title.toLowerCase();
       const description = resource.description.toLowerCase();
       const text = resource.text.toLowerCase();
+      const loreTerms = loreTermsById.get(resource.id) ?? "";
 
       const score =
         (queryText !== "" && title.includes(queryText) ? 40 : 0) +
@@ -428,6 +460,7 @@ export const searchContent = (
           (total, term) =>
             total +
             occurrences(title, term) * 12 +
+            occurrences(loreTerms, term) * 12 +
             occurrences(description, term) * 6 +
             Math.min(10, occurrences(text, term)),
           0

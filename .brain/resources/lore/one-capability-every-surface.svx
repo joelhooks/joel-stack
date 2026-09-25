@@ -1,6 +1,10 @@
 ---
 title: "One capability, every surface"
 description: "A schema-typed contract and one handler feed every interface rat-stack keeps."
+group: idea
+terms:
+  - "one capability, every surface"
+  - "capability projection"
 sources:
   - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
   - https://github.com/joelhooks/rat-stack/blob/main/packages/capability/src/implement.ts
@@ -12,5 +16,7 @@ A capability starts with one contract and one server-side handler. `defineContra
 The split replaced `defineCapability`, which bundled contract data and its handler in one definition. The RPC client needed the contract without importing server implementation. `toRpcGroup` now projects contracts alone; `toRpc` connects those same contracts to implemented capabilities. The browser docs client imports the shared contracts and RPC group, not handler files. [Commit 9a7bea5](https://github.com/joelhooks/rat-stack/commit/9a7bea5) records the split.
 
 To add one, define a contract, implement it beside the data or infrastructure it owns, register it in `capabilities`, then check each surface you keep. `packages/capability/test/` exercises projections; `apps/mischief/src/capabilities/index.ts` shows the hosted registry.
+
+Michael Arnaldi demonstrates Schema decoding request input and encoding a frontend-safe result while preserving its output type. [Effect Meetup SF, 27:17](https://youtu.be/BqUnsDnMnMo?t=1637). In another conversation, the speakers discuss generated schemas and migrations as work agents can maintain, and a rule that rejects ad hoc JSON parsing. [Cause & Effect 10, 63:49](https://youtu.be/irmz5X3c7Do?t=3829) [67:53](https://youtu.be/irmz5X3c7Do?t=4073).
 
 See [lifecycles are machines](/lore/lifecycles-are-machines) for stateful handlers and [cartridges](/lore/cartridges) for the infrastructure boundary.

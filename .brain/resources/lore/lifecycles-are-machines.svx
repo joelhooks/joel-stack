@@ -1,6 +1,10 @@
 ---
 title: "Lifecycles are machines"
 description: "XState owns finite lifecycle states while declared Effect actors own side effects."
+group: idea
+terms:
+  - "lifecycles are machines"
+  - "lifecycle machine"
 sources:
   - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
   - https://github.com/joelhooks/rat-stack/blob/main/packages/core/src/inspect-machine.ts

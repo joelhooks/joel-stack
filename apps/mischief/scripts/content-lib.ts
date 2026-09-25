@@ -16,19 +16,36 @@ export class ContentBuildError extends Schema.TaggedError<ContentBuildError>()(
 export const buildError = (stage: string, sourcePath: string, cause: unknown) =>
   new ContentBuildError({ cause, sourcePath, stage });
 
+export type LoreGroup = "idea" | "concept" | "source" | "person";
+
+export interface LoreTermTarget {
+  readonly routePath: string;
+  readonly term: string;
+}
+
 export interface LorePageMetadata {
+  readonly date?: string;
   readonly description: string;
+  readonly group: LoreGroup;
   readonly routePath: `/lore/${string}`;
   readonly slug: string;
   readonly sourcePath: string;
   readonly sources: readonly string[];
+  readonly speaker?: string;
+  readonly terms: readonly string[];
   readonly title: string;
+  readonly url?: string;
 }
 
 const loreFrontmatterSchema = Schema.Struct({
+  date: Schema.optional(Schema.String),
   description: Schema.String,
+  group: Schema.Literals(["idea", "concept", "source", "person"]),
   sources: Schema.Array(Schema.String),
+  speaker: Schema.optional(Schema.String),
+  terms: Schema.optional(Schema.Array(Schema.String)),
   title: Schema.String,
+  url: Schema.optional(Schema.String),
 });
 
 const loreScalar = (frontmatter: string, field: string) => {
@@ -40,9 +57,18 @@ const loreScalar = (frontmatter: string, field: string) => {
   return match?.groups?.double ?? match?.groups?.single ?? match?.groups?.plain;
 };
 
-const loreSources = (frontmatter: string, sourcePath: string) => {
-  const line = /^sources:[ \t]*(?<inline>.*)$/mu.exec(frontmatter);
-  const inline = line?.groups?.inline?.trim();
+const loreList = (frontmatter: string, field: string, sourcePath: string) => {
+  const lines = frontmatter.split(/\r?\n/u);
+
+  const fieldLine = lines.findIndex((line) =>
+    new RegExp(`^${field}:[ \\t]*`, "u").test(line)
+  );
+
+  if (fieldLine === -1) {
+    return [];
+  }
+
+  const inline = lines[fieldLine]?.slice(field.length + 1).trim();
 
   if (inline === "[]") {
     return [];
@@ -52,13 +78,148 @@ const loreSources = (frontmatter: string, sourcePath: string) => {
     throw buildError(
       "frontmatter",
       sourcePath,
-      new Error("sources must be an HTTPS URL list or an empty list")
+      new Error(`${field} must be a list`)
     );
   }
 
-  return [...frontmatter.matchAll(/^[ \t]{2}-[ \t]*(?<url>.+?)[ \t]*$/gmu)].map(
-    (match) => match.groups?.url ?? ""
-  );
+  const values: string[] = [];
+
+  for (const line of lines.slice(fieldLine + 1)) {
+    const item = /^[ \t]+-[ \t]*(?<value>.+?)[ \t]*$/u.exec(line)?.groups
+      ?.value;
+
+    if (item === undefined) {
+      break;
+    }
+
+    let value = item;
+
+    if (item.startsWith('"') && item.endsWith('"')) {
+      value = item.slice(1, -1).replaceAll('\\"', '"');
+    } else if (item.startsWith("'") && item.endsWith("'")) {
+      value = item.slice(1, -1).replaceAll("''", "'");
+    }
+
+    values.push(value);
+  }
+
+  return values;
+};
+
+type LoreFrontmatter = typeof loreFrontmatterSchema.Type;
+
+type MutableLorePageMetadata = {
+  -readonly [Key in keyof LorePageMetadata]: LorePageMetadata[Key];
+};
+
+const decodeLoreFrontmatter = (
+  sourcePath: string,
+  frontmatter: string
+): LoreFrontmatter => {
+  try {
+    return Schema.decodeUnknownSync(loreFrontmatterSchema)({
+      date: loreScalar(frontmatter, "date"),
+      description: loreScalar(frontmatter, "description"),
+      group: loreScalar(frontmatter, "group"),
+      sources: loreList(frontmatter, "sources", sourcePath),
+      speaker: loreScalar(frontmatter, "speaker"),
+      terms: loreList(frontmatter, "terms", sourcePath),
+      title: loreScalar(frontmatter, "title"),
+      url: loreScalar(frontmatter, "url"),
+    });
+  } catch (error) {
+    if (Schema.is(ContentBuildError)(error)) {
+      throw error;
+    }
+
+    throw buildError("frontmatter", sourcePath, error);
+  }
+};
+
+const validateLoreDescription = (
+  sourcePath: string,
+  decoded: LoreFrontmatter
+) => {
+  if (decoded.title.trim() === "" || decoded.description.trim() === "") {
+    throw buildError(
+      "frontmatter",
+      sourcePath,
+      new Error("title and description must not be empty")
+    );
+  }
+
+  if (decoded.description.match(/[.!?](?=\s|$)/gu)?.length !== 1) {
+    throw buildError(
+      "frontmatter",
+      sourcePath,
+      new Error("description must be one sentence ending in punctuation")
+    );
+  }
+};
+
+const validateLoreGroup = (sourcePath: string, decoded: LoreFrontmatter) => {
+  if (decoded.group !== "source") {
+    return;
+  }
+
+  if (
+    decoded.speaker?.trim() === undefined ||
+    decoded.speaker.trim() === "" ||
+    decoded.date === undefined ||
+    !/^\d{4}-\d{2}-\d{2}$/u.test(decoded.date) ||
+    decoded.url === undefined
+  ) {
+    throw buildError(
+      "frontmatter",
+      sourcePath,
+      new Error("source pages require speaker, date, and recording url")
+    );
+  }
+};
+
+const validateLoreTerms = (sourcePath: string, decoded: LoreFrontmatter) => {
+  const terms = decoded.terms ?? [];
+
+  if (decoded.group !== "source" && terms.length === 0) {
+    throw buildError(
+      "frontmatter",
+      sourcePath,
+      new Error(`${decoded.group} pages must declare terms`)
+    );
+  }
+
+  if (terms.some((term) => term.trim() === "")) {
+    throw buildError(
+      "frontmatter",
+      sourcePath,
+      new Error("terms must not contain an empty value")
+    );
+  }
+
+  return terms;
+};
+
+const validateLoreSources = (sourcePath: string, decoded: LoreFrontmatter) => {
+  for (const source of [
+    ...decoded.sources,
+    ...(decoded.url === undefined ? [] : [decoded.url]),
+  ]) {
+    let parsed: URL;
+
+    try {
+      parsed = new URL(source);
+    } catch (error) {
+      throw buildError("frontmatter", sourcePath, error);
+    }
+
+    if (parsed.protocol !== "https:") {
+      throw buildError(
+        "frontmatter",
+        sourcePath,
+        new Error(`source must be a public HTTPS URL: ${source}`)
+      );
+    }
+  }
 };
 
 export const parseLorePage = (
@@ -89,63 +250,181 @@ export const parseLorePage = (
     );
   }
 
-  let decoded: typeof loreFrontmatterSchema.Type;
+  const decoded = decodeLoreFrontmatter(sourcePath, block);
+  validateLoreDescription(sourcePath, decoded);
 
-  try {
-    decoded = Schema.decodeUnknownSync(loreFrontmatterSchema)({
-      description: loreScalar(block, "description"),
-      sources: loreSources(block, sourcePath),
-      title: loreScalar(block, "title"),
-    });
-  } catch (error) {
-    if (Schema.is(ContentBuildError)(error)) {
-      throw error;
-    }
+  const terms = validateLoreTerms(sourcePath, decoded);
 
-    throw buildError("frontmatter", sourcePath, error);
-  }
+  validateLoreGroup(sourcePath, decoded);
+  validateLoreSources(sourcePath, decoded);
 
-  if (decoded.title.trim() === "" || decoded.description.trim() === "") {
-    throw buildError(
-      "frontmatter",
-      sourcePath,
-      new Error("title and description must not be empty")
-    );
-  }
-
-  const sentencePunctuation = decoded.description.match(/[.!?](?=\s|$)/gu);
-
-  if (sentencePunctuation?.length !== 1) {
-    throw buildError(
-      "frontmatter",
-      sourcePath,
-      new Error("description must be one sentence ending in punctuation")
-    );
-  }
-
-  for (const source of decoded.sources) {
-    let parsed: URL;
-
-    try {
-      parsed = new URL(source);
-    } catch (error) {
-      throw buildError("frontmatter", sourcePath, error);
-    }
-
-    if (parsed.protocol !== "https:") {
-      throw buildError(
-        "frontmatter",
-        sourcePath,
-        new Error(`source must be a public HTTPS URL: ${source}`)
-      );
-    }
-  }
-
-  return {
-    ...decoded,
+  const metadata: MutableLorePageMetadata = {
+    description: decoded.description,
+    group: decoded.group,
     routePath: `/lore/${slug}`,
     slug,
     sourcePath,
+    sources: decoded.sources,
+    terms,
+    title: decoded.title,
+  };
+
+  if (decoded.date !== undefined) {
+    metadata.date = decoded.date;
+  }
+
+  if (decoded.speaker !== undefined) {
+    metadata.speaker = decoded.speaker;
+  }
+
+  if (decoded.url !== undefined) {
+    metadata.url = decoded.url;
+  }
+
+  return metadata;
+};
+
+export const assertLoreTerms = (
+  pages: readonly Pick<LorePageMetadata, "sourcePath" | "terms">[]
+): void => {
+  const owners = new Map<string, string>();
+
+  for (const page of pages) {
+    for (const term of page.terms) {
+      const normalized = term.trim().toLowerCase();
+      const previousPath = owners.get(normalized);
+
+      if (previousPath !== undefined) {
+        throw buildError(
+          "lore terms",
+          `${page.sourcePath} (previous claimant: ${previousPath})`,
+          new Error(`term "${term}" is claimed by multiple pages`)
+        );
+      }
+
+      owners.set(normalized, page.sourcePath);
+    }
+  }
+};
+
+export const loreTermTargets = (
+  pages: readonly Pick<LorePageMetadata, "routePath" | "terms">[]
+): readonly LoreTermTarget[] =>
+  pages.flatMap((page) =>
+    page.terms.map((term) => ({ routePath: page.routePath, term }))
+  );
+
+const escapedRegex = (value: string) =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+const loreTermPattern = (targets: readonly LoreTermTarget[]) => {
+  const terms = targets
+    .map((target) => target.term)
+    .toSorted((left, right) => right.length - left.length);
+
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}_])(?<term>${terms.map(escapedRegex).join("|")})(?![\\p{L}\\p{N}_])`,
+    "giu"
+  );
+};
+
+interface LoreHastNode {
+  readonly type: string;
+  readonly tagName?: string;
+  readonly value?: string;
+  children?: LoreHastNode[];
+  properties?: { readonly href?: string };
+}
+
+const skippedByLoreLinker = new Set(["a", "code", "pre"]);
+
+export const linkLoreTerms = (
+  targets: readonly LoreTermTarget[],
+  selfRoute: string,
+  linkedRoutes: Set<string>,
+  limit = 12
+) => {
+  const byTerm = new Map(
+    targets.map((target) => [target.term.toLowerCase(), target])
+  );
+
+  const linkedTerms = new Set<string>();
+  const linkedTermRoutes = new Set<string>();
+  const pattern = loreTermPattern(targets);
+
+  const visit = (node: LoreHastNode, linked: number): number => {
+    if (
+      node.tagName !== undefined &&
+      (skippedByLoreLinker.has(node.tagName) || /^h[1-6]$/u.test(node.tagName))
+    ) {
+      return linked;
+    }
+
+    const children = node.children ?? [];
+    let count = linked;
+
+    for (let index = 0; index < children.length && count < limit; index += 1) {
+      const child = children[index];
+
+      if (child === undefined) {
+        continue;
+      }
+
+      if (child.type !== "text" || child.value === undefined) {
+        count = visit(child, count);
+        continue;
+      }
+
+      const replacement: LoreHastNode[] = [];
+      let cursor = 0;
+
+      for (const match of child.value.matchAll(pattern)) {
+        const term = match.groups?.term;
+
+        const target =
+          term === undefined ? undefined : byTerm.get(term.toLowerCase());
+
+        const start = match.index;
+
+        if (
+          target === undefined ||
+          target.routePath === selfRoute ||
+          linkedTerms.has(target.term.toLowerCase()) ||
+          linkedTermRoutes.has(target.routePath) ||
+          start === undefined
+        ) {
+          continue;
+        }
+
+        const end = start + match[0].length;
+        replacement.push(
+          { type: "text", value: child.value.slice(cursor, start) },
+          {
+            children: [{ type: "text", value: child.value.slice(start, end) }],
+            properties: { href: target.routePath },
+            tagName: "a",
+            type: "element",
+          }
+        );
+        cursor = end;
+        count += 1;
+        linkedTerms.add(target.term.toLowerCase());
+        linkedTermRoutes.add(target.routePath);
+        linkedRoutes.add(target.routePath);
+      }
+
+      if (replacement.length > 0) {
+        replacement.push({ type: "text", value: child.value.slice(cursor) });
+        children.splice(index, 1, ...replacement);
+        index += replacement.length - 1;
+      }
+    }
+
+    return count;
+  };
+
+  return () => (tree: LoreHastNode) => {
+    visit(tree, 0);
   };
 };
 
@@ -155,11 +434,14 @@ export const loreLinkTargets = (
   knownRoutes: ReadonlySet<string>
 ): readonly string[] => {
   const body = markdown
+    .replaceAll("__RATSTACK_ORIGIN__", "https://ratstack.sh")
     .replaceAll(/```[\s\S]*?```/gu, "")
     .replaceAll(/`[^`\n]+`/gu, "");
 
   const targets = new Set<string>();
-  const links = /\[[^\]]+\]\((?<href>\/lore\/[^)\s]+)(?:\s+[^)]*)?\)/gu;
+
+  const links =
+    /\[[^\]]+\]\((?<href>(?:https:\/\/ratstack\.sh)?\/lore\/[^)\s]+)(?:\s+[^)]*)?\)/gu;
 
   for (const match of body.matchAll(links)) {
     const href = match.groups?.href;
@@ -168,7 +450,10 @@ export const loreLinkTargets = (
       continue;
     }
 
-    const route = href.split(/[?#]/u, 1)[0] ?? href;
+    const route = new URL(href, "https://ratstack.sh").pathname.replace(
+      /\/$/u,
+      ""
+    );
 
     if (!knownRoutes.has(route)) {
       throw buildError(

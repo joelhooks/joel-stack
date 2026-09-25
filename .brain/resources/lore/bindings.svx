@@ -1,0 +1,19 @@
+---
+title: "Bindings"
+description: "Sam Goodwin describes bindings as the place where runtime permissions and configuration meet infrastructure."
+group: concept
+terms:
+  - binding
+  - bindings
+sources:
+  - https://youtu.be/YEn4A7XxgF4?t=2229
+  - https://youtu.be/fPSxB7ZgSJw?t=3496
+---
+
+# Bindings
+
+Sam says a binding includes permissions and environment variables, not just an authorization policy. The configuration needed by one service can be wired statically with that permission. [Happy Path 116, 37:09](https://youtu.be/YEn4A7XxgF4?t=2229) [37:33](https://youtu.be/YEn4A7XxgF4?t=2253)
+
+He also describes deriving least-privilege policies from the methods an application uses. [Effect Office Hours 27, 58:16](https://youtu.be/fPSxB7ZgSJw?t=3496) [59:23](https://youtu.be/fPSxB7ZgSJw?t=3563).
+
+See [Happy Path 116](/lore/happy-path-116-infrastructure-as-effects-sam-goodwin) and [Effect Office Hours 27](/lore/effect-office-hours-27-alchemy-infrastructure-as-effects).

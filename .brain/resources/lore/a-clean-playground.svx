@@ -1,6 +1,10 @@
 ---
 title: "A clean playground"
 description: "rat-stack is a place to do real work with pieces that stay easy to add and remove."
+group: idea
+terms:
+  - "clean playground"
+  - "house rule"
 sources:
   - https://github.com/joelhooks/rat-stack/blob/main/VISION.md
   - https://github.com/joelhooks/rat-stack/blob/main/.brain/projects/layer-startups.svx

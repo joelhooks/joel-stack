@@ -1,0 +1,17 @@
+---
+title: "The error model"
+description: "Michael Arnaldi distinguishes typed failures a program handles from defects it lets escape."
+group: concept
+terms:
+  - "Effect error model"
+  - "typed failures"
+sources:
+  - https://youtu.be/und9h4xiIz4?t=1418
+  - https://youtu.be/und9h4xiIz4?t=1512
+---
+
+# The error model
+
+Michael says typed errors belong to control flow when the program intends to handle them; defects describe failures the program lets escape. [Why JavaScript Is Broken, 23:38](https://youtu.be/und9h4xiIz4?t=1418) [25:12](https://youtu.be/und9h4xiIz4?t=1512).
+
+He presents this distinction as part of Effect's computation model, not as a wrapper around Promises. [22:11](https://youtu.be/und9h4xiIz4?t=1331).

@@ -1,0 +1,18 @@
+---
+title: "Michael Arnaldi"
+description: "Michael Arnaldi develops Effect and explains its TypeScript design in public talks."
+group: person
+terms:
+  - "Michael Arnaldi"
+sources:
+  - https://youtu.be/7sJc3Z4mh1w
+  - https://youtu.be/gc5P36t6kD0
+  - https://youtu.be/und9h4xiIz4
+  - https://youtu.be/BqUnsDnMnMo
+---
+
+# Michael Arnaldi
+
+Michael traces Effect to a TypeScript team's needs for dependency injection, reliable tests, resource safety, concurrency control, and retries. [Effect Days 2024, 08:40](https://youtu.be/7sJc3Z4mh1w?t=520).
+
+He describes Effect computations through their outputs, predictable failures, and requirements. [Happy Path 81, 49:15](https://youtu.be/gc5P36t6kD0?t=2955).

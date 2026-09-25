@@ -1,0 +1,15 @@
+---
+title: "Distilled"
+description: "Sam Goodwin describes Effect-native provider SDKs and typed errors under the Distilled name."
+group: concept
+terms:
+  - "Distilled"
+sources:
+  - https://youtu.be/fPSxB7ZgSJw?t=3319
+---
+
+# Distilled
+
+Sam describes Distilled as providing Effect-native SDKs with tagged errors, including errors that provider specifications do not document. [Effect Office Hours 27, 55:19](https://youtu.be/fPSxB7ZgSJw?t=3319) [56:35](https://youtu.be/fPSxB7ZgSJw?t=3395).
+
+This page records that public description. See [Effect Office Hours 27](/lore/effect-office-hours-27-alchemy-infrastructure-as-effects).

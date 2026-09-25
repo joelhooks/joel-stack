@@ -1,6 +1,10 @@
 ---
 title: "Tests that earn their place"
 description: "A test earns its place by covering behavior the existing suite does not prove."
+group: idea
+terms:
+  - "tests that earn their place"
+  - "tautological tests"
 sources:
   - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
   - https://github.com/joelhooks/rat-stack/blob/main/packages/core/test

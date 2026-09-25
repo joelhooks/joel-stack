@@ -1,0 +1,16 @@
+---
+title: "Theo Browne: Please stop using stupid models"
+description: "Theo Browne argues that model reliability matters more as agent work gets wider and longer."
+group: source
+speaker: "Theo Browne"
+date: 2026-09-18
+url: https://youtu.be/iBrAWpjXNxs
+sources:
+  - https://youtu.be/iBrAWpjXNxs
+---
+
+# Theo Browne: Please stop using stupid models
+
+Theo argues that a model's ordinary performance matters more than its best result when an agent runs for a long time. Short tasks hide differences between models; wider tasks create more chances for failure. [04:19](https://youtu.be/iBrAWpjXNxs?t=259) [07:24](https://youtu.be/iBrAWpjXNxs?t=444) [17:07](https://youtu.be/iBrAWpjXNxs?t=1027)
+
+He urges teams to learn from long runs and change their prompts and codebases when runs fail. [12:13](https://youtu.be/iBrAWpjXNxs?t=733) [12:53](https://youtu.be/iBrAWpjXNxs?t=773)

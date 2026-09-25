@@ -1,0 +1,16 @@
+---
+title: "Alchemy and the next generation of infrastructure as code"
+description: "Sam Goodwin describes Alchemy's stateful TypeScript model for infrastructure resources."
+group: source
+speaker: "Sam Goodwin"
+date: 2025-04-14
+url: https://youtu.be/babOa4shATk
+sources:
+  - https://youtu.be/babOa4shATk
+---
+
+# Alchemy and the next generation of infrastructure as code
+
+Sam argues that infrastructure tools have accumulated layers around provider APIs. Alchemy reduces the resource model to stateful TypeScript functions with create, update, delete, tests, consistency checks, and idempotent recovery. [04:09](https://youtu.be/babOa4shATk?t=249) [06:01](https://youtu.be/babOa4shATk?t=361) [12:13](https://youtu.be/babOa4shATk?t=733)
+
+He says constrained conventions make resource generation more tractable for coding agents. He also describes embedding the runtime in Durable Objects and workflows. [33:00](https://youtu.be/babOa4shATk?t=1980) [25:38](https://youtu.be/babOa4shATk?t=1538)

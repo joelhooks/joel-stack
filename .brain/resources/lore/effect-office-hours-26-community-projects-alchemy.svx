@@ -1,0 +1,16 @@
+---
+title: "Effect Office Hours 26: Community projects and Alchemy"
+description: "The hosts discuss Alchemy Effect's typed resource requirements, plans, and deployment stages."
+group: source
+speaker: "Effect Office Hours hosts"
+date: 2026-04-23
+url: https://youtu.be/X4BLYNVzjDA
+sources:
+  - https://youtu.be/X4BLYNVzjDA
+---
+
+# Effect Office Hours 26: Community projects and Alchemy
+
+The Alchemy segment is a short inspection of work in progress. The hosts describe an Effect-native infrastructure tool whose type requirements expose resource and policy dependencies. [81:52](https://youtu.be/X4BLYNVzjDA?t=4912) [83:05](https://youtu.be/X4BLYNVzjDA?t=4985)
+
+They connect those requirements to planning, deployment stages, HTTP APIs, and a typed CLI preview. [84:10](https://youtu.be/X4BLYNVzjDA?t=5050) [86:21](https://youtu.be/X4BLYNVzjDA?t=5181)

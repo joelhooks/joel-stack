@@ -1,0 +1,17 @@
+---
+title: "Sam Goodwin"
+description: "Sam Goodwin presents Alchemy as infrastructure built from Effect programs and typed requirements."
+group: person
+terms:
+  - "Sam Goodwin"
+sources:
+  - https://youtu.be/YEn4A7XxgF4
+  - https://youtu.be/fPSxB7ZgSJw
+  - https://youtu.be/MtKHzAH6uXM
+---
+
+# Sam Goodwin
+
+Sam describes a cloud application as a computation with an infrastructure context, flow, result, or error. [Happy Path 116, 24:55](https://youtu.be/YEn4A7XxgF4?t=1495).
+
+He explains that runtime clients, business logic, and infrastructure policies stay related even when they live in separate files. [Happy Path 116, 30:31](https://youtu.be/YEn4A7XxgF4?t=1831).

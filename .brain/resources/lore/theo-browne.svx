@@ -1,0 +1,17 @@
+---
+title: "Theo Browne"
+description: "Theo Browne discusses broader software work and model reliability in public talks."
+group: person
+terms:
+  - "Theo Browne"
+sources:
+  - https://youtu.be/xUnRQ9vLXxo
+  - https://youtu.be/iBrAWpjXNxs
+  - https://youtu.be/TV6f2weVgCI
+---
+
+# Theo Browne
+
+Theo distinguishes product breadth from feature depth and describes how extension points can let users build missing features. [AI Engineer World's Fair, 13:23](https://youtu.be/xUnRQ9vLXxo?t=803) [14:37](https://youtu.be/xUnRQ9vLXxo?t=877).
+
+He argues that a model's ordinary reliability matters more than its best result when agents work on longer tasks. [Please stop using stupid models, 04:19](https://youtu.be/iBrAWpjXNxs?t=259).

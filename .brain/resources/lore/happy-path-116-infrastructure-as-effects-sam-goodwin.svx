@@ -1,0 +1,16 @@
+---
+title: "Happy Path 116: Infrastructure as effects"
+description: "Sam Goodwin connects Effect requirements, infrastructure policies, and runtime behavior."
+group: source
+speaker: "Sam Goodwin"
+date: 2025-09-19
+url: https://youtu.be/YEn4A7XxgF4
+sources:
+  - https://youtu.be/YEn4A7XxgF4
+---
+
+# Happy Path 116: Infrastructure as effects
+
+Sam argues that infrastructure tools can retain ordinary application-code properties such as debugging and tests. Effect gives Alchemy a pure program that can be planned before execution and carries resource requirements in its context. [03:50](https://youtu.be/YEn4A7XxgF4?t=230) [12:22](https://youtu.be/YEn4A7XxgF4?t=742) [24:52](https://youtu.be/YEn4A7XxgF4?t=1492)
+
+He shows how runtime operations relate to explicit infrastructure policies and deployed resources. The compiler can check those relationships before deployment. [28:00](https://youtu.be/YEn4A7XxgF4?t=1680) [30:31](https://youtu.be/YEn4A7XxgF4?t=1831) [34:03](https://youtu.be/YEn4A7XxgF4?t=2043)

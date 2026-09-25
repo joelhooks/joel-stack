@@ -1,0 +1,16 @@
+---
+title: "DHH on Omarchy and the agent OS"
+description: "David Heinemeier Hansson reflects on agency, agents, and building with language."
+group: source
+speaker: "David Heinemeier Hansson"
+date: 2026-09-18
+url: https://youtu.be/OSjmLh0cyVo
+sources:
+  - https://youtu.be/OSjmLh0cyVo
+---
+
+# DHH on Omarchy and the agent OS
+
+This note keeps one public moment from the conversation.
+
+At 14:40, DHH calls the ability to make things from English "perhaps the most addictive substance I have yet encountered." [Watch from 14:40](https://youtu.be/OSjmLh0cyVo?t=880).

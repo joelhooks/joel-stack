@@ -1,0 +1,19 @@
+---
+title: "Source-first workflow"
+description: "Michael Arnaldi says agents should inspect a library's current source instead of trusting stale model knowledge."
+group: concept
+terms:
+  - "source-first workflow"
+  - "read the source"
+sources:
+  - https://youtu.be/Wmp2Tku2PrI?t=531
+  - https://youtu.be/Wmp2Tku2PrI?t=779
+---
+
+# Source-first workflow
+
+In his workshop, Michael argues that coding agents learn a fast-moving library more reliably from its source repository than from stale model knowledge or a large prompt. [08:51](https://youtu.be/Wmp2Tku2PrI?t=531) [12:59](https://youtu.be/Wmp2Tku2PrI?t=779)
+
+He describes repository diagnostics, tests, lint rules, and saved patterns as feedback for the next move. He also says patterns should fit the project and model rather than arrive as a universal pack. [30:30](https://youtu.be/Wmp2Tku2PrI?t=1830) [58:08](https://youtu.be/Wmp2Tku2PrI?t=3488)
+
+See [Vibe engineering Effect apps](/lore/ai-engineer-vibe-engineering-effect-apps-michael-arnaldi).
