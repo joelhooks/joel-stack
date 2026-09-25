@@ -334,7 +334,8 @@ const linkStackEntities: Plugin<[], HastNode> = () => {
 const compileName = (spec: SourceSpec) =>
   /\.(?:md|svx)$/u.test(spec.sourcePath) ? spec.sourcePath : spec.title;
 
-const tagline = "An Effect app so pure Kit Langton will blush.";
+const tagline =
+  "An Effect app so pure Kit Langton will blush (aspirationally).";
 
 const ogImagePath = (routePath: string) =>
   `/og${routePath === "/" ? "/home" : routePath}.png`;
