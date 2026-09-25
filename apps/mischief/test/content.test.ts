@@ -3,15 +3,19 @@ import { expect, it } from "@effect/vitest";
 import { Effect, FileSystem, Path } from "effect";
 
 import {
+  ContentBuildError,
   deriveAgentMarkdown,
   deriveHtmlMarkdown,
   encodeIco,
+  loreLinkTargets,
+  parseLorePage,
 } from "../scripts/content-lib.ts";
 import {
   appleTouchIconPngBase64,
   faviconIcoBase64,
   homeDocumentHtml,
   lawSources,
+  loreSources,
   ogImages,
   skillSources,
 } from "../src/bundled-content.generated.js";
@@ -19,6 +23,64 @@ import {
 const fakePng = (size: number) => new Uint8Array(size).fill(size);
 
 const root = (path: Path.Path) => path.resolve(import.meta.dirname, "../../..");
+
+it.effect("rejects malformed lore frontmatter and filename slugs", () =>
+  Effect.sync(() => {
+    const invalidFrontmatterPath = ".brain/resources/lore/one-idea.svx";
+    const invalidSlugPath = ".brain/resources/lore/Bad_slug.svx";
+    const validFields = `---\ntitle: "One idea"\ndescription: "A short sentence."\nsources: []\n---\n`;
+
+    expect(() =>
+      parseLorePage(
+        invalidFrontmatterPath,
+        `---\ndescription: "A short sentence."\nsources: []\n---\n`
+      )
+    ).toThrow(
+      new RegExp(`frontmatter failed for ${invalidFrontmatterPath}`, "u")
+    );
+    expect(() => parseLorePage(invalidSlugPath, validFields)).toThrow(
+      new RegExp(`frontmatter failed for ${invalidSlugPath}`, "u")
+    );
+    expect(() => parseLorePage(invalidSlugPath, validFields)).toThrow(
+      ContentBuildError
+    );
+    expect(parseLorePage(invalidFrontmatterPath, validFields).sources).toEqual(
+      []
+    );
+    expect(() =>
+      parseLorePage(
+        invalidFrontmatterPath,
+        validFields.replace(
+          "sources: []",
+          "sources:\n  - http://example.com/source"
+        )
+      )
+    ).toThrow(ContentBuildError);
+    expect(() =>
+      parseLorePage(
+        invalidFrontmatterPath,
+        validFields.replace(
+          "A short sentence.",
+          "First sentence. Second sentence."
+        )
+      )
+    ).toThrow(ContentBuildError);
+  })
+);
+
+it.effect("rejects links to missing lore pages with their source path", () =>
+  Effect.sync(() => {
+    const sourcePath = ".brain/resources/lore/one-idea.svx";
+
+    expect(() =>
+      loreLinkTargets(
+        sourcePath,
+        "See [a missing idea](/lore/not-here).",
+        new Set(["/lore/one-idea"])
+      )
+    ).toThrow(new RegExp(`lore link failed for ${sourcePath}`, "u"));
+  })
+);
 
 const tagFreeSources = [
   "AGENTS.md",
@@ -145,7 +207,9 @@ it.layer(NodeServices.layer)("generated content", (test) => {
       const expected = new Set([
         "/",
         "/skills",
+        "/lore",
         ...lawSources.map((source) => source.routePath),
+        ...loreSources.map((lore) => lore.routePath),
         ...skillSources.map((skill) => skill.routePath),
       ]);
 

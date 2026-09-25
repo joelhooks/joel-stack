@@ -1,0 +1,21 @@
+---
+title: "Tests that earn their place"
+description: "A test earns its place by covering behavior the existing suite does not prove."
+sources:
+  - https://github.com/joelhooks/rat-stack/blob/main/AGENTS.md
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/core/test
+---
+
+The testing law is short:
+
+> Tautological tests considered harmful.
+>
+> Change-detector tests considered harmful.
+>
+> Do not create regression tests for bug fixes without a genuine gap in behavior testing.
+
+In practice, name the behavior that lacks proof. Add a fixture case only when the existing suite does not cover that behavior. Show the case failing without the fix, then passing with it. A test that repeats a function's implementation, snapshots unrelated output, or only notices that a file changed does not close a behavior gap.
+
+For example, capability projections are tested by exercising the produced command, HTTP route, MCP tool, RPC call, or sandbox call and checking the result or declared failure. The test proves that the schema and handler survive the surface, not just that a projection function returned an object. The current examples live in `packages/capability/test/`.
+
+If a bug report reveals that an existing test already covers the behavior, do not add another test to make the diff look safer. Fix the cause and keep the existing proof. See [the fence](/lore/the-fence) and [no comments](/lore/no-comments).

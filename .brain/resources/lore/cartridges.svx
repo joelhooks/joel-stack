@@ -1,0 +1,16 @@
+---
+title: "Cartridges"
+description: "A cartridge owns one job and brings the infrastructure its service needs."
+sources:
+  - https://github.com/joelhooks/rat-stack/blob/main/VISION.md
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/database/src/vendor.ts
+  - https://github.com/joelhooks/rat-stack/blob/main/packages/auth/src/auth.ts
+---
+
+An Alchemy Layer can carry the cloud resources behind one service. The service tag is the API; a Layer is one vendor's implementation. `Layer.provide` wires the chosen vendor into the application. Replacing that Layer changes the supply chain without changing callers.
+
+The database cartridge makes this concrete. `DatabaseVendor` represents either D1 or Hyperdrive Postgres. `packages/database/src/d1.ts` declares the D1 schema and database. `packages/database/src/hyperdrive-postgres.ts` declares the Postgres schema, Hyperdrive connection, and migration registration. Both provide the same `RunLog` service. The auth cartridge consumes `DatabaseVendor` and picks Better Auth's D1 or Hyperdrive adapter in `packages/auth/src/auth.ts`.
+
+A cartridge must be labeled, push in with one package and one provision line, pull out without breaking the rest, own its bindings, and be easy to throw away. That last test matters: a neat interface is not enough if removal leaves loose resources or broken imports. The pull-out test is deleting the package and its provision line, then running `pnpm turbo run check test build`.
+
+See [one capability, every surface](/lore/one-capability-every-surface) for the shared contract and [a clean playground](/lore/a-clean-playground) for the house rule behind these boundaries.

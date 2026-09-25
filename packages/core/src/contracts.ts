@@ -3,7 +3,7 @@ import { Schema } from "effect";
 
 import { FileStatsError, FileStatsSchema } from "./stats.js";
 
-const ContentKind = Schema.Literals(["law", "skill"]);
+const ContentKind = Schema.Literals(["law", "skill", "lore"]);
 
 export const SearchMatch = Schema.Struct({
   description: Schema.String,

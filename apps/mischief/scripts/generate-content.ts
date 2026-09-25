@@ -16,9 +16,13 @@ import { render } from "svelte/server";
 import type { Plugin } from "unified";
 
 import {
+  buildError,
+  ContentBuildError,
   deriveAgentMarkdown,
   deriveHtmlMarkdown,
   encodeIco,
+  loreLinkTargets,
+  parseLorePage,
 } from "./content-lib.ts";
 
 const originToken = "__RATSTACK_ORIGIN__";
@@ -64,19 +68,6 @@ const svelteSafeText = (value: string) =>
 
 const svelteServerUrl = import.meta.resolve("svelte/internal/server");
 
-class ContentBuildError extends Schema.TaggedError<ContentBuildError>()(
-  "ContentBuildError",
-  {
-    cause: Schema.Defect(),
-    sourcePath: Schema.String,
-    stage: Schema.String,
-  }
-) {
-  override get message() {
-    return `${this.stage} failed for ${this.sourcePath}`;
-  }
-}
-
 interface SourceSpec {
   readonly description: string;
   readonly routePath: `/${string}`;
@@ -112,9 +103,6 @@ type ServerComponent = Component<Partial<DocumentProps>>;
 
 const digest = (text: string) =>
   createHash("sha256").update(text).digest("hex");
-
-const buildError = (stage: string, sourcePath: string, cause: unknown) =>
-  new ContentBuildError({ cause, sourcePath, stage });
 
 const ServerComponentSchema = Schema.declare(
   (value): value is ServerComponent => Predicate.isFunction(value)
@@ -837,6 +825,7 @@ const program = Effect.gen(function* generateContent() {
           "--",
           ...lawSpecs.map((spec) => spec.sourcePath),
           "skills",
+          ".brain/resources/lore",
         ],
         { cwd: root }
       )
@@ -857,7 +846,7 @@ const program = Effect.gen(function* generateContent() {
   const logText = [
     "# Change log",
     "",
-    "Newest first. Every commit that touched a file served on this site: the source files, the skills, and the two Brain resources. Built from git history at generation time, so a shallow clone lists fewer entries.",
+    "Newest first. Every commit that touched a file served on this site: source files, skills, and public Brain pages. Built from git history at generation time, so a shallow clone lists fewer entries.",
     "",
     ...(logEntries.length === 0
       ? ["No git history was available when this build ran."]
@@ -1018,6 +1007,40 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
+  const loreDirectory = ".brain/resources/lore";
+
+  const loreEntries = yield* fileSystem
+    .readDirectory(path.join(root, loreDirectory))
+    .pipe(
+      Effect.mapError((cause) =>
+        buildError("read directory", loreDirectory, cause)
+      )
+    );
+
+  const loreTexts = yield* Effect.forEach(
+    loreEntries.filter((entry) => entry.endsWith(".svx")).toSorted(),
+    (filename) =>
+      Effect.gen(function* readLorePage() {
+        const sourcePath = `${loreDirectory}/${filename}`;
+        const rawText = yield* readText(sourcePath);
+
+        const metadata = yield* Effect.try({
+          catch: (cause) =>
+            Schema.is(ContentBuildError)(cause)
+              ? cause
+              : buildError("frontmatter", sourcePath, cause),
+          try: () => parseLorePage(sourcePath, rawText),
+        });
+
+        return {
+          ...metadata,
+          rawText,
+          text: deriveAgentMarkdown(rawText),
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+
   const servedRoutes = new Map<string, string>();
   const titles = new Map<string, string>();
 
@@ -1030,6 +1053,12 @@ const program = Effect.gen(function* generateContent() {
   for (const skill of skillTexts) {
     servedRoutes.set(skill.name, skill.routePath);
     titles.set(skill.routePath, skill.name);
+  }
+
+  for (const lore of loreTexts) {
+    servedRoutes.set(lore.slug, lore.routePath);
+    servedRoutes.set(lore.sourcePath, lore.routePath);
+    titles.set(lore.routePath, lore.title);
   }
 
   const resolveTarget = (
@@ -1105,6 +1134,30 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
+  const loreTargets = yield* Effect.forEach(
+    loreTexts,
+    (lore) => resolveTargets(lore.text, lore.routePath),
+    { concurrency: "unbounded" }
+  );
+
+  const loreRoutes = new Set([
+    "/lore",
+    ...loreTexts.map((lore) => lore.routePath),
+  ]);
+
+  const lorePageLinks = yield* Effect.forEach(
+    loreTexts,
+    (lore) =>
+      Effect.try({
+        catch: (cause) =>
+          Schema.is(ContentBuildError)(cause)
+            ? cause
+            : buildError("lore link", lore.sourcePath, cause),
+        try: () => loreLinkTargets(lore.sourcePath, lore.text, loreRoutes),
+      }),
+    { concurrency: "unbounded" }
+  );
+
   const linkedFrom = new Map<string, Set<string>>();
 
   const recordLinks = (from: string, targets: ReadonlyMap<string, string>) => {
@@ -1125,6 +1178,16 @@ const program = Effect.gen(function* generateContent() {
 
   for (const [index, skill] of skillTexts.entries()) {
     recordLinks(skill.routePath, skillTargets[index] ?? emptyTargets);
+  }
+
+  for (const [index, lore] of loreTexts.entries()) {
+    recordLinks(lore.routePath, loreTargets[index] ?? emptyTargets);
+
+    for (const route of lorePageLinks[index] ?? []) {
+      const sources = linkedFrom.get(route) ?? new Set<string>();
+      sources.add(lore.routePath);
+      linkedFrom.set(route, sources);
+    }
   }
 
   const lastChange = (sourcePath: string) =>
@@ -1163,6 +1226,7 @@ const program = Effect.gen(function* generateContent() {
   const trackedPaths = [
     ...publicSpecs.map((spec) => spec.sourcePath),
     ...skillTexts.map((skill) => skill.sourcePath),
+    ...loreTexts.map((lore) => lore.sourcePath),
   ].filter((sourcePath) => !sourcePath.includes(" "));
 
   const changes = yield* Effect.forEach(
@@ -1250,6 +1314,47 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
+  const loreBodies = yield* Effect.forEach(
+    loreTexts.map((lore, index) => ({
+      lore,
+      targets: loreTargets[index] ?? emptyTargets,
+    })),
+    ({ lore, targets }) =>
+      Effect.gen(function* renderLoreBody() {
+        const bodyHtml = yield* compileMarkdownBody(
+          lore.rawText,
+          lore.sourcePath,
+          highlighter,
+          targets
+        );
+
+        const sourceLinks = lore.sources
+          .map(
+            (source) =>
+              `<a href="${escapeHtml(source)}">${escapeHtml(source)}</a>`
+          )
+          .join(", ");
+
+        const sourceHtml =
+          sourceLinks === "" ? "" : `<p>Sources: ${sourceLinks}</p>`;
+
+        return {
+          bodyHtml: `${bodyHtml}${sourceHtml}${pageFooterHtml(lore.routePath, lore.sourcePath)}`,
+          lore,
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+
+  const loreIndexMarkdown = [
+    "# Rat Stack lore",
+    "",
+    "Short, source-grounded notes on the ideas and decisions behind rat-stack.",
+    "",
+    entryList(loreTexts),
+    "",
+  ].join("\n");
+
   const groupedSkills = skillGroups
     .flatMap((group) => {
       const members = skillBodies.flatMap(({ skill }) =>
@@ -1318,6 +1423,7 @@ Every MCP client works. Clients on protocol 2026-07-28 are served without sessio
 - [HTTP API docs](${originToken}/openapi.json)
 - [Short agent guide](${originToken}/llms.txt)
 - [All public agent docs](${originToken}/llms-full.txt)
+- [Lore wiki](${originToken}/lore)
 
 ## Four ideas
 
@@ -1430,6 +1536,12 @@ ${groupedSkills}
     highlighter
   );
 
+  const loreIndexBodyHtml = yield* compileMarkdownBody(
+    loreIndexMarkdown,
+    "ratstack-lore.md",
+    highlighter
+  );
+
   const staticSourcePathGroups = yield* Effect.forEach(
     ["apps/mischief/src", "packages/capability/src"],
     (directory) =>
@@ -1465,12 +1577,16 @@ ${groupedSkills}
       homeBodyHtml,
       skillIndexMarkdown,
       skillIndexBodyHtml,
+      loreIndexMarkdown,
+      loreIndexBodyHtml,
       emojiSvg,
       stylesheet,
       ...publicSpecs.map((spec) => spec.text),
       ...lawBodies.map(({ bodyHtml }) => bodyHtml),
       ...skillTexts.map((skill) => skill.text),
       ...skillBodies.map(({ bodyHtml }) => bodyHtml),
+      ...loreTexts.map((lore) => lore.text),
+      ...loreBodies.map(({ bodyHtml }) => bodyHtml),
       ...staticSourceText,
     ].join("\u0000")
   ).slice(0, 16);
@@ -1489,6 +1605,13 @@ ${groupedSkills}
     title: "Learn the stack | rat-stack",
   } as const;
 
+  const loreIndexMetadata = {
+    description:
+      "Short, source-grounded notes on the ideas and decisions behind rat-stack.",
+    path: "/lore",
+    title: "Rat Stack lore | rat-stack",
+  } as const;
+
   const ogPages: readonly OgPage[] = [
     {
       description: homeMetadata.description,
@@ -1500,6 +1623,11 @@ ${groupedSkills}
       routePath: "/skills",
       title: "Learn the stack",
     },
+    {
+      description: loreIndexMetadata.description,
+      routePath: "/lore",
+      title: "Rat Stack lore",
+    },
     ...publicSpecs.map(({ description, routePath, title }) => ({
       description,
       routePath,
@@ -1509,6 +1637,11 @@ ${groupedSkills}
       description,
       routePath,
       title: name,
+    })),
+    ...loreTexts.map(({ description, routePath, title }) => ({
+      description,
+      routePath,
+      title,
     })),
   ];
 
@@ -1605,6 +1738,39 @@ ${groupedSkills}
     { concurrency: "unbounded" }
   );
 
+  const loreSources = yield* Effect.forEach(
+    loreBodies,
+    ({ bodyHtml, lore }) =>
+      Effect.gen(function* renderLorePage() {
+        const documentHtml = yield* makeDocument(
+          bodyHtml,
+          {
+            breadcrumbHref: "/lore",
+            breadcrumbLabel: "lore",
+            breadcrumbName: lore.title,
+            description: lore.description,
+            path: lore.routePath,
+            title: `${lore.title} | rat-stack`,
+          },
+          lore.sourcePath,
+          contentVersion
+        );
+
+        return {
+          description: lore.description,
+          digest: digest(lore.text),
+          documentHtml,
+          routePath: lore.routePath,
+          slug: lore.slug,
+          sourcePath: lore.sourcePath,
+          sources: lore.sources,
+          text: lore.text,
+          title: lore.title,
+        };
+      }),
+    { concurrency: "unbounded" }
+  );
+
   const homeDocumentHtml = yield* makeDocument(
     homeBodyHtml,
     homeMetadata,
@@ -1619,9 +1785,16 @@ ${groupedSkills}
     contentVersion
   );
 
+  const loreIndexDocumentHtml = yield* makeDocument(
+    loreIndexBodyHtml,
+    loreIndexMetadata,
+    "ratstack-lore.md",
+    contentVersion
+  );
+
   const staticContentVersion = contentVersion;
 
-  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const ratSvg = ${sourceLiteral(emojiSvg)} as const;\n\nexport const faviconIcoBase64 = ${sourceLiteral(faviconIcoBase64)} as const;\n\nexport const appleTouchIconPngBase64 = ${sourceLiteral(appleTouchIconPngBase64)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n`;
+  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const ratSvg = ${sourceLiteral(emojiSvg)} as const;\n\nexport const faviconIcoBase64 = ${sourceLiteral(faviconIcoBase64)} as const;\n\nexport const appleTouchIconPngBase64 = ${sourceLiteral(appleTouchIconPngBase64)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const loreIndexMarkdown = ${sourceLiteral(loreIndexMarkdown)} as const;\n\nexport const loreIndexDocumentHtml = ${sourceLiteral(loreIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n\nexport const loreSources = ${sourceLiteral(loreSources)} as const;\n`;
 
   const temporaryOutput = yield* fileSystem
     .makeTempFile({

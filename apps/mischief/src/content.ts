@@ -1,6 +1,8 @@
 import {
   homeMarkdownTemplate,
   lawSources,
+  loreIndexMarkdown,
+  loreSources,
   originToken,
   skillIndexMarkdown,
   skillSources,
@@ -10,6 +12,7 @@ export {
   appleTouchIconPngBase64,
   faviconIcoBase64,
   homeDocumentHtml,
+  loreIndexDocumentHtml,
   ogImages,
   ratSvg,
   skillIndexDocumentHtml,
@@ -19,7 +22,7 @@ export {
 export const ogImagePath = (routePath: string): `/${string}` =>
   `/og${routePath === "/" ? "/home" : routePath}.png`;
 
-export type ContentKind = "law" | "skill";
+export type ContentKind = "law" | "skill" | "lore";
 
 export interface ContentResource {
   readonly description: string;
@@ -47,6 +50,15 @@ export const lawResources: readonly ContentResource[] = lawSources.map(
   })
 );
 
+export const loreResources: readonly ContentResource[] = loreSources.map(
+  (source) => ({
+    ...source,
+    id: `ratstack://lore/${source.slug}`,
+    kind: "lore" as const,
+    name: source.slug,
+  })
+);
+
 export const skills: readonly ContentResource[] = skillSources.map(
   (source) => ({
     ...source,
@@ -58,6 +70,7 @@ export const skills: readonly ContentResource[] = skillSources.map(
 
 export const contentResources: readonly ContentResource[] = [
   ...lawResources,
+  ...loreResources,
   ...skills,
 ];
 
@@ -116,7 +129,7 @@ The reference for building an app and its cloud as one typed program: Effect, Al
 ## Read this repo
 
 - [Home](${origin}/): short overview
-- [All public docs](${origin}/llms-full.txt): rules and skills in one response
+- [All public docs](${origin}/llms-full.txt): rules, lore, and skills in one response
 - [HTTP API](${origin}/openapi.json): routes, inputs, outputs, and errors
 - [MCP server](${origin}/mcp): tools for search, reading, and sandboxed code
 
@@ -147,6 +160,10 @@ curl --request POST '${origin}/api/execute' \\
 
 ${entryList(lawResources)}
 
+## Lore
+
+${entryList(loreResources)}
+
 ## Skills
 
 ${entryList(skills)}
@@ -162,6 +179,8 @@ export const llmsFullText = (origin: string) =>
   ].join("\n");
 
 export const skillIndex = () => skillIndexMarkdown;
+
+export const loreIndex = () => loreIndexMarkdown;
 
 export const robotsText = `User-agent: *
 Allow: /
@@ -193,6 +212,7 @@ export const publicPaths = [
   "/robots.txt",
   "/sitemap.xml",
   "/skills",
+  "/lore",
   "/.well-known/agent-card.json",
   "/.well-known/agent.json",
   "/.well-known/agent-skills/index.json",
@@ -200,6 +220,7 @@ export const publicPaths = [
   "/.well-known/api-catalog",
   "/.well-known/mcp.json",
   ...lawResources.map((resource) => resource.routePath),
+  ...loreResources.map((resource) => resource.routePath),
   ...skills.flatMap((skill) => [skill.routePath, agentSkillPath(skill.name)]),
 ] as const;
 

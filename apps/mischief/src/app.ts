@@ -24,6 +24,9 @@ import {
   faviconIcoBase64,
   homeDocumentHtml,
   lawResources,
+  loreIndex,
+  loreIndexDocumentHtml,
+  loreResources,
   linkHeader,
   llmsFullText,
   llmsText,
@@ -138,7 +141,9 @@ const staticPaths = new Set<string>([
 const negotiatedHtmlPaths = new Set<string>([
   "/",
   "/skills",
+  "/lore",
   ...lawResources.map((resource) => resource.routePath),
+  ...loreResources.map((resource) => resource.routePath),
   ...skills.map((skill) => skill.routePath),
 ]);
 
@@ -300,7 +305,7 @@ export const mcpLayer = (
     McpServer.toolkit(toolkitProjection.toolkit).pipe(
       Layer.provide(toolkitProjection.layer)
     ),
-    ...lawResources.map((resource) =>
+    ...[...lawResources, ...loreResources].map((resource) =>
       McpServer.resource({
         content: Effect.succeed(resource.text),
         description: resource.description,
@@ -342,6 +347,13 @@ const contentRoutes = Layer.mergeAll(
       acceptsHtml(request)
         ? html(renderStaticDocument(originOf(request), skillIndexDocumentHtml))
         : markdown(skillIndex())
+    )
+  ),
+  HttpRouter.add("GET", "/lore", (request) =>
+    Effect.succeed(
+      acceptsHtml(request)
+        ? html(renderStaticDocument(originOf(request), loreIndexDocumentHtml))
+        : markdown(loreIndex())
     )
   ),
   HttpRouter.add(
@@ -421,6 +433,15 @@ const contentRoutes = Layer.mergeAll(
     Effect.succeed(json(mcpServerCard(originOf(request))))
   ),
   ...lawResources.map((resource) =>
+    HttpRouter.add("GET", resource.routePath, (request) =>
+      Effect.succeed(
+        acceptsHtml(request)
+          ? html(renderStaticDocument(originOf(request), resource.documentHtml))
+          : markdown(resource.text)
+      )
+    )
+  ),
+  ...loreResources.map((resource) =>
     HttpRouter.add("GET", resource.routePath, (request) =>
       Effect.succeed(
         acceptsHtml(request)

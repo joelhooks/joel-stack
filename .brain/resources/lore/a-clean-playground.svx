@@ -1,0 +1,15 @@
+---
+title: "A clean playground"
+description: "rat-stack is a place to do real work with pieces that stay easy to add and remove."
+sources:
+  - https://github.com/joelhooks/rat-stack/blob/main/VISION.md
+  - https://github.com/joelhooks/rat-stack/blob/main/.brain/projects/layer-startups.svx
+---
+
+The house rule is a clean, organized playground where real work gets done. It does not cap the size of the project. Anything useful can go in if it passes the cartridge test: label it, push it in, pull it out, keep it self-contained, and make it easy to throw away.
+
+`VISION.md` says anything built here is real and rejects toy examples that exist only to demonstrate a pattern. rat-stack is a reference that other projects vendor like a library. Its example CLI inspects real files. Its database cartridge owns a `RunLog` service and two vendor Layers. The website's search and read capabilities serve the public repo. These are working pieces, not isolated pattern demos.
+
+The clean-playground test asks what remains when one bin is removed. If other packages need a new import path, if bindings spill into unrelated layers, or if the full gate fails, the piece is not pullable yet. `VISION.md` describes the cartridge test; `AGENTS.md` assigns each package one job and sets the gate.
+
+See [cartridges](/lore/cartridges) for the infrastructure example and [the fence](/lore/the-fence) for the checks that make removal honest.
