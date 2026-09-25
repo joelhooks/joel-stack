@@ -2,7 +2,7 @@
 
 rat-stack is the reference for how we build: an app and its cloud as one typed program. Effect owns the hard parts, Alchemy infers the infrastructure from the code, and the fence raises the floor, so an agent can build it reliably with high-trust.
 
-_An Effect app so pure Kit Langton will blush (aspirationally)._
+_An Effect stack so pure Kit Langton will blush (aspirationally)._
 
 The goal is to **build the best Effect + Alchemy application that we can**, as close to a perfect Effect application as we can get. Every change here moves toward that, and projects that grow out of rat-stack move toward it too. In practice:
 
