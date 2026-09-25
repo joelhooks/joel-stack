@@ -7,12 +7,14 @@ import * as HttpRouter from "effect/unstable/http/HttpRouter";
 
 import { mischiefRoutes } from "../src/app.js";
 import type { StaticResponseCache } from "../src/app.js";
+import { loreSources } from "../src/bundled-content.generated.js";
 import {
   a2aAgentCard,
   agentSkillPath,
   ardManifest,
   authMarkdown,
   lawResources,
+  loreResources,
   linkHeader,
   llmsText,
   markdownDocument,
@@ -29,6 +31,11 @@ import type {
 import { TestSandbox } from "./test-sandbox.js";
 
 type WebHandler = (request: Request) => Promise<Response>;
+
+const responseText = (handler: WebHandler, request: Request) =>
+  Effect.promise(handler.bind(undefined, request)).pipe(
+    Effect.flatMap((response) => Effect.promise(response.text.bind(response)))
+  );
 
 interface FakeStaticResponseCache extends StaticResponseCache {
   readonly matchKeys: string[];
@@ -668,6 +675,138 @@ it.effect(
     )
 );
 
+it.effect("publishes lore to human and agent surfaces", () =>
+  withHandler((handler) =>
+    Effect.gen(function* testLoreSurfaces() {
+      const page = loreResources.find(
+        (resource) => resource.name === "one-capability-every-surface"
+      );
+
+      if (page === undefined) {
+        throw new Error("Missing capability lore page");
+      }
+
+      const loreSource = loreSources.find(
+        (source) => source.slug === page.name
+      );
+
+      const [source] = loreSource?.sources ?? [];
+
+      if (source === undefined) {
+        throw new Error("Capability lore page has no public source");
+      }
+
+      const loreIndexMarkdown = yield* responseText(
+        handler,
+        new Request("http://localhost/lore")
+      );
+
+      const loreIndexHtml = yield* responseText(
+        handler,
+        new Request("http://localhost/lore", {
+          headers: { accept: "text/html" },
+        })
+      );
+
+      const pageMarkdown = yield* responseText(
+        handler,
+        new Request(`http://localhost${page.routePath}`)
+      );
+
+      const pageHtml = yield* responseText(
+        handler,
+        new Request(`http://localhost${page.routePath}`, {
+          headers: { accept: "text/html" },
+        })
+      );
+
+      const llms = yield* responseText(
+        handler,
+        new Request("http://localhost/llms.txt")
+      );
+
+      const llmsFull = yield* responseText(
+        handler,
+        new Request("http://localhost/llms-full.txt")
+      );
+
+      const sitemap = yield* responseText(
+        handler,
+        new Request("http://localhost/sitemap.xml")
+      );
+
+      expect(loreIndexMarkdown).toContain(`[${page.title}](${page.routePath})`);
+      expect(loreIndexHtml).toContain('<a href="/lore">lore</a>');
+      expect(loreIndexHtml).toContain("Rat Stack lore | rat-stack");
+      expect(pageMarkdown).toBe(page.text);
+      expect(pageHtml).toContain(`<title>${page.title} | rat-stack</title>`);
+      expect(pageHtml).toContain(`Sources: <a href="${source}">`);
+      expect(pageHtml).toContain(
+        'Linked from: <a href="/lore/an-mcp-your-users-want">An MCP your users want</a>'
+      );
+      expect(llms).toContain("## Lore");
+      expect(llms).toContain(`[${page.title}](${page.routePath})`);
+      expect(llmsFull).toContain(page.text);
+      expect(sitemap).toContain(`https://ratstack.sh${page.routePath}`);
+
+      const searchResponse = yield* postMcp(
+        handler,
+        "search-lore",
+        "tools/call",
+        {
+          arguments: { limit: 20, query: "one capability every surface" },
+          name: "search",
+        },
+        "search"
+      );
+
+      const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
+        (yield* Schema.decodeUnknownEffect(ToolCallResponse)(
+          yield* readJson(searchResponse)
+        )).result.structuredContent
+      );
+
+      const match = searchResult.matches.find((entry) => entry.id === page.id);
+
+      expect(match).toMatchObject({ id: page.id, kind: "lore" });
+
+      const readResponse = yield* postMcp(
+        handler,
+        "read-lore",
+        "tools/call",
+        { arguments: { id: page.id }, name: "read" },
+        "read"
+      );
+
+      const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
+        (yield* Schema.decodeUnknownEffect(ToolCallResponse)(
+          yield* readJson(readResponse)
+        )).result.structuredContent
+      );
+
+      expect(readResult).toMatchObject({
+        id: page.id,
+        kind: "lore",
+        text: page.text,
+      });
+
+      const resourcesResponse = yield* postMcp(
+        handler,
+        "list-lore-resources",
+        "resources/list"
+      );
+
+      const resources = yield* Schema.decodeUnknownEffect(NamedListResponse)(
+        yield* readJson(resourcesResponse)
+      );
+
+      expect(
+        resources.result.resources?.map((resource) => resource.name)
+      ).toContain(page.name);
+    })
+  )
+);
+
 it.effect("sets security headers on every response", () =>
   withHandler((handler) =>
     Effect.gen(function* testSecurityHeaders() {
@@ -1058,6 +1197,7 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
         yield* Schema.decodeUnknownEffect(OpenApiDocument)(openapiBody);
 
       expect(document.info.title).toBe("ratstack.sh");
+      expect(JSON.stringify(openapiBody)).toContain('"lore"');
       expect(Object.keys(document.paths).toSorted()).toEqual([
         "/api/execute",
         "/api/read",
@@ -1536,6 +1676,7 @@ it.effect(
         )?.description;
 
         expect(executeDescription).toContain("`code` argument");
+        expect(executeDescription).toContain('"lore"');
         expect(executeDescription).toContain(
           "The program is the body of an async function"
         );
@@ -1546,7 +1687,9 @@ it.effect(
           'const found = await tools.search({ query: "capability", limit: 1 });\nreturn await tools.read({ id: found.matches[0].id });'
         );
         expect(resourceNames?.toSorted()).toEqual(
-          lawResources.map((resource) => resource.name).toSorted()
+          [...lawResources, ...loreResources]
+            .map((resource) => resource.name)
+            .toSorted()
         );
         expect(promptNames?.toSorted()).toEqual(
           skills.map((skill) => skill.name).toSorted()
