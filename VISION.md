@@ -2,6 +2,14 @@
 
 rat-stack is the reference for how we build: an app and its cloud as one typed program. Effect owns the hard parts, Alchemy infers the infrastructure from the code, and the fence raises the floor, so an agent can build it reliably with high-trust.
 
+The goal is to **build the best Effect + Alchemy application that we can**, as close to a perfect Effect application as we can get. Every change here moves toward that, and projects that grow out of rat-stack move toward it too. In practice:
+
+- New code takes the rat-stack path: a shared contract, a typed service, a provider adapter, and an outcome you can observe.
+- Existing code is finished that way when someone touches it, and the old version is deleted.
+- Debt only shrinks. Plain async code moves onto Effect, and lint exemptions get retired, never added.
+- The fence (lint, types, the Effect language service, CI) makes the easy path the right one.
+- Where a platform behaves differently from a test fake, test against the real thing. [Worker init runs twice](https://ratstack.sh/lore/init-runs-twice) is what happens when you don't.
+
 We and our agents use it to understand what we are building. Real projects take it in the way they take a library: vendor it, keep the bins they need, and pull the rest.
 
 It is also the working code behind a YouTube series by [Joel Hooks](https://www.youtube.com/@JoelHooks) on Alchemy and Effect. Every claim made on camera points at something that runs here. The series arc lives with the content research. `ratstack.sh` is the teaching surface.
@@ -91,12 +99,12 @@ Everything built here is real.
 
 - Does the type system protect infrastructure correctness? Removing a binding should make typecheck fail. Not yet proven in this repo.
 - Does importing `apps/infra/alchemy.run.ts` stay pure? It should deploy nothing. Not yet proven by a test.
-- Can a vendor be swapped by changing one line? The database tag should prove it. Not yet built.
+- Can a vendor be swapped by changing one line? `packages/database` has one `DatabaseVendor` with D1 and Hyperdrive Postgres Layers, both tested. No test swaps them yet.
 - Where does a correction to an agent live? Lauren Tan's fence ladder puts code first, then lint and CI, then rules and skills, with the style guide last. The `--no-verify` rung is proven today by `packages/core/test/vcs-command-policy.test.ts`.
 
 ## Open questions
 
-- Where do `ratstack.sh` and its public wiki live: in this repo, or in a site repo that consumes it? A public wiki would be its own layer, derived from the private research and redacted.
+- Does `ratstack.sh` stay in this repo? For now it does: the [lore wiki](https://ratstack.sh/lore/) is built from `.brain/resources/lore/`, and it cites only public sources.
 
 ## Merge by default
 
