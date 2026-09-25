@@ -1,6 +1,6 @@
 ---
 name: add-a-capability
-description: Learn how one contract and its handler become a command, HTTP route, MCP tool, and sandbox call.
+description: Learn how one contract and its handler become a command, HTTP route, MCP tool, browser RPC, and sandbox call.
 ---
 
 # Add a capability
@@ -57,7 +57,7 @@ The order is public. The tuple feeds the projections and code-mode declarations.
 
 ## 4. Project the implementation
 
-The CLI, HTTP, MCP, and code-mode projections take implemented capabilities. They read names, schemas, annotations, and approval settings from `capability.contract`.
+The CLI, HTTP, MCP, RPC, and code-mode projections take implemented capabilities. They read names, schemas, annotations, and approval settings from `capability.contract`.
 
 - HTTP adds `POST /doThing` and updates OpenAPI.
 - MCP adds a `doThing` tool with the same schemas and flags.
@@ -66,7 +66,7 @@ The CLI, HTTP, MCP, and code-mode projections take implemented capabilities. The
 
 `toCommand` builds one CLI command from the registered tuple. Open `apps/cli/src/command.ts` only when the command needs a positional argument, custom renderer, or alias. Use `name`, `positional`, and `render` for those cases. `toCommand` adds `--json`; do not parse fields again or call the service directly.
 
-For browser RPC clients, import contracts from `@rat-stack/core/contracts` and `toRpcGroup` from `@rat-stack/capability/rpc-group`. Do not import a handler or the server-side `toRpc` projection.
+RPC serves the browser, not an agent interface. Browser clients import contracts from `@rat-stack/core/contracts` and `toRpcGroup` from `@rat-stack/capability/rpc-group`; they do not import a handler or the server-side `toRpc` projection.
 
 ## 5. Test it
 

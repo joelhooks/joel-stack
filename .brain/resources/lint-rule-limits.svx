@@ -25,7 +25,7 @@ These ten rules are bounded syntax checks, not a TypeScript module resolver or w
 | `contract-binding-matches-name` | Imported `defineContract`, stable aliases, static string/template names, transparent wrappers, and later identifier assignments are checked. | Dynamic names, destructured bindings, unknown computed members, and aliases/re-exports crossing files need resolution. |
 | `watch-effect-actors` | Each assigned `createEffectActor` binding is matched to an identifier passed to `watchActor`; inline actor calls are matched separately. Stable aliases and direct `.call`/static `.apply` forms are recognized. | A watcher in dead code still counts, and lint cannot prove execution or coverage on every branch. Dynamic/spread arguments and helper calls in other files require flow analysis. |
 
-## Copy surface for drovr
+## Copy surface for downstream projects
 
 - From `scripts/oxlint-plugin-boundaries.ts`: `isStringModule`, `staticPropertyName`, `importIdentity`, `variableOf`, `isStableVariable`, `moduleSourceVisitors`, `isReference`, `isTypePosition`, and the focused visitors in `noFeatureTransport`, `noHandRolledSurface`, and `noBrowserGlobalsOnServer`.
 - From `scripts/oxlint-plugin-patterns.ts`: `importIdentity`, `isEffectCall`, `expressionForVariable`, `variableBinding`, and `watchEffectActors`' per-binding `Program:exit` check.

@@ -8,7 +8,7 @@ privacy: "public"
 
 # Effect + Alchemy peer patterns for rat-stack
 
-Source review for the web client, Alchemy resources, database, Better Auth, Worker tests, and boundary enforcement. The candidates came from the [peer roster](./peers.svx), which links back here from each studied repo. See [the layer-startups decision](../projects/layer-startups.svx) for the choices these patterns should serve.
+Source review for the web client, Alchemy resources, database, Better Auth, Worker tests, and boundary enforcement. The candidates came from the [peer roster](./peers.svx), which links back here from each studied repo. See [the layer-startups decision](https://github.com/joelhooks/rat-stack/blob/main/.brain/projects/layer-startups.svx) for the choices these patterns should serve.
 
 ## Pin reality
 
