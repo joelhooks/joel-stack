@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml)
 
-Joel's **agentic scaffold** for an Effect app. `VISION.md` explains why. `AGENTS.md` defines the fence through exact pins, checks, and hooks. The public tree is for stealing ideas, not a supported product. It ships as a **pnpm + Turborepo workspace** with a real Effect v4 CLI, tests, formatting, type-aware linting, and vendored source mirrors for Effect, effect-solutions, XState, and Alchemy.
+Joel's **agentic scaffold** for an Effect app. The goal is to build the best Effect + Alchemy application we can; `VISION.md` explains why. `AGENTS.md` defines the fence through exact pins, checks, and hooks. The public tree is for stealing ideas, not a supported product. It ships as a **pnpm + Turborepo workspace** with a real Effect v4 CLI, tests, formatting, type-aware linting, and vendored source mirrors for Effect, effect-solutions, XState, and Alchemy.
 
 The shape it teaches: define a **Contract** once (Effect input, output, and failure schemas plus annotations), bind a server-side handler, then project that capability onto every agent surface. The same `inspectFile` capability is the `stats` command, `POST /inspectFile` with an OpenAPI document, and an MCP tool over stdio.
 
