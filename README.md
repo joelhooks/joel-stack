@@ -1,6 +1,6 @@
 # rat-stack 🐀
 
-_An Effect app so pure Kit Langton will blush (aspirationally)._
+_An Effect stack so pure Kit Langton will blush (aspirationally)._
 
 [![CI](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/joelhooks/rat-stack/actions/workflows/ci.yml)
 
