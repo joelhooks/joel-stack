@@ -2,6 +2,8 @@
 import { createHash } from "node:crypto";
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { buildLoreGraph, LoreGraphSnapshotSchema } from "@rat-stack/lore/build";
+import type { LoreBuildPage } from "@rat-stack/lore/build";
 import { Resvg } from "@resvg/resvg-js";
 import {
   Effect,
@@ -573,6 +575,7 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
     routePath: string = sourcePath
   ) {
     const linkedLoreRoutes = new Set<string>();
+    const linkedLoreTerms = new Map<string, string>();
 
     const transformed = yield* Effect.tryPromise({
       catch: (cause) => buildError("mdsvex compile", sourcePath, cause),
@@ -590,7 +593,13 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
             tableCellLabels,
             linkCodeSpans(targets),
             linkStackEntities,
-            linkLoreTerms(loreTerms, routePath, linkedLoreRoutes),
+            linkLoreTerms(
+              loreTerms,
+              routePath,
+              linkedLoreRoutes,
+              12,
+              linkedLoreTerms
+            ),
           ],
           // SAFETY: remark-gfm is a unified remark plugin; mdsvex types its options with `Plugin` from the unified version it bundles.
           remarkPlugins: [remarkGfm as Plugin],
@@ -607,7 +616,14 @@ const compileMarkdownBody = Effect.fn("compileMarkdownBody")(
       try: () => render(component, { props: {} }).body,
     });
 
-    return { bodyHtml, linkedLoreRoutes };
+    return {
+      bodyHtml,
+      linkedLoreRoutes,
+      linkedLoreTerms: [...linkedLoreTerms].map(([target, term]) => ({
+        target,
+        term,
+      })),
+    };
   }
 );
 
@@ -1447,26 +1463,23 @@ const program = Effect.gen(function* generateContent() {
     { concurrency: "unbounded" }
   );
 
-  const linkedFrom = new Map<string, Set<string>>();
+  const linkTargetsBySource = new Map<string, Set<string>>();
 
   const recordLoreRoutes = (from: string, routes: Iterable<string>) => {
+    const targets = linkTargetsBySource.get(from) ?? new Set<string>();
+
     for (const route of routes) {
-      const sources = linkedFrom.get(route) ?? new Set<string>();
-      sources.add(from);
-      linkedFrom.set(route, sources);
+      targets.add(route);
     }
+
+    linkTargetsBySource.set(from, targets);
   };
 
   const recordLinks = (from: string, targets: ReadonlyMap<string, string>) => {
-    for (const href of targets.values()) {
-      if (!href.startsWith("/")) {
-        continue;
-      }
-
-      const sources = linkedFrom.get(href) ?? new Set<string>();
-      sources.add(from);
-      linkedFrom.set(href, sources);
-    }
+    recordLoreRoutes(
+      from,
+      [...targets.values()].filter((href) => href.startsWith("/"))
+    );
   };
 
   for (const [index, spec] of publicSpecs.entries()) {
@@ -1537,44 +1550,6 @@ const program = Effect.gen(function* generateContent() {
     }
   }
 
-  const pageFooterHtml = (route: string, sourcePath: string) => {
-    const lines: string[] = [];
-    const change = lastChanges.get(sourcePath);
-
-    if (change !== undefined) {
-      lines.push(
-        `<p>Last changed ${change.date} in <a href="${repoUrl}/commit/${change.hash}">${change.short}</a>. <a href="${repoUrl}/blob/main/${sourcePath}">Source on GitHub</a>. <a href="/log.md">Change log</a>.</p>`
-      );
-    }
-
-    const sources = [...(linkedFrom.get(route) ?? [])].toSorted();
-
-    if (sources.length > 0) {
-      const grouped = new Map<string, string[]>();
-
-      for (const source of sources) {
-        const kind = pageKinds.get(source) ?? "Page";
-        const entries = grouped.get(kind) ?? [];
-        entries.push(
-          `<a href="${source}">${escapeHtml(titles.get(source) ?? source)}</a>`
-        );
-        grouped.set(kind, entries);
-      }
-
-      const groups = [...grouped]
-        .toSorted(([left], [right]) => left.localeCompare(right))
-        .map(
-          ([kind, links]) =>
-            `<li><strong>${escapeHtml(kind)}</strong>: ${links.join(", ")}</li>`
-        )
-        .join("");
-
-      lines.push(`<p>Linked from:</p><ul>${groups}</ul>`);
-    }
-
-    return lines.length === 0 ? "" : `<hr>${lines.join("")}`;
-  };
-
   const lawBodies = yield* Effect.forEach(
     publicSpecs.map((spec, index) => ({
       spec,
@@ -1582,18 +1557,20 @@ const program = Effect.gen(function* generateContent() {
     })),
     ({ spec, targets }) =>
       Effect.gen(function* renderPublicBody() {
-        const { bodyHtml, linkedLoreRoutes } = yield* compileMarkdownBody(
-          spec.rawText,
-          compileName(spec),
-          highlighter,
-          targets,
-          loreTermIndex,
-          spec.routePath
-        );
+        const { bodyHtml, linkedLoreRoutes, linkedLoreTerms } =
+          yield* compileMarkdownBody(
+            spec.rawText,
+            compileName(spec),
+            highlighter,
+            targets,
+            loreTermIndex,
+            spec.routePath
+          );
 
         return {
           bodyHtml,
           linkedLoreRoutes,
+          linkedLoreTerms,
           spec: {
             ...spec,
             text: appendLoreMarkdown(spec.text, linkedLoreRoutes),
@@ -1610,18 +1587,20 @@ const program = Effect.gen(function* generateContent() {
     })),
     ({ skill, targets }) =>
       Effect.gen(function* renderSkillBody() {
-        const { bodyHtml, linkedLoreRoutes } = yield* compileMarkdownBody(
-          skill.rawText,
-          skill.sourcePath,
-          highlighter,
-          targets,
-          loreTermIndex,
-          skill.routePath
-        );
+        const { bodyHtml, linkedLoreRoutes, linkedLoreTerms } =
+          yield* compileMarkdownBody(
+            skill.rawText,
+            skill.sourcePath,
+            highlighter,
+            targets,
+            loreTermIndex,
+            skill.routePath
+          );
 
         return {
           bodyHtml,
           linkedLoreRoutes,
+          linkedLoreTerms,
           skill: {
             ...skill,
             text: appendLoreMarkdown(skill.text, linkedLoreRoutes),
@@ -1638,14 +1617,15 @@ const program = Effect.gen(function* generateContent() {
     })),
     ({ lore, targets }) =>
       Effect.gen(function* renderLoreBody() {
-        const { bodyHtml, linkedLoreRoutes } = yield* compileMarkdownBody(
-          lore.rawText,
-          lore.sourcePath,
-          highlighter,
-          targets,
-          loreTermIndex,
-          lore.routePath
-        );
+        const { bodyHtml, linkedLoreRoutes, linkedLoreTerms } =
+          yield* compileMarkdownBody(
+            lore.rawText,
+            lore.sourcePath,
+            highlighter,
+            targets,
+            loreTermIndex,
+            lore.routePath
+          );
 
         const sourceLinks = lore.sources
           .map(
@@ -1660,6 +1640,7 @@ const program = Effect.gen(function* generateContent() {
         return {
           bodyHtml: `${bodyHtml}${sourceHtml}`,
           linkedLoreRoutes,
+          linkedLoreTerms,
           lore: {
             ...lore,
             text: appendLoreMarkdown(lore.text, linkedLoreRoutes),
@@ -2074,41 +2055,57 @@ ${groupedSkills}
       routePath: "/",
       routes: homeBody.linkedLoreRoutes,
       sourcePath: "ratstack-home.md",
+      text: homeMarkdownSource,
+      wovenLinks: homeBody.linkedLoreTerms,
     },
     {
       routePath: trapRoutePath,
       routes: noVerifyBody.linkedLoreRoutes,
       sourcePath: "no-verify.md",
+      text: noVerifyMarkdown,
+      wovenLinks: noVerifyBody.linkedLoreTerms,
     },
     {
       routePath: "/skills",
       routes: skillIndexBody.linkedLoreRoutes,
       sourcePath: "ratstack-skills.md",
+      text: skillIndexSourceMarkdown,
+      wovenLinks: skillIndexBody.linkedLoreTerms,
     },
     {
       routePath: "/lore",
       routes: loreIndexBody.linkedLoreRoutes,
       sourcePath: "ratstack-lore.md",
+      text: loreIndexSourceMarkdown,
+      wovenLinks: loreIndexBody.linkedLoreTerms,
     },
     {
       routePath: "/llms.txt",
       routes: llmsBody.linkedLoreRoutes,
       sourcePath: "ratstack-llms.md",
+      text: llmsSourceMarkdown,
+      wovenLinks: llmsBody.linkedLoreTerms,
     },
-    ...lawBodies.map(({ linkedLoreRoutes, spec }) => ({
+    ...lawBodies.map(({ linkedLoreRoutes, linkedLoreTerms, spec }) => ({
       routePath: spec.routePath,
       routes: linkedLoreRoutes,
       sourcePath: spec.sourcePath,
+      text: spec.rawText,
+      wovenLinks: linkedLoreTerms,
     })),
-    ...skillBodies.map(({ linkedLoreRoutes, skill }) => ({
+    ...skillBodies.map(({ linkedLoreRoutes, linkedLoreTerms, skill }) => ({
       routePath: skill.routePath,
       routes: linkedLoreRoutes,
       sourcePath: skill.sourcePath,
+      text: skill.rawText,
+      wovenLinks: linkedLoreTerms,
     })),
-    ...loreBodies.map(({ linkedLoreRoutes, lore }) => ({
+    ...loreBodies.map(({ linkedLoreRoutes, linkedLoreTerms, lore }) => ({
       routePath: lore.routePath,
       routes: linkedLoreRoutes,
       sourcePath: lore.sourcePath,
+      text: lore.rawText,
+      wovenLinks: linkedLoreTerms,
     })),
   ];
 
@@ -2186,6 +2183,111 @@ ${groupedSkills}
     "/llms-full.txt",
     loreTexts.map((lore) => lore.routePath)
   );
+
+  const loreByRoute = new Map<string, (typeof loreTexts)[number]>(
+    loreTexts.map((lore) => [lore.routePath, lore])
+  );
+
+  const graphPages: LoreBuildPage[] = [
+    ...wovenPages.map((page) => {
+      const lore = loreByRoute.get(page.routePath);
+
+      const sourcePage = {
+        group: pageKinds.get(page.routePath) ?? "Page",
+        id: page.routePath,
+        routePath: page.routePath,
+        text: page.text,
+        title: titles.get(page.routePath) ?? page.routePath,
+        url: `https://ratstack.sh${page.routePath}`,
+        wovenLinks: page.wovenLinks,
+      };
+
+      if (lore === undefined) {
+        return sourcePage;
+      }
+
+      const loreMetadata = {
+        description: lore.description,
+        group: lore.group,
+        slug: lore.slug,
+        sources: lore.sources,
+        terms: lore.terms,
+      };
+
+      if (lore.url === undefined) {
+        return { ...sourcePage, lore: loreMetadata };
+      }
+
+      return {
+        ...sourcePage,
+        lore: { ...loreMetadata, sourceUrl: lore.url },
+      };
+    }),
+    {
+      group: pageKinds.get("/llms-full.txt") ?? "Page",
+      id: "/llms-full.txt",
+      routePath: "/llms-full.txt",
+      text: "",
+      title: titles.get("/llms-full.txt") ?? "Full agent guide",
+      url: "https://ratstack.sh/llms-full.txt",
+    },
+  ];
+
+  const loreGraphSnapshot = yield* Schema.decodeEffect(LoreGraphSnapshotSchema)(
+    buildLoreGraph({
+      links: [...linkTargetsBySource].flatMap(([from, targets]) =>
+        [...targets].map((to) => ({ from, to }))
+      ),
+      pages: graphPages,
+    })
+  );
+
+  const loreGraphSnapshotJson = yield* Schema.decodeUnknownEffect(Schema.Json)(
+    loreGraphSnapshot
+  );
+
+  const pageFooterHtml = (route: string, sourcePath: string) => {
+    const lines: string[] = [];
+    const change = lastChanges.get(sourcePath);
+
+    if (change !== undefined) {
+      lines.push(
+        `<p>Last changed ${change.date} in <a href="${repoUrl}/commit/${change.hash}">${change.short}</a>. <a href="${repoUrl}/blob/main/${sourcePath}">Source on GitHub</a>. <a href="/log.md">Change log</a>.</p>`
+      );
+    }
+
+    const targetUrl = `https://ratstack.sh${route}`;
+
+    const sources = loreGraphSnapshot.edges
+      .filter((edge) => edge.kind === "link" && edge.to.url === targetUrl)
+      .map((edge) => edge.from.url.slice("https://ratstack.sh".length))
+      .toSorted();
+
+    if (sources.length > 0) {
+      const grouped = new Map<string, string[]>();
+
+      for (const source of sources) {
+        const kind = pageKinds.get(source) ?? "Page";
+        const entries = grouped.get(kind) ?? [];
+        entries.push(
+          `<a href="${source}">${escapeHtml(titles.get(source) ?? source)}</a>`
+        );
+        grouped.set(kind, entries);
+      }
+
+      const groups = [...grouped]
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(
+          ([kind, links]) =>
+            `<li><strong>${escapeHtml(kind)}</strong>: ${links.join(", ")}</li>`
+        )
+        .join("");
+
+      lines.push(`<p>Linked from:</p><ul>${groups}</ul>`);
+    }
+
+    return lines.length === 0 ? "" : `<hr>${lines.join("")}`;
+  };
 
   const lawBodiesWithFooters = lawBodies.map(({ bodyHtml, spec }) => ({
     bodyHtml: `${bodyHtml}${pageFooterHtml(spec.routePath, spec.sourcePath)}`,
@@ -2494,7 +2596,7 @@ ${groupedSkills}
 
   const staticContentVersion = contentVersion;
 
-  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const ratSvg = ${sourceLiteral(emojiSvg)} as const;\n\nexport const faviconIcoBase64 = ${sourceLiteral(faviconIcoBase64)} as const;\n\nexport const appleTouchIconPngBase64 = ${sourceLiteral(appleTouchIconPngBase64)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const noVerifyMarkdown = ${sourceLiteral(noVerifyAgentMarkdown)} as const;\n\nexport const noVerifyDocumentHtml = ${sourceLiteral(noVerifyDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const loreIndexMarkdown = ${sourceLiteral(loreIndexMarkdown)} as const;\n\nexport const llmsLoreLinks = ${sourceLiteral(llmsLoreLinks)} as const;\n\nexport const loreIndexDocumentHtml = ${sourceLiteral(loreIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n\nexport const loreSources = ${sourceLiteral(loreSources)} as const;\n`;
+  const generated = `// Generated by scripts/generate-content.ts. Do not edit by hand.\n\nexport const originToken = ${sourceLiteral(originToken)} as const;\n\nexport const staticContentVersion = ${sourceLiteral(staticContentVersion)} as const;\n\nexport const ogImagePath = (routePath: string) => "/og" + (routePath === "/" ? "/home" : routePath) + ".png";\n\nexport const ogImages = ${sourceLiteral(ogImages)} as const;\n\nexport const ratSvg = ${sourceLiteral(emojiSvg)} as const;\n\nexport const faviconIcoBase64 = ${sourceLiteral(faviconIcoBase64)} as const;\n\nexport const appleTouchIconPngBase64 = ${sourceLiteral(appleTouchIconPngBase64)} as const;\n\nexport const homeMarkdownTemplate = ${sourceLiteral(homeMarkdownTemplate)} as const;\n\nexport const homeDocumentHtml = ${sourceLiteral(homeDocumentHtml)} as const;\n\nexport const noVerifyMarkdown = ${sourceLiteral(noVerifyAgentMarkdown)} as const;\n\nexport const noVerifyDocumentHtml = ${sourceLiteral(noVerifyDocumentHtml)} as const;\n\nexport const skillIndexMarkdown = ${sourceLiteral(skillIndexMarkdown)} as const;\n\nexport const skillIndexDocumentHtml = ${sourceLiteral(skillIndexDocumentHtml)} as const;\n\nexport const loreIndexMarkdown = ${sourceLiteral(loreIndexMarkdown)} as const;\n\nexport const llmsLoreLinks = ${sourceLiteral(llmsLoreLinks)} as const;\n\nexport const loreIndexDocumentHtml = ${sourceLiteral(loreIndexDocumentHtml)} as const;\n\nexport const lawSources = ${sourceLiteral(lawSources)} as const;\n\nexport const skillSources = ${sourceLiteral(skillSources)} as const;\n\nexport const loreSources = ${sourceLiteral(loreSources)} as const;\n\nexport const loreGraphSnapshot = ${sourceLiteral(loreGraphSnapshotJson)} as const;\n`;
 
   const temporaryOutput = yield* fileSystem
     .makeTempFile({

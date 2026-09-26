@@ -9,6 +9,8 @@ import {
   skillSources,
 } from "./bundled-content.generated.js";
 
+export { loreGraphSnapshot } from "./bundled-content.generated.js";
+
 export {
   appleTouchIconPngBase64,
   faviconIcoBase64,

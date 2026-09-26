@@ -342,7 +342,8 @@ export const linkLoreTerms = (
   targets: readonly LoreTermTarget[],
   selfRoute: string,
   linkedRoutes: Set<string>,
-  limit = 12
+  limit = 12,
+  wovenTerms: Map<string, string> = new Map<string, string>()
 ) => {
   const byTerm = new Map(
     targets.map((target) => [target.term.toLowerCase(), target])
@@ -411,6 +412,7 @@ export const linkLoreTerms = (
         linkedTerms.add(target.term.toLowerCase());
         linkedTermRoutes.add(target.routePath);
         linkedRoutes.add(target.routePath);
+        wovenTerms.set(target.routePath, target.term);
       }
 
       if (replacement.length > 0) {

@@ -1,11 +1,27 @@
 import { toExecuteCapability } from "@rat-stack/capability/code-mode";
+import { LoreGraph } from "@rat-stack/lore";
 
+import { loreGraphSnapshot } from "../content.js";
+import { backlinks, mentions, neighbors, path } from "./lore.js";
 import { read } from "./read.js";
 import { search } from "./search.js";
 
 export { read } from "./read.js";
 
+export { backlinks, mentions, neighbors, path } from "./lore.js";
+
 export {
+  BacklinksOutput,
+  LoreEdge,
+  LoreEdgeKind,
+  LoreGroup,
+  LoreNode,
+  LorePageReference,
+  LorePathOutput,
+  MentionsOutput,
+  NeighborsOutput,
+  NoPath,
+  UnknownPage,
   ReadOutput,
   ResourceNotFound,
   SearchMatch,
@@ -14,7 +30,16 @@ export {
 
 export { search } from "./search.js";
 
-export const contentCapabilities = [search, read] as const;
+export const contentCapabilities = [
+  search,
+  read,
+  backlinks,
+  neighbors,
+  mentions,
+  path,
+] as const;
+
+export const contentLayer = LoreGraph.layer(loreGraphSnapshot);
 
 const generatedExecuteProjection = toExecuteCapability(contentCapabilities);
 
@@ -43,4 +68,12 @@ export const executeProjection = {
   capability: execute,
 };
 
-export const capabilities = [search, read, execute] as const;
+export const capabilities = [
+  search,
+  read,
+  backlinks,
+  neighbors,
+  mentions,
+  path,
+  execute,
+] as const;

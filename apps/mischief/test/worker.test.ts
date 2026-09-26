@@ -1,6 +1,11 @@
 import { expect, it } from "@effect/vitest";
 import { ExecuteResult } from "@rat-stack/capability/code-mode";
-import { ReadOutput, SearchOutput } from "@rat-stack/core/contracts";
+import {
+  LorePathOutput,
+  NeighborsOutput,
+  ReadOutput,
+  SearchOutput,
+} from "@rat-stack/core/contracts";
 import { Effect, Layer, Schema } from "effect";
 import * as McpSchema from "effect/unstable/ai/McpSchema";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
@@ -1421,7 +1426,11 @@ it.effect("serves agent indexes, cards, sitemap, and robots policy", () =>
       expect(document.info.title).toBe("ratstack.sh");
       expect(JSON.stringify(openapiBody)).toContain('"lore"');
       expect(Object.keys(document.paths).toSorted()).toEqual([
+        "/api/backlinks",
         "/api/execute",
+        "/api/mentions",
+        "/api/neighbors",
+        "/api/path",
         "/api/read",
         "/api/search",
       ]);
@@ -1609,45 +1618,59 @@ it.effect("keeps Web Bot Auth off unless a bound private key enables it", () =>
   )
 );
 
-it.effect("projects search, read, and execute through HTTP", () =>
-  withHandler((handler) =>
-    Effect.gen(function* testHttpCapabilities() {
-      const searched = yield* postJson(handler, "/api/search", {
-        limit: 1,
-        query: "capability",
-      });
+it.effect(
+  "projects search, read, graph queries, and execute through HTTP",
+  () =>
+    withHandler((handler) =>
+      Effect.gen(function* testHttpCapabilities() {
+        const searched = yield* postJson(handler, "/api/search", {
+          limit: 1,
+          query: "capability",
+        });
 
-      const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
-        yield* readJson(searched)
-      );
+        const searchResult = yield* Schema.decodeUnknownEffect(SearchOutput)(
+          yield* readJson(searched)
+        );
 
-      const id = searchResult.matches[0]?.id ?? "";
-      expect(searched.status).toBe(200);
-      expect(id).not.toBe("");
+        const id = searchResult.matches[0]?.id ?? "";
+        expect(searched.status).toBe(200);
+        expect(id).not.toBe("");
 
-      const read = yield* postJson(handler, "/api/read", { id });
+        const read = yield* postJson(handler, "/api/read", { id });
 
-      const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
-        yield* readJson(read)
-      );
+        const readResult = yield* Schema.decodeUnknownEffect(ReadOutput)(
+          yield* readJson(read)
+        );
 
-      expect(readResult.text).toContain("capability");
+        expect(readResult.text).toContain("capability");
 
-      const executed = yield* postJson(handler, "/api/execute", {
-        code: [
-          "const found = await tools.search({ query: 'capability', limit: 1 });",
-          "return await tools.read({ id: found.matches[0].id });",
-        ].join("\n"),
-      });
+        const neighbors = yield* postJson(handler, "/api/neighbors", {
+          depth: 1,
+          slug: "cartridges",
+        });
 
-      const executeResult = yield* Schema.decodeUnknownEffect(ExecuteResult)(
-        yield* readJson(executed)
-      );
+        const neighborsResult = yield* Schema.decodeUnknownEffect(
+          NeighborsOutput
+        )(yield* readJson(neighbors));
 
-      expect(executeResult.logs).toEqual(["test: search then read"]);
-      expect(executeResult.result).toMatchObject({ id });
-    })
-  )
+        expect(neighbors.status).toBe(200);
+        expect(neighborsResult.neighbors.length).toBeGreaterThan(0);
+
+        const executed = yield* postJson(handler, "/api/execute", {
+          code: [
+            "const found = await tools.search({ query: 'capability', limit: 1 });",
+            "return await tools.read({ id: found.matches[0].id });",
+          ].join("\n"),
+        });
+
+        const executeResult = yield* Schema.decodeUnknownEffect(ExecuteResult)(
+          yield* readJson(executed)
+        );
+
+        expect(executeResult.logs).toEqual(["test: search then read"]);
+        expect(executeResult.result).toMatchObject({ id });
+      })
+    )
 );
 
 it.effect("returns 429 after API_PER_IP denies a client IP", () => {
@@ -1891,7 +1914,15 @@ it.effect(
           (prompt) => prompt.name
         );
 
-        expect(toolNames?.toSorted()).toEqual(["execute", "read", "search"]);
+        expect(toolNames?.toSorted()).toEqual([
+          "backlinks",
+          "execute",
+          "mentions",
+          "neighbors",
+          "path",
+          "read",
+          "search",
+        ]);
 
         const executeDescription = tools?.find(
           (tool) => tool.name === "execute"
@@ -1921,7 +1952,7 @@ it.effect(
 );
 
 it.effect(
-  "calls search, read, and a search-then-read execute program over MCP",
+  "calls graph capabilities directly and through code mode over MCP",
   () =>
     withHandler((handler) =>
       Effect.gen(function* testMcpTools() {
@@ -1962,6 +1993,50 @@ it.effect(
 
         expect(readResult.id).toBe(id);
 
+        const neighborsResponse = yield* postMcp(
+          handler,
+          "neighbors",
+          "tools/call",
+          { arguments: { depth: 1, slug: "cartridges" }, name: "neighbors" },
+          "neighbors"
+        );
+
+        const neighborsPayload = yield* readJson(neighborsResponse);
+        expect(neighborsPayload).toMatchObject({
+          result: { isError: false },
+        });
+
+        const neighborsCall =
+          yield* Schema.decodeUnknownEffect(ToolCallResponse)(neighborsPayload);
+
+        const neighborsResult = yield* Schema.decodeUnknownEffect(
+          NeighborsOutput
+        )(neighborsCall.result.structuredContent);
+
+        expect(neighborsResult.neighbors.length).toBeGreaterThan(0);
+
+        const pathResponse = yield* postMcp(
+          handler,
+          "path",
+          "tools/call",
+          {
+            arguments: { from: "cartridges", to: "sam-goodwin" },
+            name: "path",
+          },
+          "path"
+        );
+
+        const pathCall = yield* Schema.decodeUnknownEffect(ToolCallResponse)(
+          yield* readJson(pathResponse)
+        );
+
+        const pathResult = yield* Schema.decodeUnknownEffect(LorePathOutput)(
+          pathCall.result.structuredContent
+        );
+
+        expect(pathResult.nodes[0]?.slug).toBe("cartridges");
+        expect(pathResult.nodes.at(-1)?.slug).toBe("sam-goodwin");
+
         const executeResponse = yield* postMcp(
           handler,
           "execute",
@@ -1970,7 +2045,8 @@ it.effect(
             arguments: {
               code: [
                 "const found = await tools.search({ query: 'capability', limit: 1 });",
-                "return await tools.read({ id: found.matches[0].id });",
+                "await tools.read({ id: found.matches[0].id });",
+                "return await tools.neighbors({ slug: 'cartridges', depth: 1 });",
               ].join("\n"),
             },
             name: "execute",
@@ -1986,7 +2062,11 @@ it.effect(
           executed.result.structuredContent
         );
 
-        expect(executeResult.result).toMatchObject({ id });
+        const codeModeNeighbors = yield* Schema.decodeUnknownEffect(
+          NeighborsOutput
+        )(executeResult.result);
+
+        expect(codeModeNeighbors.neighbors.length).toBeGreaterThan(0);
 
         const [law] = lawResources;
         expect(law).toBeDefined();
