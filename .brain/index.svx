@@ -4,4 +4,4 @@ The rendered Brain index is programmatic.
 
 Open `/notes` in the local pi-notes Document Host to browse entries sorted by PARA.
 
-Do not maintain a manual page list here; `.brain/**/*.svx` is discovered automatically.
+Do not maintain a manual page list here; `.brain/**/*.svx` is discovered automatically. The [lore graph plan](./projects/lore-graph.svx) records the rat's brain decisions.

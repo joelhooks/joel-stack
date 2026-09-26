@@ -1,6 +1,9 @@
 import { expect, it } from "@effect/vitest";
-import { contentCapabilities } from "@rat-stack/mischief/capabilities";
-import { Effect, Schema } from "effect";
+import {
+  contentCapabilities,
+  contentLayer,
+} from "@rat-stack/mischief/capabilities";
+import { Effect, Layer, Schema } from "effect";
 import { HttpRouter } from "effect/unstable/http";
 
 import { contentRoutes } from "../src/dev/content-routes.js";
@@ -19,7 +22,7 @@ const RpcExit = Schema.fromJsonString(
 it.effect("serves search over /rpc with no devtools involved", () =>
   Effect.gen(function* servesContent() {
     const { dispose, handler } = HttpRouter.toWebHandler(
-      contentRoutes(contentCapabilities),
+      contentRoutes(contentCapabilities).pipe(Layer.provide(contentLayer)),
       { disableLogger: true }
     );
 
