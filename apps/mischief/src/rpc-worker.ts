@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc";
 
-import { contentCapabilities } from "./capabilities/index.js";
+import { contentCapabilities, contentLayer } from "./capabilities/index.js";
 
 export const rpcProjection = toRpc(contentCapabilities);
 
@@ -18,7 +18,9 @@ export default class RpcBackend extends Cloudflare.Workers.RpcWorker<RpcBackend>
   Effect.succeed(
     RpcServer.toHttpEffect(rpcProjection.group).pipe(
       Effect.provide(
-        Layer.mergeAll(rpcProjection.layer, RpcSerialization.layerJson)
+        Layer.mergeAll(rpcProjection.layer, RpcSerialization.layerJson).pipe(
+          Layer.provide(contentLayer)
+        )
       )
     )
   )

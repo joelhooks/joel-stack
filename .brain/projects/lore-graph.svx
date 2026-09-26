@@ -1,0 +1,29 @@
+---
+title: "Lore graph and the rat's brain"
+type: "plan"
+status: "active"
+created_at: "2026-09-25"
+privacy: "public"
+---
+
+# Lore graph and the rat's brain
+
+Joel approved turning ratstack.sh into a read-only, Roam-like LLM wiki built from Effect. The graph is a typed domain and the site is an agent-first surface. Changes arrive through reviewed PRs.
+
+## Plan
+
+1. **Graph cartridge.** `packages/lore` owns the typed graph, build-time snapshot, and backlinks, neighbors, mentions, and shortest-path capabilities. Mischief exposes them through MCP, HTTP/OpenAPI, and code mode. This is the current lane.
+2. **Stable quote blocks.** Add stable block IDs and quote embedding. A quote lives on its source page; concept pages transclude it.
+3. **Graph view.** Build the graph view in `apps/web` over AtomRpc.
+4. **Reviewed ingestion.** Add an XState ingest machine as its own cartridge: public source → transcript → proposed lore → review → PR. Joel must decide what sources it may ingest before this machine can collect anything.
+
+## Boundaries
+
+- Mischief stays JS-free and agent-first.
+- The public wiki is read-only. Changes arrive through reviewed PRs.
+- Do not build a Roam clone: no daily notes, outliner, or live editing.
+- Keep the private research wiki separate from the public site.
+
+## Related decision
+
+- [Layer startups](./layer-startups.svx)
