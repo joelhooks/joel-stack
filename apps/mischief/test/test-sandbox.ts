@@ -53,9 +53,15 @@ export const TestSandbox = Layer.succeed(Sandbox, {
         Effect.mapError((error) => protocolError(error.message))
       );
 
+      const result = code.includes("tools.neighbors")
+        ? yield* invoke("neighbors", { depth: 1, slug: "cartridges" }).pipe(
+            Effect.flatMap(unwrap)
+          )
+        : resource;
+
       return {
         logs: ["test: search then read"],
-        result: resource,
+        result,
       };
     }),
 });

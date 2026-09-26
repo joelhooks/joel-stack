@@ -289,11 +289,14 @@ it.effect(
       };
 
       const linkedRoutes = new Set<string>();
+      const wovenTerms = new Map<string, string>();
 
       linkLoreTerms(
         [{ routePath: "/lore/cartridges", term: "cartridge" }],
         "/another-page",
-        linkedRoutes
+        linkedRoutes,
+        12,
+        wovenTerms
       )()(tree);
 
       const rendered = JSON.stringify(tree);
@@ -302,6 +305,7 @@ it.effect(
       expect(rendered).toContain('"value":"Cartridge"');
       expect(rendered).toContain('"value":" first, cartridge again."');
       expect(linkedRoutes).toEqual(new Set(["/lore/cartridges"]));
+      expect(wovenTerms).toEqual(new Map([["/lore/cartridges", "cartridge"]]));
     })
 );
 

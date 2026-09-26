@@ -8,6 +8,7 @@ import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import { RpcClient, RpcSerialization, RpcServer } from "effect/unstable/rpc";
 
+import { contentLayer } from "../src/capabilities/index.js";
 import { rpcProjection } from "../src/rpc-worker.js";
 
 const rpcServer = RpcServer.layerHttp({
@@ -16,6 +17,7 @@ const rpcServer = RpcServer.layerHttp({
   protocol: "http",
 }).pipe(
   Layer.provide(rpcProjection.layer),
+  Layer.provide(contentLayer),
   Layer.provide(RpcSerialization.layerJson)
 );
 

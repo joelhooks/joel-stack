@@ -12,7 +12,7 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import * as HttpApiSchema from "effect/unstable/httpapi/HttpApiSchema";
 
 import { a2aError, decodeA2aRequest, handleA2aRequest } from "./a2a.js";
-import { capabilities, search } from "./capabilities/index.js";
+import { capabilities, contentLayer, search } from "./capabilities/index.js";
 import {
   a2aAgentCard,
   agentSkillPath,
@@ -355,6 +355,7 @@ const apiRoutes = HttpApiBuilder.layer(apiProjection.api, {
   openapiPath: "/openapi.json",
 }).pipe(
   Layer.provide(apiProjection.layer),
+  Layer.provide(contentLayer),
   Layer.provide(AlchemyHttp.Platform)
 );
 
@@ -373,9 +374,9 @@ const mcpTransport = (
   McpServer.layerHttp({
     allowedOrigins: ["https://ratstack.sh", "http://localhost:1337"],
     description:
-      "Search, read, and execute against the rat-stack source corpus",
+      "Search, read, and traverse the rat-stack source corpus and lore graph",
     instructions:
-      "Use search to find a file. Use read to get its exact text. Use execute only when one short program can replace several tool calls.",
+      "Use search and read for source text. Use backlinks, neighbors, mentions, and path to traverse lore relationships. Use execute when one short program can replace several tool calls.",
     name: "sh.ratstack/rat-stack",
     path: "/mcp",
     protocols,
@@ -406,7 +407,7 @@ export const mcpLayer = (
         name: skill.name,
       })
     )
-  ).pipe(Layer.provide(mcpTransport(protocols)));
+  ).pipe(Layer.provide(contentLayer), Layer.provide(mcpTransport(protocols)));
 
 const mcp = mcpLayer(modernMcpProtocols);
 
