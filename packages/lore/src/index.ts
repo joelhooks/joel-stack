@@ -32,6 +32,6 @@ export { LoreGraph } from "./lore-graph.js";
 
 export type { LoreGraphService } from "./lore-graph.js";
 
-export { NoPath } from "./no-path.js";
+export { NoPath } from "@rat-stack/core/contracts";
 
-export { UnknownPage } from "./unknown-page.js";
+export { UnknownPage } from "@rat-stack/core/contracts";

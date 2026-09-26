@@ -1,3 +1,4 @@
+import { NoPath, UnknownPage } from "@rat-stack/core/contracts";
 import { Context, Effect, Layer } from "effect";
 
 import type {
@@ -9,8 +10,6 @@ import type {
   LoreNode,
   LorePath,
 } from "./graph.js";
-import { NoPath } from "./no-path.js";
-import { UnknownPage } from "./unknown-page.js";
 
 export interface LoreGraphService {
   readonly backlinks: (

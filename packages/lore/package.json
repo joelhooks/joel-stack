@@ -28,6 +28,7 @@
     "pretest": "pnpm run --silent build"
   },
   "dependencies": {
+    "@rat-stack/core": "workspace:*",
     "effect": "4.0.0-rc.117"
   },
   "devDependencies": {
